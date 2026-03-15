@@ -121,11 +121,46 @@ select {
   line-height: 1.45;
 }
 
+.view-intro--compact h2 {
+  margin-bottom: 4px;
+  font-size: 20px;
+}
+
 .view-header-row {
   display: flex;
   align-items: end;
   justify-content: space-between;
   gap: 16px;
+}
+
+.chart-toolbar-row {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.panel-inline-toolbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px 0;
+}
+
+.panel-inline-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.panel-inline-copy strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.panel-inline-copy span {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .simple-filter {
@@ -479,9 +514,145 @@ select {
   font-weight: 600;
 }
 
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.comparison-list {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px 14px;
+}
+
+.comparison-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(180px, 0.8fr) 140px auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.comparison-row:last-child {
+  border-bottom: 0;
+}
+
+.comparison-row.is-selected {
+  background: #f6f9fd;
+  border-bottom-color: #c8d8eb;
+}
+
+.comparison-row:hover {
+  background: #f8fafc;
+}
+
+.comparison-main {
+  display: grid;
+  gap: 4px;
+}
+
+.comparison-main span,
+.comparison-metrics span,
+.stat-card small {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.comparison-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.comparison-metrics div {
+  display: grid;
+  gap: 4px;
+}
+
+.comparison-metrics strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.mini-sparkline {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-pill.is-neutral {
+  background: #eef1f4;
+  color: #47505b;
+}
+
+.status-pill.is-warning {
+  background: #fff2df;
+  color: #a36014;
+}
+
+.status-pill.is-danger {
+  background: #fde7ea;
+  color: #b43b52;
+}
+
+.status-pill.is-good {
+  background: #e4f5ea;
+  color: #2f7b4b;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.compact-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.compact-table th,
+.compact-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  font-size: 14px;
+}
+
+.compact-table tbody tr {
+  cursor: pointer;
+}
+
+.compact-table tbody tr.is-selected {
+  background: #f6f9fd;
+}
+
+.compact-table th {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .weather-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 20px;
 }
 
@@ -507,6 +678,17 @@ select {
 .weather-card-now {
   font-size: 14px;
   font-weight: 700;
+}
+
+.weather-card-chip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.weather-card-chip-row small {
+  color: var(--muted);
 }
 
 .weather-status {
@@ -538,6 +720,18 @@ select {
 
 .weather-card-body small {
   color: var(--muted);
+}
+
+.weather-trend {
+  display: grid;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.weather-trend span {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .simple-chart {
@@ -591,6 +785,7 @@ select {
   .etr-summary-grid,
   .etr-top-grid,
   .snow-grid,
+  .detail-grid,
   .weather-grid,
   .stat-grid {
     grid-template-columns: 1fr;
@@ -600,6 +795,12 @@ select {
     grid-template-columns: 1fr;
   }
 
+  .comparison-row {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-toolbar-row,
+  .panel-inline-toolbar,
   .view-header-row,
   .site-header {
     flex-direction: column;

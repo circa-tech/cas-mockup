@@ -1,5 +1,6 @@
 import { ReactNode, useMemo, useState } from "react";
 import { EtrMap } from "./components/EtrMap";
+import { MiniSparkline } from "./components/MiniSparkline";
 import { SimpleBarChart } from "./components/SimpleBarChart";
 import { SimpleLineChart } from "./components/SimpleLineChart";
 import {
@@ -64,6 +65,44 @@ function SnowChartSummary({ series }: { series: { points: { label: string; value
     </div>
   );
 }
+
+const getCurrentValue = (points: { value: number }[]) =>
+  points[points.length - 1]?.value ?? 0;
+
+const getDailyChangeValue = (points: { value: number }[]) => {
+  const last = points[points.length - 1]?.value ?? 0;
+  const reference = points[Math.max(0, points.length - 2)]?.value ?? last;
+  return last - reference;
+};
+
+const getRangeValue = (points: { value: number }[]) => {
+  const values = points.map((point) => point.value);
+  return Math.max(...values) - Math.min(...values);
+};
+
+const getTrendLabel = (delta: number) => {
+  if (delta > 0.08) {
+    return "Alza diaria";
+  }
+
+  if (delta < -0.08) {
+    return "Baja diaria";
+  }
+
+  return "Estable";
+};
+
+const getToneClass = (label: string) => {
+  if (label === "Alza diaria") {
+    return "is-warning";
+  }
+
+  if (label === "Baja diaria") {
+    return "is-danger";
+  }
+
+  return "is-neutral";
+};
 
 function EtrView() {
   const [selectedRegionId, setSelectedRegionId] = useState(etrRegions[0].id);
@@ -260,33 +299,164 @@ function WellsView() {
     () => wells.find((item) => item.id === selectedWellId) ?? wells[0],
     [selectedWellId],
   );
+  const wellRows = wells.map((well) => {
+    const current = getCurrentValue(well.points);
+    const change = getDailyChangeValue(well.points);
+    const dailyTrend = getTrendLabel(getDailyChangeValue(well.points));
+
+    return {
+      ...well,
+      change,
+      current,
+      dailyTrend,
+    };
+  });
+  const monitoredCount = wells.length;
+  const recentUpdates = wells.filter((well) => !well.lastTransmission.includes("h")).length;
+  const averageLevel =
+    wellRows.reduce((total, well) => total + well.current, 0) / wellRows.length;
+  const averageDailyChange =
+    wellRows.reduce((total, well) => total + well.change, 0) / wellRows.length;
+  const previousDay =
+    selectedWell.points[Math.max(0, selectedWell.points.length - 2)]?.label ?? "-";
+  const currentDay = selectedWell.points[selectedWell.points.length - 1]?.label ?? "-";
 
   return (
     <div className="view-stack">
-      <div className="view-header-row">
-        <div className="view-intro">
-          <h2>Nivel de Pozo (m)</h2>
-        </div>
+      <div className="view-intro">
+        <h2>Nivel de Pozo (m)</h2>
+        <p>Resumen general de la red y detalle por pozo seleccionado.</p>
+      </div>
 
-        <label className="simple-filter">
-          <span>Pozo</span>
-          <select
-            value={selectedWellId}
-            onChange={(event) => setSelectedWellId(event.target.value)}
-          >
-            {wells.map((well) => (
-              <option key={well.id} value={well.id}>
-                {well.label}
-              </option>
+      <div className="stat-grid">
+        <article className="stat-card">
+          <span>Pozos monitoreados</span>
+          <strong>{monitoredCount}</strong>
+          <small>Red visible en el dashboard</small>
+        </article>
+        <article className="stat-card">
+          <span>Nivel medio actual</span>
+          <strong>
+            {averageLevel.toFixed(2)} m
+          </strong>
+          <small>Promedio simple de la red</small>
+        </article>
+        <article className="stat-card">
+          <span>Cambio diario medio</span>
+          <strong>
+            {averageDailyChange >= 0 ? "+" : ""}
+            {averageDailyChange.toFixed(2)} m
+          </strong>
+          <small>{recentUpdates}/{monitoredCount} sin atraso mayor a 1 hora</small>
+        </article>
+      </div>
+
+      <div className="detail-grid">
+        <Panel
+          title="Comparacion rapida de pozos"
+          subtitle="Nivel actual, cambio diario y tendencia diaria"
+        >
+          <div className="comparison-list">
+            {wellRows.map((well) => (
+              <button
+                key={well.id}
+                type="button"
+                className={`comparison-row ${
+                  selectedWellId === well.id ? "is-selected" : ""
+                }`}
+                onClick={() => setSelectedWellId(well.id)}
+              >
+                <div className="comparison-main">
+                  <strong>{well.label}</strong>
+                  <span>{well.provider}</span>
+                </div>
+                <div className="comparison-metrics">
+                  <div>
+                    <span>Nivel</span>
+                    <strong>{well.current.toFixed(2)} m</strong>
+                  </div>
+                  <div>
+                    <span>Cambio diario</span>
+                    <strong>
+                      {well.change >= 0 ? "+" : ""}
+                      {well.change.toFixed(2)} m
+                    </strong>
+                  </div>
+                </div>
+                <MiniSparkline
+                  color="#ff6a00"
+                  points={well.points.map((point) => point.value)}
+                />
+                <span className={`status-pill ${getToneClass(well.dailyTrend)}`}>
+                  {well.dailyTrend}
+                </span>
+              </button>
             ))}
-          </select>
-        </label>
+          </div>
+        </Panel>
+
+        <Panel
+          title="Estado de red"
+          subtitle="Continuidad de telemetria y ultima transmision"
+        >
+          <div className="table-wrap">
+            <table className="compact-table">
+              <thead>
+                <tr>
+                  <th>Pozo</th>
+                  <th>Proveedor</th>
+                  <th>Ultima lectura</th>
+                  <th>Tendencia diaria</th>
+                </tr>
+              </thead>
+              <tbody>
+                {wellRows.map((well) => (
+                  <tr
+                    key={well.id}
+                    className={selectedWellId === well.id ? "is-selected" : ""}
+                    onClick={() => setSelectedWellId(well.id)}
+                  >
+                    <td>{well.label}</td>
+                    <td>{well.provider}</td>
+                    <td>{well.lastTransmission}</td>
+                    <td>
+                      <span className={`status-pill ${getToneClass(well.dailyTrend)}`}>
+                        {well.dailyTrend}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
       </div>
 
       <Panel
-        title="Serie reciente"
-        subtitle="Vista simplificada basada en el grafico actual de pozos"
+        title={`Serie reciente: ${selectedWell.label}`}
+        subtitle={`${selectedWell.provider} · Cambio diario ${getDailyChangeValue(selectedWell.points) >= 0 ? "+" : ""}${getDailyChangeValue(selectedWell.points).toFixed(2)} m · ${previousDay} a ${currentDay}`}
       >
+        <div className="panel-inline-toolbar">
+          <div className="panel-inline-copy">
+            <strong>Pozo seleccionado</strong>
+            <span>Tambien puede seleccionarlo desde la comparacion o la tabla.</span>
+          </div>
+
+          <label className="simple-filter">
+            <span>Pozo</span>
+            <select
+              value={selectedWellId}
+              onChange={(event) => setSelectedWellId(event.target.value)}
+            >
+              {wells.map((well) => (
+                <option key={well.id} value={well.id}>
+                  {well.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
         <SimpleLineChart
           maxValue={4.1}
           minValue={3.5}
@@ -307,6 +477,22 @@ function WellsView() {
 }
 
 function MeteoView() {
+  const averageTemperature =
+    meteoStations.reduce((total, station) => total + station.temperatureValue, 0) /
+    meteoStations.length;
+  const maxWind = Math.max(...meteoStations.map((station) => station.windValue));
+  const activeSignals = meteoStations.filter((station) => station.signal === "Estable").length;
+  const temperatureGroups = meteoStations.map((station) => ({
+    label: station.name,
+    series: [
+      {
+        label: "Temp",
+        value: station.temperatureValue,
+        color: "#2d6ea3",
+      },
+    ],
+  }));
+
   return (
     <div className="view-stack">
       <div className="view-intro">
@@ -317,6 +503,24 @@ function MeteoView() {
         </p>
       </div>
 
+      <div className="stat-grid">
+        <article className="stat-card">
+          <span>Estaciones activas</span>
+          <strong>{activeSignals}/{meteoStations.length}</strong>
+          <small>Senal operativa reciente</small>
+        </article>
+        <article className="stat-card">
+          <span>Temperatura media</span>
+          <strong>{averageTemperature.toFixed(1)}°C</strong>
+          <small>Promedio simple de la red</small>
+        </article>
+        <article className="stat-card">
+          <span>Viento maximo</span>
+          <strong>{maxWind.toFixed(1)} km/h</strong>
+          <small>Entre estaciones visibles</small>
+        </article>
+      </div>
+
       <div className="weather-grid">
         {meteoStations.map((station) => (
           <article key={station.name} className="weather-card">
@@ -324,6 +528,12 @@ function MeteoView() {
             <div className="weather-card-body">
               <span className="weather-card-now">AHORA</span>
               <div className="weather-status">{station.status}</div>
+              <div className="weather-card-chip-row">
+                <span className={`status-pill ${station.signal === "Estable" ? "is-good" : "is-warning"}`}>
+                  {station.signal}
+                </span>
+                <small>{station.updatedAt}</small>
+              </div>
               <div className="weather-metrics">
                 <div>
                   <span>Temp</span>
@@ -338,10 +548,62 @@ function MeteoView() {
                   <strong>{station.wind}</strong>
                 </div>
               </div>
-              <small>{station.updatedAt}</small>
+              <div className="weather-trend">
+                <span>Ultimas 24 h</span>
+                <MiniSparkline points={station.temperatureTrend} />
+              </div>
             </div>
           </article>
         ))}
+      </div>
+
+      <div className="detail-grid">
+        <Panel
+          title="Temperatura actual por estacion"
+          subtitle="Comparacion simple de la red"
+        >
+          <SimpleBarChart
+            groups={temperatureGroups}
+            maxValue={20}
+            tickStep={5}
+            unit="°C"
+            xLabelAngle={-10}
+          />
+        </Panel>
+
+        <Panel
+          title="Estado de estaciones"
+          subtitle="Lectura rapida de humedad, viento y continuidad"
+        >
+          <div className="table-wrap">
+            <table className="compact-table">
+              <thead>
+                <tr>
+                  <th>Estacion</th>
+                  <th>Senal</th>
+                  <th>HR</th>
+                  <th>Viento</th>
+                  <th>Actualizacion</th>
+                </tr>
+              </thead>
+              <tbody>
+                {meteoStations.map((station) => (
+                  <tr key={station.name}>
+                    <td>{station.name}</td>
+                    <td>
+                      <span className={`status-pill ${station.signal === "Estable" ? "is-good" : "is-warning"}`}>
+                        {station.signal}
+                      </span>
+                    </td>
+                    <td>{station.humidity}</td>
+                    <td>{station.wind}</td>
+                    <td>{station.updatedAt}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
       </div>
     </div>
   );
