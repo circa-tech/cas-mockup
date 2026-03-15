@@ -405,6 +405,23 @@ select {
   gap: 20px;
 }
 
+.snow-description {
+  padding: 2px 2px 4px;
+}
+
+.snow-description h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.snow-description p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+  font-size: 14px;
+}
+
 .snow-copy {
   padding: 0 16px;
   color: var(--muted);
@@ -436,6 +453,30 @@ select {
     radial-gradient(circle at 60% 40%, rgba(0, 0, 0, 0.18), transparent 22%),
     radial-gradient(circle at 52% 68%, rgba(255, 255, 255, 0.78), transparent 26%),
     linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.56));
+}
+
+.snow-chart-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 0 18px 18px;
+}
+
+.snow-chart-summary div {
+  display: grid;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.snow-chart-summary span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.snow-chart-summary strong {
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .weather-grid {
@@ -552,6 +593,10 @@ select {
   .snow-grid,
   .weather-grid,
   .stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .snow-chart-summary {
     grid-template-columns: 1fr;
   }
 

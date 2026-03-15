@@ -9,7 +9,9 @@ import {
   etrStats,
   meteoStations,
   snowJorqueraSeries,
+  snowManflasSeries,
   snowOverviewSeries,
+  snowPulidoSeries,
   views,
   ViewId,
   wells,
@@ -36,6 +38,30 @@ function Panel({
       </header>
       {children}
     </section>
+  );
+}
+
+function SnowChartSummary({ series }: { series: { points: { label: string; value: number }[]; label: string }[] }) {
+  const latestIndex = series[0]?.points.length ? series[0].points.length - 1 : 0;
+  const latestDate = series[0]?.points[latestIndex]?.label ?? "-";
+  const currentValue = series[0]?.points[latestIndex]?.value ?? 0;
+  const previousValue = series[1]?.points[latestIndex]?.value ?? 0;
+
+  return (
+    <div className="snow-chart-summary">
+      <div>
+        <span>Fecha</span>
+        <strong>{latestDate}</strong>
+      </div>
+      <div>
+        <span>Este ano</span>
+        <strong>{currentValue}%</strong>
+      </div>
+      <div>
+        <span>Ano pasado</span>
+        <strong>{previousValue}%</strong>
+      </div>
+    </div>
   );
 }
 
@@ -165,9 +191,18 @@ function SnowView() {
         </Panel>
 
         <div className="snow-charts">
+          <div className="snow-description">
+            <h3>Graficas de evolucion diaria de FSCA.</h3>
+            <p>
+              Los graficos de evolucion diaria de cobertura de nieve (FSCA)
+              muestran el porcentaje del area de estudio y de cada cuenca que
+              esta cubierta con nieve durante los dias correspondientes al periodo
+              humedo (abril-septiembre) del ano actual y el anterior.
+            </p>
+          </div>
+
           <Panel
-            title="Graficas de evolucion diaria de FSCA"
-            subtitle="Area de estudio"
+            title="Evolucion diaria de la cobertura de nieve en el area de estudio (%)"
           >
             <SimpleLineChart
               maxValue={100}
@@ -175,6 +210,7 @@ function SnowView() {
               series={snowOverviewSeries}
               unit="Cobertura (%)"
             />
+            <SnowChartSummary series={snowOverviewSeries} />
           </Panel>
 
           <Panel
@@ -186,6 +222,31 @@ function SnowView() {
               series={snowJorqueraSeries}
               unit="Cobertura (%)"
             />
+            <SnowChartSummary series={snowJorqueraSeries} />
+          </Panel>
+
+          <Panel
+            title="Evolucion diaria de FSCA de la cuenca de Pulido"
+          >
+            <SimpleLineChart
+              maxValue={100}
+              minValue={0}
+              series={snowPulidoSeries}
+              unit="Cobertura (%)"
+            />
+            <SnowChartSummary series={snowPulidoSeries} />
+          </Panel>
+
+          <Panel
+            title="Evolucion diaria de FSCA de la cuenca de Manflas"
+          >
+            <SimpleLineChart
+              maxValue={100}
+              minValue={0}
+              series={snowManflasSeries}
+              unit="Cobertura (%)"
+            />
+            <SnowChartSummary series={snowManflasSeries} />
           </Panel>
         </div>
       </div>

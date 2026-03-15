@@ -349,6 +349,68 @@ export const snowJorqueraSeries: LineSeries[] = [
   },
 ];
 
+export const snowPulidoSeries: LineSeries[] = [
+  {
+    label: "Este ano",
+    color: "#5a86d6",
+    points: [
+      { label: "Abr", value: 17 },
+      { label: "May", value: 27 },
+      { label: "Jun", value: 41 },
+      { label: "Jul", value: 54 },
+      { label: "Ago", value: 66 },
+      { label: "Sep", value: 58 },
+      { label: "Oct", value: 39 },
+      { label: "Nov", value: 23 },
+    ],
+  },
+  {
+    label: "Ano pasado",
+    color: "#f16e43",
+    points: [
+      { label: "Abr", value: 13 },
+      { label: "May", value: 21 },
+      { label: "Jun", value: 34 },
+      { label: "Jul", value: 43 },
+      { label: "Ago", value: 49 },
+      { label: "Sep", value: 38 },
+      { label: "Oct", value: 25 },
+      { label: "Nov", value: 14 },
+    ],
+  },
+];
+
+export const snowManflasSeries: LineSeries[] = [
+  {
+    label: "Este ano",
+    color: "#5a86d6",
+    points: [
+      { label: "Abr", value: 15 },
+      { label: "May", value: 24 },
+      { label: "Jun", value: 36 },
+      { label: "Jul", value: 48 },
+      { label: "Ago", value: 59 },
+      { label: "Sep", value: 50 },
+      { label: "Oct", value: 34 },
+      { label: "Nov", value: 19 },
+    ],
+  },
+  {
+    label: "Ano pasado",
+    color: "#f16e43",
+    points: [
+      { label: "Abr", value: 11 },
+      { label: "May", value: 18 },
+      { label: "Jun", value: 29 },
+      { label: "Jul", value: 38 },
+      { label: "Ago", value: 44 },
+      { label: "Sep", value: 34 },
+      { label: "Oct", value: 21 },
+      { label: "Nov", value: 12 },
+    ],
+  },
+];
+
 type Well = {
   id: string;
   label: string;
