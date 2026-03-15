@@ -10,11 +10,13 @@ export type LineSeries = {
 };
 
 type SimpleLineChartProps = {
+  labelEvery?: number;
   maxValue: number;
   minValue: number;
   mode?: "linear" | "step";
   series: LineSeries[];
   unit: string;
+  xLabelAngle?: number;
 };
 
 const makeLinePath = (
@@ -49,18 +51,20 @@ const makeLinePath = (
 };
 
 export function SimpleLineChart({
+  labelEvery = 1,
   maxValue,
   minValue,
   mode = "linear",
   series,
   unit,
+  xLabelAngle = 0,
 }: SimpleLineChartProps) {
   const width = 900;
   const height = 360;
   const paddingLeft = 64;
   const paddingRight = 18;
   const paddingTop = 24;
-  const paddingBottom = 54;
+  const paddingBottom = xLabelAngle === 0 ? 54 : 108;
   const chartWidth = width - paddingLeft - paddingRight;
   const chartHeight = height - paddingTop - paddingBottom;
   const pointCount = series[0]?.points.length ?? 0;
@@ -126,17 +130,24 @@ export function SimpleLineChart({
           )),
         )}
 
-        {series[0]?.points.map((point, index) => (
-          <text
-            key={point.label}
-            x={paddingLeft + index * stepX}
-            y={height - 16}
-            className="chart-axis-label"
-            textAnchor="middle"
-          >
-            {point.label}
-          </text>
-        ))}
+        {series[0]?.points.map((point, index) =>
+          index % labelEvery === 0 || index === series[0].points.length - 1 ? (
+            <text
+              key={point.label}
+              x={paddingLeft + index * stepX}
+              y={height - 16}
+              className="chart-axis-label"
+              textAnchor="middle"
+              transform={
+                xLabelAngle !== 0
+                  ? `rotate(${xLabelAngle} ${paddingLeft + index * stepX} ${height - 16})`
+                  : undefined
+              }
+            >
+              {point.label}
+            </text>
+          ) : null,
+        )}
 
         <text
           x={20}

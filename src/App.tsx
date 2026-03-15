@@ -1,9 +1,11 @@
 import { ReactNode, useMemo, useState } from "react";
+import { EtrMap } from "./components/EtrMap";
 import { SimpleBarChart } from "./components/SimpleBarChart";
 import { SimpleLineChart } from "./components/SimpleLineChart";
 import {
-  etrBarGroups,
-  etrSeasonSeries,
+  etrOverviewBarGroups,
+  etrOverviewSeasonSeries,
+  etrRegions,
   etrStats,
   meteoStations,
   snowJorqueraSeries,
@@ -15,15 +17,17 @@ import {
 
 function Panel({
   children,
+  className,
   title,
   subtitle,
 }: {
   children: ReactNode;
+  className?: string;
   title: string;
   subtitle?: string;
 }) {
   return (
-    <section className="panel">
+    <section className={`panel ${className ?? ""}`.trim()}>
       <header className="panel-header">
         <div>
           <h3>{title}</h3>
@@ -36,8 +40,14 @@ function Panel({
 }
 
 function EtrView() {
+  const [selectedRegionId, setSelectedRegionId] = useState(etrRegions[0].id);
+  const selectedRegion = useMemo(
+    () => etrRegions.find((region) => region.id === selectedRegionId) ?? etrRegions[0],
+    [selectedRegionId],
+  );
+
   return (
-    <div className="view-stack">
+    <div className="view-stack etr-page">
       <div className="view-intro">
         <h2>Monitoreo de Evapotranspiracion en el Valle de Copiapo</h2>
       </div>
@@ -51,25 +61,74 @@ function EtrView() {
         ))}
       </div>
 
-      <div className="two-column-grid">
+      <div className="etr-summary-grid">
         <Panel
-          title="Distribucion de ETR (mm) por clase de cultivo"
-          subtitle="Ultima fecha disponible"
+          title="Distribucion de ETR (mm) por clase de cultivo en la ultima fecha disponible"
         >
-          <SimpleBarChart groups={etrBarGroups} maxValue={25} unit="mm" />
+          <SimpleBarChart
+            groups={etrOverviewBarGroups}
+            maxValue={25}
+            tickStep={5}
+            unit="mm"
+            xLabelAngle={-18}
+          />
         </Panel>
 
         <Panel
           title="Comportamiento de ETR y ETmax en la temporada (mm)"
         >
           <SimpleLineChart
+            labelEvery={3}
             maxValue={1.8}
             minValue={0}
-            series={etrSeasonSeries}
+            series={etrOverviewSeasonSeries}
             unit="mm"
+            xLabelAngle={-45}
           />
         </Panel>
       </div>
+
+      <div className="etr-top-grid">
+        <Panel
+          title="Mapa sectores y areas de gestion CAS Copiapo"
+        >
+          <EtrMap
+            regions={etrRegions.map((region) => ({
+              id: region.id,
+              label: region.label,
+            }))}
+            selectedRegionId={selectedRegionId}
+            onSelect={(regionId) => setSelectedRegionId(regionId as typeof selectedRegionId)}
+          />
+        </Panel>
+
+        <Panel
+          title="Distribucion de ETR (mm) por clase de cultivo en la ultima fecha disponible"
+          subtitle={selectedRegion.label}
+        >
+          <SimpleBarChart
+            groups={selectedRegion.barGroups}
+            maxValue={35}
+            tickStep={5}
+            unit="mm"
+            xLabelAngle={-16}
+          />
+        </Panel>
+      </div>
+
+      <Panel
+        title="Variacion temporal de la ETR y ETmax"
+        className="panel-accent-blue"
+      >
+        <SimpleLineChart
+          labelEvery={2}
+          maxValue={1.8}
+          minValue={0}
+          series={selectedRegion.seasonSeries}
+          unit="mm"
+          xLabelAngle={-45}
+        />
+      </Panel>
     </div>
   );
 }
@@ -179,6 +238,7 @@ function WellsView() {
             },
           ]}
           unit="m"
+          labelEvery={1}
         />
       </Panel>
     </div>

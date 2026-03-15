@@ -12,30 +12,39 @@ export type BarGroup = {
 type SimpleBarChartProps = {
   groups: BarGroup[];
   maxValue: number;
+  tickStep?: number;
   unit: string;
+  xLabelAngle?: number;
 };
 
 export function SimpleBarChart({
   groups,
   maxValue,
+  tickStep,
   unit,
+  xLabelAngle = 0,
 }: SimpleBarChartProps) {
   const width = 760;
   const height = 320;
   const paddingLeft = 52;
   const paddingRight = 20;
   const paddingTop = 24;
-  const paddingBottom = 62;
+  const paddingBottom = xLabelAngle === 0 ? 62 : 84;
   const chartWidth = width - paddingLeft - paddingRight;
   const chartHeight = height - paddingTop - paddingBottom;
   const groupWidth = chartWidth / groups.length;
   const innerGap = 10;
   const barWidth = Math.min(28, (groupWidth - innerGap * 3) / 2);
+  const step = tickStep ?? Math.max(1, Math.round(maxValue / 5));
+  const ticks = Array.from(
+    { length: Math.floor(maxValue / step) + 1 },
+    (_, index) => index * step,
+  );
 
   return (
     <div className="simple-chart">
       <svg viewBox={`0 0 ${width} ${height}`} className="simple-chart-svg" role="img">
-        {[0, 5, 10, 15, 20, 25].map((tick) => {
+        {ticks.map((tick) => {
           const y = paddingTop + chartHeight - (tick / maxValue) * chartHeight;
 
           return (
@@ -82,6 +91,11 @@ export function SimpleBarChart({
                 y={height - 16}
                 className="chart-axis-label"
                 textAnchor="middle"
+                transform={
+                  xLabelAngle !== 0
+                    ? `rotate(${xLabelAngle} ${originX + groupWidth / 2} ${height - 16})`
+                    : undefined
+                }
               >
                 {group.label}
               </text>

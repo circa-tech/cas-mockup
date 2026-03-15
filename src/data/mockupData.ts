@@ -16,7 +16,7 @@ export const etrStats = [
   { label: "ETMAX media", value: "1.8 mm/dia" },
 ];
 
-export const etrBarGroups: BarGroup[] = [
+export const etrOverviewBarGroups: BarGroup[] = [
   {
     label: "Frutales",
     series: [
@@ -54,42 +54,236 @@ export const etrBarGroups: BarGroup[] = [
   },
 ];
 
-export const etrSeasonSeries: LineSeries[] = [
+export type EtrRegionId =
+  | "acuifer-1-4"
+  | "tierra-amarilla"
+  | "valle-bajo";
+
+export type EtrRegion = {
+  id: EtrRegionId;
+  label: string;
+  barGroups: BarGroup[];
+  seasonSeries: LineSeries[];
+};
+
+const etrDates = [
+  "2025-05-02",
+  "2025-05-07",
+  "2025-05-12",
+  "2025-05-17",
+  "2025-05-22",
+  "2025-05-27",
+  "2025-06-01",
+  "2025-06-06",
+  "2025-06-11",
+  "2025-06-16",
+  "2025-06-18",
+  "2025-06-21",
+  "2025-06-26",
+  "2025-07-01",
+  "2025-07-06",
+  "2025-07-08",
+  "2025-07-11",
+  "2025-07-16",
+  "2025-07-21",
+  "2025-07-26",
+  "2025-07-28",
+  "2025-07-31",
+  "2025-08-05",
+  "2025-08-15",
+  "2025-08-20",
+  "2025-08-25",
+  "2025-08-30",
+  "2025-09-04",
+  "2025-09-06",
+  "2025-09-09",
+  "2025-09-14",
+  "2025-09-19",
+  "2025-09-24",
+  "2025-09-26",
+  "2025-09-29",
+  "2025-10-06",
+  "2025-10-09",
+];
+
+const toLinePoints = (values: number[]): LinePoint[] =>
+  etrDates.map((label, index) => ({
+    label,
+    value: values[index],
+  }));
+
+const buildEtrSeries = (etr: number[], etmax: number[]): LineSeries[] => [
   {
     label: "ETR media",
     color: "#8ff22a",
-    points: [
-      { label: "2025-05-02", value: 0.4 },
-      { label: "2025-05-12", value: 0.3 },
-      { label: "2025-05-22", value: 0.3 },
-      { label: "2025-06-01", value: 0.2 },
-      { label: "2025-06-11", value: 0.2 },
-      { label: "2025-06-26", value: 0.2 },
-      { label: "2025-07-11", value: 0.2 },
-      { label: "2025-07-28", value: 0.2 },
-      { label: "2025-08-17", value: 0.3 },
-      { label: "2025-09-04", value: 0.4 },
-      { label: "2025-09-19", value: 0.5 },
-      { label: "2025-10-06", value: 0.8 },
-    ],
+    points: toLinePoints(etr),
   },
   {
     label: "ETMAX media",
     color: "#ff6788",
-    points: [
-      { label: "2025-05-02", value: 0.9 },
-      { label: "2025-05-12", value: 0.8 },
-      { label: "2025-05-22", value: 0.8 },
-      { label: "2025-06-01", value: 0.7 },
-      { label: "2025-06-11", value: 0.6 },
-      { label: "2025-06-26", value: 0.5 },
-      { label: "2025-07-11", value: 0.6 },
-      { label: "2025-07-28", value: 0.6 },
-      { label: "2025-08-17", value: 0.9 },
-      { label: "2025-09-04", value: 1.1 },
-      { label: "2025-09-19", value: 1.3 },
-      { label: "2025-10-06", value: 1.6 },
+    points: toLinePoints(etmax),
+  },
+];
+
+export const etrOverviewSeasonSeries = buildEtrSeries(
+  [
+    0.4, 0.1, 0.4, 0.3, 0.3, 0.3, 0.2, 0.2, 0.2, 0.2,
+    0.2, 0.2, 0.2, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
+    0.1, 0.2, 0.1, 0.1, 0.1, 0.2, 0.2, 0.4, 0.3, 0.3,
+    0.3, 0.4, 0.4, 0.5, 0.5, 0.8, 0.8,
+  ],
+  [
+    0.9, 0.7, 0.9, 0.8, 0.8, 0.6, 0.6, 0.6, 0.5, 0.6,
+    0.4, 0.4, 0.4, 0.3, 0.4, 0.4, 0.3, 0.4, 0.4, 0.5,
+    0.4, 0.6, 0.5, 0.6, 0.6, 0.6, 0.7, 1.0, 0.9, 0.9,
+    1.0, 1.1, 1.3, 1.5, 1.4, 1.8, 1.8,
+  ],
+);
+
+export const etrRegions: EtrRegion[] = [
+  {
+    id: "acuifer-1-4",
+    label: "Sectores acuifero 1 al 4",
+    barGroups: [
+      {
+        label: "Frutales",
+        series: [
+          { label: "ETR", value: 31.2, color: "#8ff22a" },
+          { label: "ETMAX", value: 28.0, color: "#ff6788" },
+        ],
+      },
+      {
+        label: "Praderas",
+        series: [
+          { label: "ETR", value: 5.0, color: "#8ff22a" },
+          { label: "ETMAX", value: 13.2, color: "#ff6788" },
+        ],
+      },
+      {
+        label: "Sin Cultivo",
+        series: [
+          { label: "ETR", value: 5.2, color: "#8ff22a" },
+          { label: "ETMAX", value: 12.7, color: "#ff6788" },
+        ],
+      },
+      {
+        label: "Vides y Parronales",
+        series: [
+          { label: "ETR", value: 15.4, color: "#8ff22a" },
+          { label: "ETMAX", value: 19.8, color: "#ff6788" },
+        ],
+      },
     ],
+    seasonSeries: buildEtrSeries(
+      [
+        0.6, 0.4, 0.4, 0.4, 0.3, 0.3, 0.3, 0.2, 0.2, 0.2,
+        0.2, 0.2, 0.2, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
+        0.1, 0.2, 0.1, 0.1, 0.1, 0.2, 0.2, 0.4, 0.3, 0.3,
+        0.3, 0.4, 0.6, 0.8, 0.7, 1.2, 1.3,
+      ],
+      [
+        0.9, 0.8, 0.6, 0.6, 0.6, 0.5, 0.5, 0.5, 0.4, 0.6,
+        0.4, 0.4, 0.4, 0.3, 0.4, 0.4, 0.3, 0.4, 0.4, 0.5,
+        0.4, 0.6, 0.5, 0.6, 0.6, 0.6, 0.7, 1.0, 0.9, 0.9,
+        1.0, 1.1, 1.3, 1.5, 1.8, 1.6, 1.8,
+      ],
+    ),
+  },
+  {
+    id: "tierra-amarilla",
+    label: "Tierra Amarilla",
+    barGroups: [
+      {
+        label: "Frutales",
+        series: [
+          { label: "ETR", value: 24.6, color: "#8ff22a" },
+          { label: "ETMAX", value: 26.3, color: "#ff6788" },
+        ],
+      },
+      {
+        label: "Praderas",
+        series: [
+          { label: "ETR", value: 6.8, color: "#8ff22a" },
+          { label: "ETMAX", value: 14.8, color: "#ff6788" },
+        ],
+      },
+      {
+        label: "Sin Cultivo",
+        series: [
+          { label: "ETR", value: 4.4, color: "#8ff22a" },
+          { label: "ETMAX", value: 11.6, color: "#ff6788" },
+        ],
+      },
+      {
+        label: "Vides y Parronales",
+        series: [
+          { label: "ETR", value: 12.8, color: "#8ff22a" },
+          { label: "ETMAX", value: 17.1, color: "#ff6788" },
+        ],
+      },
+    ],
+    seasonSeries: buildEtrSeries(
+      [
+        0.5, 0.3, 0.3, 0.3, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
+        0.2, 0.2, 0.2, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
+        0.1, 0.1, 0.1, 0.1, 0.1, 0.2, 0.2, 0.3, 0.3, 0.3,
+        0.4, 0.5, 0.6, 0.6, 0.5, 0.8, 0.9,
+      ],
+      [
+        0.8, 0.7, 0.6, 0.6, 0.6, 0.5, 0.5, 0.5, 0.4, 0.5,
+        0.4, 0.4, 0.4, 0.3, 0.4, 0.4, 0.3, 0.4, 0.4, 0.4,
+        0.4, 0.5, 0.5, 0.6, 0.6, 0.6, 0.7, 0.9, 0.8, 0.8,
+        0.9, 1.0, 1.1, 1.2, 1.1, 1.4, 1.5,
+      ],
+    ),
+  },
+  {
+    id: "valle-bajo",
+    label: "Valle bajo",
+    barGroups: [
+      {
+        label: "Frutales",
+        series: [
+          { label: "ETR", value: 28.4, color: "#8ff22a" },
+          { label: "ETMAX", value: 30.1, color: "#ff6788" },
+        ],
+      },
+      {
+        label: "Praderas",
+        series: [
+          { label: "ETR", value: 7.6, color: "#8ff22a" },
+          { label: "ETMAX", value: 15.8, color: "#ff6788" },
+        ],
+      },
+      {
+        label: "Sin Cultivo",
+        series: [
+          { label: "ETR", value: 6.2, color: "#8ff22a" },
+          { label: "ETMAX", value: 13.9, color: "#ff6788" },
+        ],
+      },
+      {
+        label: "Vides y Parronales",
+        series: [
+          { label: "ETR", value: 17.3, color: "#8ff22a" },
+          { label: "ETMAX", value: 21.6, color: "#ff6788" },
+        ],
+      },
+    ],
+    seasonSeries: buildEtrSeries(
+      [
+        0.6, 0.5, 0.5, 0.5, 0.4, 0.4, 0.4, 0.3, 0.3, 0.3,
+        0.3, 0.3, 0.3, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
+        0.2, 0.3, 0.2, 0.2, 0.2, 0.3, 0.3, 0.5, 0.4, 0.4,
+        0.5, 0.6, 0.8, 0.9, 0.8, 1.0, 1.1,
+      ],
+      [
+        1.0, 0.9, 0.7, 0.7, 0.7, 0.6, 0.6, 0.6, 0.5, 0.6,
+        0.5, 0.5, 0.5, 0.4, 0.5, 0.5, 0.4, 0.5, 0.5, 0.6,
+        0.5, 0.7, 0.6, 0.7, 0.7, 0.7, 0.8, 1.0, 0.9, 0.9,
+        1.0, 1.1, 1.3, 1.4, 1.3, 1.6, 1.7,
+      ],
+    ),
   },
 ];
 
