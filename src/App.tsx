@@ -1,22 +1,86 @@
-import { ReactNode, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { EtrMap } from "./components/EtrMap";
 import { MiniSparkline } from "./components/MiniSparkline";
 import { SimpleBarChart } from "./components/SimpleBarChart";
 import { SimpleLineChart } from "./components/SimpleLineChart";
+import { StatusLeafletMap } from "./components/StatusLeafletMap";
 import {
+  computeOverviewCards,
+  etrLastUpdateIso,
   etrOverviewBarGroups,
   etrOverviewSeasonSeries,
   etrRegions,
   etrStats,
-  meteoStations,
+  getFreshnessStatus,
+  ManualWellEntry,
+  meteoStationPoints,
+  mockNowIso,
   snowJorqueraSeries,
+  snowLastUpdateIso,
   snowManflasSeries,
   snowOverviewSeries,
   snowPulidoSeries,
-  views,
+  staleThresholdDaysDefault,
   ViewId,
-  wells,
+  views,
+  wellMapPoints,
+  WellMapPoint,
+  waterQualityRecords,
+  WaterQualityStatus,
 } from "./data/mockupData";
+
+const monthLabels = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+const freshnessClassMap = {
+  fresh: "is-good",
+  warning: "is-warning",
+  stale: "is-danger",
+} as const;
+
+const freshnessLabelMap = {
+  fresh: "Al dia",
+  warning: "Con atraso",
+  stale: "Atrasado > 2 dias",
+} as const;
+
+const qualityClassMap: Record<WaterQualityStatus, string> = {
+  good: "is-good",
+  watch: "is-warning",
+  alert: "is-danger",
+};
+
+const qualityLabelMap: Record<WaterQualityStatus, string> = {
+  good: "Buena",
+  watch: "Atencion",
+  alert: "Alerta",
+};
+
+const sourceLabelMap = {
+  telemetry: "Telemetria",
+  manual: "Manual",
+} as const;
+
+type ManualFormState = {
+  date: string;
+  level: string;
+  note: string;
+  operator: string;
+  time: string;
+  wellId: string;
+};
 
 function Panel({
   children,
@@ -66,6 +130,45 @@ function SnowChartSummary({ series }: { series: { points: { label: string; value
   );
 }
 
+const toChartDateLabel = (date: string) => {
+  const parsed = new Date(`${date}T00:00:00`);
+  const month = monthLabels[parsed.getMonth()] ?? "N/A";
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${month} ${day}`;
+};
+
+const formatDateTime = (value: string) => {
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleString("es-CL", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "short",
+  });
+};
+
+const formatRelativeAge = (lastUpdate: string, now: Date) => {
+  const diffMs = Math.max(0, now.getTime() - new Date(lastUpdate).getTime());
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (diffMs < hour) {
+    return `Hace ${Math.max(1, Math.round(diffMs / minute))} min`;
+  }
+
+  if (diffMs < day) {
+    return `Hace ${Math.round(diffMs / hour)} h`;
+  }
+
+  return `Hace ${Math.round(diffMs / day)} dias`;
+};
+
 const getCurrentValue = (points: { value: number }[]) =>
   points[points.length - 1]?.value ?? 0;
 
@@ -80,28 +183,14 @@ const getRangeValue = (points: { value: number }[]) => {
   return Math.max(...values) - Math.min(...values);
 };
 
-const getTrendLabel = (delta: number) => {
-  if (delta > 0.08) {
-    return "Alza diaria";
-  }
-
-  if (delta < -0.08) {
-    return "Baja diaria";
-  }
-
-  return "Estable";
-};
-
-const getToneClass = (label: string) => {
-  if (label === "Alza diaria") {
-    return "is-warning";
-  }
-
-  if (label === "Baja diaria") {
-    return "is-danger";
-  }
-
-  return "is-neutral";
+const upsertSeriesPoint = (
+  points: { label: string; value: number }[],
+  label: string,
+  value: number,
+) => {
+  const next = points.filter((point) => point.label !== label);
+  next.push({ label, value });
+  return next.slice(-18);
 };
 
 function EtrView() {
@@ -293,102 +382,238 @@ function SnowView() {
   );
 }
 
-function WellsView() {
-  const [selectedWellId, setSelectedWellId] = useState(wells[0].id);
-  const selectedWell = useMemo(
-    () => wells.find((item) => item.id === selectedWellId) ?? wells[0],
-    [selectedWellId],
+function OverviewView({
+  cards,
+  onOpenView,
+}: {
+  cards: ReturnType<typeof computeOverviewCards>;
+  onOpenView: (viewId: Exclude<ViewId, "overview">) => void;
+}) {
+  return (
+    <div className="view-stack">
+      <div className="view-intro">
+        <h2>Resumen operativo</h2>
+        <p>Acceso rapido a ET-LAT, MODIS-Snow, Pozos y Meteo.</p>
+      </div>
+      <div className="overview-grid">
+        {cards.map((card) => (
+          <button
+            key={card.id}
+            type="button"
+            className="overview-card"
+            onClick={() => onOpenView(card.targetView)}
+          >
+            <div className="overview-card-header">
+              <h3>{card.title}</h3>
+              <span className={`status-pill ${freshnessClassMap[card.status]}`}>
+                {freshnessLabelMap[card.status]}
+              </span>
+            </div>
+            <strong>{card.primaryKpi}</strong>
+            <p>{card.secondaryKpi}</p>
+            <small>Ultima actualizacion: {formatDateTime(card.lastUpdate)}</small>
+          </button>
+        ))}
+      </div>
+    </div>
   );
-  const wellRows = wells.map((well) => {
-    const current = getCurrentValue(well.points);
-    const change = getDailyChangeValue(well.points);
-    const dailyTrend = getTrendLabel(getDailyChangeValue(well.points));
+}
 
-    return {
-      ...well,
-      change,
-      current,
-      dailyTrend,
-    };
-  });
-  const monitoredCount = wells.length;
-  const recentUpdates = wells.filter((well) => !well.lastTransmission.includes("h")).length;
-  const averageLevel =
-    wellRows.reduce((total, well) => total + well.current, 0) / wellRows.length;
-  const averageDailyChange =
-    wellRows.reduce((total, well) => total + well.change, 0) / wellRows.length;
-  const previousDay =
-    selectedWell.points[Math.max(0, selectedWell.points.length - 2)]?.label ?? "-";
-  const currentDay = selectedWell.points[selectedWell.points.length - 1]?.label ?? "-";
+function WellsView({
+  manualEntries,
+  manualForm,
+  now,
+  onManualChange,
+  onManualSubmit,
+  onSelectWell,
+  selectedWellId,
+  wells,
+}: {
+  manualEntries: ManualWellEntry[];
+  manualForm: ManualFormState;
+  now: Date;
+  onManualChange: (next: Partial<ManualFormState>) => void;
+  onManualSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSelectWell: (wellId: string) => void;
+  selectedWellId: string;
+  wells: WellMapPoint[];
+}) {
+  const waterByWell = useMemo(
+    () => new Map(waterQualityRecords.map((record) => [record.wellId, record])),
+    [],
+  );
+  const selectedWell = wells.find((well) => well.id === selectedWellId) ?? wells[0];
+  const selectedQuality = waterByWell.get(selectedWell.id);
+  const wellRows = wells.map((well) => ({
+    ...well,
+    currentLevel: getCurrentValue(well.levelSeries),
+    dailyChange: getDailyChangeValue(well.levelSeries),
+    range: getRangeValue(well.levelSeries),
+    qualityStatus: waterByWell.get(well.id)?.qualityStatus,
+  }));
+  const wellsFreshCount = wells.filter((well) => well.status !== "stale").length;
+  const wellsStaleCount = wells.filter((well) => well.status === "stale").length;
+  const manualWells = wells.filter((well) => well.sourceType === "manual").length;
+  const waterAlerts = waterQualityRecords.filter((record) => record.qualityStatus === "alert").length;
+  const maxUpdate = wells.reduce((latest, well) => {
+    if (!latest) {
+      return well.lastUpdate;
+    }
+
+    return new Date(well.lastUpdate).getTime() > new Date(latest).getTime()
+      ? well.lastUpdate
+      : latest;
+  }, "");
+  const seriesValues = selectedWell.levelSeries.map((point) => point.value);
+  const minSeriesValue = Math.min(...seriesValues) - 0.1;
+  const maxSeriesValue = Math.max(...seriesValues) + 0.1;
 
   return (
     <div className="view-stack">
       <div className="view-intro">
-        <h2>Nivel de Pozo (m)</h2>
-        <p>Resumen general de la red y detalle por pozo seleccionado.</p>
+        <h2>Pozos y calidad de agua</h2>
+        <p>
+          Mapa operativo con estado por frescura de dato, fuente de captura y panel
+          de detalle por pozo.
+        </p>
       </div>
 
       <div className="stat-grid">
         <article className="stat-card">
-          <span>Pozos monitoreados</span>
-          <strong>{monitoredCount}</strong>
-          <small>Red visible en el dashboard</small>
+          <span>Pozos al dia</span>
+          <strong>{wellsFreshCount}/{wells.length}</strong>
+          <small>{wellsStaleCount} en rojo por atraso mayor a 2 dias</small>
         </article>
         <article className="stat-card">
-          <span>Nivel medio actual</span>
-          <strong>
-            {averageLevel.toFixed(2)} m
-          </strong>
-          <small>Promedio simple de la red</small>
+          <span>Pozos con carga manual</span>
+          <strong>{manualWells}</strong>
+          <small>Lecturas diarias desde mobile/tablet</small>
         </article>
         <article className="stat-card">
-          <span>Cambio diario medio</span>
-          <strong>
-            {averageDailyChange >= 0 ? "+" : ""}
-            {averageDailyChange.toFixed(2)} m
-          </strong>
-          <small>{recentUpdates}/{monitoredCount} sin atraso mayor a 1 hora</small>
+          <span>Calidad en alerta</span>
+          <strong>{waterAlerts}</strong>
+          <small>Muestras de calidad de agua fuera de rango</small>
         </article>
+        <article className="stat-card">
+          <span>Ultima sincronizacion global</span>
+          <strong>{formatDateTime(maxUpdate)}</strong>
+          <small>{formatRelativeAge(maxUpdate, now)}</small>
+        </article>
+      </div>
+
+      <div className="map-detail-grid">
+        <Panel
+          title="Mapa de pozos (Copiapo)"
+          subtitle="Rojo: sin actualizar por mas de 2 dias · Borde punteado: carga manual"
+        >
+          <StatusLeafletMap
+            points={wellRows.map((well) => ({
+              id: well.id,
+              name: well.name,
+              lat: well.lat,
+              lng: well.lng,
+              status: well.status,
+              sourceType: well.sourceType,
+              lastUpdate: well.lastUpdate,
+              qualityStatus: well.qualityStatus,
+            }))}
+            selectedPointId={selectedWellId}
+            onSelect={onSelectWell}
+          />
+          <div className="map-legend">
+            <span><i className="legend-dot fresh" /> Al dia</span>
+            <span><i className="legend-dot warning" /> Con atraso</span>
+            <span><i className="legend-dot stale" /> Atrasado &gt; 2 dias</span>
+            <span><i className="legend-dot quality-alert" /> Calidad en alerta</span>
+          </div>
+        </Panel>
+
+        <Panel
+          title={`Detalle: ${selectedWell.name}`}
+          subtitle={`${selectedWell.provider} · ${selectedWell.aquiferSector}`}
+        >
+          <div className="detail-kpi-grid">
+            <article className="detail-kpi">
+              <span>Nivel actual</span>
+              <strong>{getCurrentValue(selectedWell.levelSeries).toFixed(2)} m</strong>
+            </article>
+            <article className="detail-kpi">
+              <span>Cambio diario</span>
+              <strong>
+                {getDailyChangeValue(selectedWell.levelSeries) >= 0 ? "+" : ""}
+                {getDailyChangeValue(selectedWell.levelSeries).toFixed(2)} m
+              </strong>
+            </article>
+            <article className="detail-kpi">
+              <span>Rango periodo</span>
+              <strong>{getRangeValue(selectedWell.levelSeries).toFixed(2)} m</strong>
+            </article>
+          </div>
+
+          <div className="status-row">
+            <span className={`status-pill ${freshnessClassMap[selectedWell.status]}`}>
+              {freshnessLabelMap[selectedWell.status]}
+            </span>
+            <span className="status-pill is-neutral">
+              Fuente: {sourceLabelMap[selectedWell.sourceType]}
+            </span>
+            <span className="status-pill is-neutral">
+              {formatRelativeAge(selectedWell.lastUpdate, now)}
+            </span>
+          </div>
+
+          {selectedQuality && (
+            <div className="quality-box">
+              <div className="quality-head">
+                <strong>Calidad de agua</strong>
+                <span className={`status-pill ${qualityClassMap[selectedQuality.qualityStatus]}`}>
+                  {qualityLabelMap[selectedQuality.qualityStatus]}
+                </span>
+              </div>
+              <div className="quality-grid">
+                <span>Ultima muestra: {selectedQuality.lastSampleDate}</span>
+                <span>CE: {selectedQuality.conductivity.toFixed(1)} dS/m</span>
+                <span>pH: {selectedQuality.pH.toFixed(1)}</span>
+                <span>Turbidez: {selectedQuality.turbidity.toFixed(1)} NTU</span>
+              </div>
+            </div>
+          )}
+        </Panel>
       </div>
 
       <div className="detail-grid">
         <Panel
           title="Comparacion rapida de pozos"
-          subtitle="Nivel actual, cambio diario y tendencia diaria"
+          subtitle="Seleccione un pozo para ver su serie y detalle"
         >
           <div className="comparison-list">
             {wellRows.map((well) => (
               <button
                 key={well.id}
                 type="button"
-                className={`comparison-row ${
-                  selectedWellId === well.id ? "is-selected" : ""
-                }`}
-                onClick={() => setSelectedWellId(well.id)}
+                className={`comparison-row ${selectedWellId === well.id ? "is-selected" : ""}`}
+                onClick={() => onSelectWell(well.id)}
               >
                 <div className="comparison-main">
-                  <strong>{well.label}</strong>
+                  <strong>{well.name}</strong>
                   <span>{well.provider}</span>
                 </div>
                 <div className="comparison-metrics">
                   <div>
                     <span>Nivel</span>
-                    <strong>{well.current.toFixed(2)} m</strong>
+                    <strong>{well.currentLevel.toFixed(2)} m</strong>
                   </div>
                   <div>
                     <span>Cambio diario</span>
                     <strong>
-                      {well.change >= 0 ? "+" : ""}
-                      {well.change.toFixed(2)} m
+                      {well.dailyChange >= 0 ? "+" : ""}
+                      {well.dailyChange.toFixed(2)} m
                     </strong>
                   </div>
                 </div>
-                <MiniSparkline
-                  color="#ff6a00"
-                  points={well.points.map((point) => point.value)}
-                />
-                <span className={`status-pill ${getToneClass(well.dailyTrend)}`}>
-                  {well.dailyTrend}
+                <MiniSparkline points={well.levelSeries.map((point) => point.value)} color="#f26d3d" />
+                <span className={`status-pill ${freshnessClassMap[well.status]}`}>
+                  {freshnessLabelMap[well.status]}
                 </span>
               </button>
             ))}
@@ -396,221 +621,361 @@ function WellsView() {
         </Panel>
 
         <Panel
-          title="Estado de red"
-          subtitle="Continuidad de telemetria y ultima transmision"
+          title="Carga manual diaria (mobile/tablet)"
+          subtitle="Solo para pozos sin telemetria"
         >
-          <div className="table-wrap">
-            <table className="compact-table">
-              <thead>
-                <tr>
-                  <th>Pozo</th>
-                  <th>Proveedor</th>
-                  <th>Ultima lectura</th>
-                  <th>Tendencia diaria</th>
-                </tr>
-              </thead>
-              <tbody>
-                {wellRows.map((well) => (
-                  <tr
-                    key={well.id}
-                    className={selectedWellId === well.id ? "is-selected" : ""}
-                    onClick={() => setSelectedWellId(well.id)}
-                  >
-                    <td>{well.label}</td>
-                    <td>{well.provider}</td>
-                    <td>{well.lastTransmission}</td>
-                    <td>
-                      <span className={`status-pill ${getToneClass(well.dailyTrend)}`}>
-                        {well.dailyTrend}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <form className="manual-entry-form" onSubmit={onManualSubmit}>
+            <label>
+              <span>Pozo</span>
+              <select
+                value={manualForm.wellId}
+                onChange={(event) => onManualChange({ wellId: event.target.value })}
+              >
+                {wells
+                  .filter((well) => well.sourceType === "manual")
+                  .map((well) => (
+                    <option key={well.id} value={well.id}>
+                      {well.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+
+            <div className="manual-two-col">
+              <label>
+                <span>Fecha</span>
+                <input
+                  type="date"
+                  value={manualForm.date}
+                  onChange={(event) => onManualChange({ date: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>Hora</span>
+                <input
+                  type="time"
+                  value={manualForm.time}
+                  onChange={(event) => onManualChange({ time: event.target.value })}
+                />
+              </label>
+            </div>
+
+            <label>
+              <span>Nivel (m)</span>
+              <input
+                type="number"
+                step="0.01"
+                value={manualForm.level}
+                placeholder="Ej: 3.74"
+                onChange={(event) => onManualChange({ level: event.target.value })}
+                required
+              />
+            </label>
+
+            <label>
+              <span>Operador</span>
+              <input
+                type="text"
+                value={manualForm.operator}
+                onChange={(event) => onManualChange({ operator: event.target.value })}
+                required
+              />
+            </label>
+
+            <label>
+              <span>Observacion corta</span>
+              <input
+                type="text"
+                value={manualForm.note}
+                onChange={(event) => onManualChange({ note: event.target.value })}
+              />
+            </label>
+
+            <div className="manual-source-pill">Origen: mobile/tablet</div>
+            <button type="submit">Guardar registro manual</button>
+          </form>
+
+          <div className="manual-history">
+            <h4>Ultimas cargas</h4>
+            {manualEntries.length === 0 && <p>No hay cargas manuales en esta sesion.</p>}
+            {manualEntries.slice(0, 4).map((entry) => {
+              const wellName = wells.find((well) => well.id === entry.wellId)?.name ?? entry.wellId;
+              return (
+                <div key={entry.id} className="manual-history-row">
+                  <strong>{wellName}</strong>
+                  <span>{entry.date} {entry.time}</span>
+                  <span>{entry.level.toFixed(2)} m</span>
+                </div>
+              );
+            })}
           </div>
         </Panel>
       </div>
 
       <Panel
-        title={`Serie reciente: ${selectedWell.label}`}
-        subtitle={`${selectedWell.provider} · Cambio diario ${getDailyChangeValue(selectedWell.points) >= 0 ? "+" : ""}${getDailyChangeValue(selectedWell.points).toFixed(2)} m · ${previousDay} a ${currentDay}`}
+        title={`Variacion temporal: ${selectedWell.name}`}
+        subtitle={`Cambio diario ${getDailyChangeValue(selectedWell.levelSeries) >= 0 ? "+" : ""}${getDailyChangeValue(selectedWell.levelSeries).toFixed(2)} m`}
       >
-        <div className="panel-inline-toolbar">
-          <div className="panel-inline-copy">
-            <strong>Pozo seleccionado</strong>
-            <span>Tambien puede seleccionarlo desde la comparacion o la tabla.</span>
-          </div>
-
-          <label className="simple-filter">
-            <span>Pozo</span>
-            <select
-              value={selectedWellId}
-              onChange={(event) => setSelectedWellId(event.target.value)}
-            >
-              {wells.map((well) => (
-                <option key={well.id} value={well.id}>
-                  {well.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
         <SimpleLineChart
-          maxValue={4.1}
-          minValue={3.5}
-          mode="step"
+          labelEvery={1}
+          maxValue={maxSeriesValue}
+          minValue={minSeriesValue}
+          mode="linear"
           series={[
             {
-              color: "#ff6a00",
-              label: selectedWell.label,
-              points: selectedWell.points,
+              label: selectedWell.name,
+              color: "#f26d3d",
+              points: selectedWell.levelSeries,
             },
           ]}
           unit="m"
-          labelEvery={1}
+          xLabelAngle={-40}
         />
       </Panel>
     </div>
   );
 }
 
-function MeteoView() {
-  const averageTemperature =
-    meteoStations.reduce((total, station) => total + station.temperatureValue, 0) /
-    meteoStations.length;
-  const maxWind = Math.max(...meteoStations.map((station) => station.windValue));
-  const activeSignals = meteoStations.filter((station) => station.signal === "Estable").length;
-  const temperatureGroups = meteoStations.map((station) => ({
-    label: station.name,
-    series: [
-      {
-        label: "Temp",
-        value: station.temperatureValue,
-        color: "#2d6ea3",
-      },
-    ],
-  }));
+function MeteoView({
+  now,
+  onSelectStation,
+  selectedStationId,
+  stations,
+}: {
+  now: Date;
+  onSelectStation: (stationId: string) => void;
+  selectedStationId: string;
+  stations: typeof meteoStationPoints;
+}) {
+  const selectedStation = stations.find((station) => station.id === selectedStationId) ?? stations[0];
+  const stationsFreshCount = stations.filter((station) => station.status !== "stale").length;
+  const stationsStaleCount = stations.filter((station) => station.status === "stale").length;
+  const latestSync = stations.reduce((latest, station) => {
+    if (!latest) {
+      return station.lastUpdate;
+    }
+
+    return new Date(station.lastUpdate).getTime() > new Date(latest).getTime()
+      ? station.lastUpdate
+      : latest;
+  }, "");
 
   return (
     <div className="view-stack">
       <div className="view-intro">
         <h2>Estaciones meteorologicas</h2>
-        <p>
-          Mockup minimo con el mismo lenguaje del ejemplo actual: tarjetas de
-          condiciones presentes, sin sobreprometer variables adicionales.
-        </p>
+        <p>Tres estaciones con datos individuales y estado de actualizacion por punto.</p>
       </div>
 
       <div className="stat-grid">
         <article className="stat-card">
-          <span>Estaciones activas</span>
-          <strong>{activeSignals}/{meteoStations.length}</strong>
-          <small>Senal operativa reciente</small>
+          <span>Estaciones al dia</span>
+          <strong>{stationsFreshCount}/3</strong>
+          <small>{stationsStaleCount} en rojo por atraso mayor a 2 dias</small>
         </article>
         <article className="stat-card">
-          <span>Temperatura media</span>
-          <strong>{averageTemperature.toFixed(1)}°C</strong>
-          <small>Promedio simple de la red</small>
+          <span>Ultima sincronizacion global</span>
+          <strong>{formatDateTime(latestSync)}</strong>
+          <small>{formatRelativeAge(latestSync, now)}</small>
         </article>
         <article className="stat-card">
-          <span>Viento maximo</span>
-          <strong>{maxWind.toFixed(1)} km/h</strong>
-          <small>Entre estaciones visibles</small>
+          <span>Temperatura media red</span>
+          <strong>
+            {(stations.reduce((total, station) => total + station.temperatureValue, 0) / stations.length).toFixed(1)}
+            °C
+          </strong>
+          <small>Promedio simple de las 3 estaciones</small>
         </article>
       </div>
 
-      <div className="weather-grid">
-        {meteoStations.map((station) => (
-          <article key={station.name} className="weather-card">
-            <header className="weather-card-header">{station.name}</header>
-            <div className="weather-card-body">
-              <span className="weather-card-now">AHORA</span>
-              <div className="weather-status">{station.status}</div>
-              <div className="weather-card-chip-row">
-                <span className={`status-pill ${station.signal === "Estable" ? "is-good" : "is-warning"}`}>
-                  {station.signal}
-                </span>
-                <small>{station.updatedAt}</small>
-              </div>
-              <div className="weather-metrics">
-                <div>
-                  <span>Temp</span>
-                  <strong>{station.temperature}</strong>
-                </div>
-                <div>
-                  <span>HR</span>
-                  <strong>{station.humidity}</strong>
-                </div>
-                <div>
-                  <span>Viento</span>
-                  <strong>{station.wind}</strong>
-                </div>
-              </div>
-              <div className="weather-trend">
-                <span>Ultimas 24 h</span>
-                <MiniSparkline points={station.temperatureTrend} />
-              </div>
-            </div>
-          </article>
-        ))}
-      </div>
-
-      <div className="detail-grid">
-        <Panel
-          title="Temperatura actual por estacion"
-          subtitle="Comparacion simple de la red"
-        >
-          <SimpleBarChart
-            groups={temperatureGroups}
-            maxValue={20}
-            tickStep={5}
-            unit="°C"
-            xLabelAngle={-10}
+      <div className="map-detail-grid">
+        <Panel title="Mapa de estaciones (Copiapo)" subtitle="Rojo: sin actualizar por mas de 2 dias">
+          <StatusLeafletMap
+            points={stations.map((station) => ({
+              id: station.id,
+              name: station.name,
+              lat: station.lat,
+              lng: station.lng,
+              status: station.status,
+              sourceType: station.sourceType,
+              lastUpdate: station.lastUpdate,
+            }))}
+            selectedPointId={selectedStationId}
+            onSelect={onSelectStation}
           />
         </Panel>
 
-        <Panel
-          title="Estado de estaciones"
-          subtitle="Lectura rapida de humedad, viento y continuidad"
-        >
-          <div className="table-wrap">
-            <table className="compact-table">
-              <thead>
-                <tr>
-                  <th>Estacion</th>
-                  <th>Senal</th>
-                  <th>HR</th>
-                  <th>Viento</th>
-                  <th>Actualizacion</th>
-                </tr>
-              </thead>
-              <tbody>
-                {meteoStations.map((station) => (
-                  <tr key={station.name}>
-                    <td>{station.name}</td>
-                    <td>
-                      <span className={`status-pill ${station.signal === "Estable" ? "is-good" : "is-warning"}`}>
-                        {station.signal}
-                      </span>
-                    </td>
-                    <td>{station.humidity}</td>
-                    <td>{station.wind}</td>
-                    <td>{station.updatedAt}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <Panel title={selectedStation.name} subtitle={`${formatRelativeAge(selectedStation.lastUpdate, now)} · ${formatDateTime(selectedStation.lastUpdate)}`}>
+          <div className="detail-kpi-grid">
+            <article className="detail-kpi">
+              <span>Temperatura</span>
+              <strong>{selectedStation.temperatureValue.toFixed(1)}°C</strong>
+            </article>
+            <article className="detail-kpi">
+              <span>Humedad</span>
+              <strong>{selectedStation.humidityValue.toFixed(0)}%</strong>
+            </article>
+            <article className="detail-kpi">
+              <span>Viento</span>
+              <strong>{selectedStation.windValue.toFixed(1)} km/h</strong>
+            </article>
+            <article className="detail-kpi">
+              <span>Presion</span>
+              <strong>{selectedStation.pressureValue.toFixed(0)} hPa</strong>
+            </article>
+          </div>
+
+          <div className="status-row">
+            <span className={`status-pill ${freshnessClassMap[selectedStation.status]}`}>
+              {freshnessLabelMap[selectedStation.status]}
+            </span>
+            <span className="status-pill is-neutral">Fuente: Telemetria</span>
           </div>
         </Panel>
+      </div>
+
+      <div className="station-card-grid">
+        {stations.map((station) => (
+          <button
+            key={station.id}
+            type="button"
+            className={`station-card ${selectedStationId === station.id ? "is-selected" : ""}`}
+            onClick={() => onSelectStation(station.id)}
+          >
+            <div className="station-card-head">
+              <strong>{station.name}</strong>
+              <span className={`status-pill ${freshnessClassMap[station.status]}`}>
+                {freshnessLabelMap[station.status]}
+              </span>
+            </div>
+            <div className="station-card-metrics">
+              <span>Temp {station.temperatureValue.toFixed(1)}°C</span>
+              <span>HR {station.humidityValue.toFixed(0)}%</span>
+              <span>Viento {station.windValue.toFixed(1)} km/h</span>
+              <span>Presion {station.pressureValue.toFixed(0)} hPa</span>
+            </div>
+          </button>
+        ))}
       </div>
     </div>
   );
 }
 
 export default function App() {
-  const [activeView, setActiveView] = useState<ViewId>("etr");
+  const defaultManualWellId =
+    wellMapPoints.find((well) => well.sourceType === "manual")?.id ?? wellMapPoints[0].id;
+  const [activeView, setActiveView] = useState<ViewId>("overview");
+  const [selectedWellId, setSelectedWellId] = useState(wellMapPoints[0].id);
+  const [selectedStationId, setSelectedStationId] = useState(meteoStationPoints[0].id);
+  const [manualEntries, setManualEntries] = useState<ManualWellEntry[]>([]);
+  const [wellState, setWellState] = useState(wellMapPoints);
+  const [manualForm, setManualForm] = useState<ManualFormState>({
+    wellId: defaultManualWellId,
+    date: "2026-03-22",
+    time: "10:30",
+    level: "",
+    operator: "Operador CAS",
+    note: "",
+  });
+
+  const dashboardNow = useMemo(() => {
+    const seed = new Date(mockNowIso).getTime();
+    const manualTimes = manualEntries.map((entry) =>
+      new Date(`${entry.date}T${entry.time}:00-03:00`).getTime(),
+    );
+    return new Date(Math.max(seed, ...manualTimes));
+  }, [manualEntries]);
+
+  const wells = useMemo(
+    () =>
+      wellState.map((well) => ({
+        ...well,
+        status: getFreshnessStatus(
+          well.lastUpdate,
+          dashboardNow,
+          staleThresholdDaysDefault,
+        ),
+      })),
+    [dashboardNow, wellState],
+  );
+
+  const stations = useMemo(
+    () =>
+      meteoStationPoints.map((station) => ({
+        ...station,
+        status: getFreshnessStatus(
+          station.lastUpdate,
+          dashboardNow,
+          staleThresholdDaysDefault,
+        ),
+      })),
+    [dashboardNow],
+  );
+
+  useEffect(() => {
+    if (!wells.some((well) => well.id === selectedWellId)) {
+      setSelectedWellId(wells[0].id);
+    }
+  }, [selectedWellId, wells]);
+
+  useEffect(() => {
+    if (!stations.some((station) => station.id === selectedStationId)) {
+      setSelectedStationId(stations[0].id);
+    }
+  }, [selectedStationId, stations]);
+
+  const overviewCards = useMemo(
+    () =>
+      computeOverviewCards({
+        etrLastDate: "2025-10-09",
+        etrLastUpdate: etrLastUpdateIso,
+        etrMeanValue: 1.2,
+        now: dashboardNow,
+        snowLastUpdate: snowLastUpdateIso,
+        snowSeries: snowOverviewSeries,
+        stations,
+        wells,
+      }),
+    [dashboardNow, stations, wells],
+  );
+
+  const handleManualSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const parsedLevel = Number.parseFloat(manualForm.level);
+    if (Number.isNaN(parsedLevel)) {
+      return;
+    }
+
+    const timestamp = `${manualForm.date}T${manualForm.time}:00-03:00`;
+    const chartLabel = toChartDateLabel(manualForm.date);
+    const nextEntry: ManualWellEntry = {
+      id: `manual-${Date.now()}`,
+      wellId: manualForm.wellId,
+      date: manualForm.date,
+      time: manualForm.time,
+      level: parsedLevel,
+      operator: manualForm.operator.trim() || "Operador CAS",
+      note: manualForm.note.trim(),
+      sourceDevice: "mobile/tablet",
+    };
+
+    setWellState((previous) =>
+      previous.map((well) =>
+        well.id === manualForm.wellId
+          ? {
+              ...well,
+              sourceType: "manual",
+              lastUpdate: timestamp,
+              levelSeries: upsertSeriesPoint(well.levelSeries, chartLabel, parsedLevel),
+            }
+          : well,
+      ),
+    );
+    setManualEntries((previous) => [nextEntry, ...previous].slice(0, 12));
+    setSelectedWellId(manualForm.wellId);
+    setManualForm((previous) => ({ ...previous, level: "", note: "" }));
+  };
 
   return (
     <div className="page-shell">
@@ -618,12 +983,12 @@ export default function App() {
         <div>
           <h1>Agua con Dato</h1>
           <p>
-            Mockup simplificado, alineado a la estructura visual de ET-LAT, MODIS
-            Snow, pozos y meteo ya existentes.
+            Mockup unificado para ET-LAT, MODIS-Snow, Pozos y Meteo sobre una
+            infraestructura comun.
           </p>
         </div>
         <div className="site-tag">
-          Dummy data minima. Solo componentes que hoy tienen sentido operacional.
+          Dummy data funcional con foco en usabilidad operativa y lectura rapida.
         </div>
       </header>
 
@@ -641,10 +1006,34 @@ export default function App() {
       </nav>
 
       <main className="content-shell">
+        {activeView === "overview" && (
+          <OverviewView
+            cards={overviewCards}
+            onOpenView={(viewId) => setActiveView(viewId)}
+          />
+        )}
         {activeView === "etr" && <EtrView />}
         {activeView === "snow" && <SnowView />}
-        {activeView === "wells" && <WellsView />}
-        {activeView === "meteo" && <MeteoView />}
+        {activeView === "wells" && (
+          <WellsView
+            manualEntries={manualEntries}
+            manualForm={manualForm}
+            now={dashboardNow}
+            onManualChange={(next) => setManualForm((previous) => ({ ...previous, ...next }))}
+            onManualSubmit={handleManualSubmit}
+            onSelectWell={setSelectedWellId}
+            selectedWellId={selectedWellId}
+            wells={wells}
+          />
+        )}
+        {activeView === "meteo" && (
+          <MeteoView
+            now={dashboardNow}
+            onSelectStation={setSelectedStationId}
+            selectedStationId={selectedStationId}
+            stations={stations}
+          />
+        )}
       </main>
     </div>
   );

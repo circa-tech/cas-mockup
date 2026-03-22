@@ -1,9 +1,10 @@
 import { BarGroup } from "../components/SimpleBarChart";
 import { LinePoint, LineSeries } from "../components/SimpleLineChart";
 
-export type ViewId = "etr" | "snow" | "wells" | "meteo";
+export type ViewId = "overview" | "etr" | "snow" | "wells" | "meteo";
 
 export const views: { id: ViewId; label: string }[] = [
+  { id: "overview", label: "Resumen" },
   { id: "etr", label: "ET-LAT" },
   { id: "snow", label: "MODIS Snow" },
   { id: "wells", label: "Pozos" },
@@ -15,6 +16,9 @@ export const etrStats = [
   { label: "ETR media", value: "1.2 mm/dia" },
   { label: "ETMAX media", value: "1.8 mm/dia" },
 ];
+
+export const etrLastUpdateIso = "2026-03-21T07:15:00-03:00";
+export const snowLastUpdateIso = "2026-03-20T06:45:00-03:00";
 
 export const etrOverviewBarGroups: BarGroup[] = [
   {
@@ -400,144 +404,332 @@ export const snowManflasSeries: LineSeries[] = [
   },
 ];
 
-type Well = {
+export type GeoPointStatus = "fresh" | "warning" | "stale";
+export type TelemetrySourceType = "telemetry" | "manual";
+export type WaterQualityStatus = "good" | "watch" | "alert";
+
+type GeoPointBase = {
   id: string;
-  label: string;
-  lastTransmission: string;
-  points: LinePoint[];
+  lat: number;
+  lng: number;
+  lastUpdate: string;
+  name: string;
+  sourceType: TelemetrySourceType;
+  status: GeoPointStatus;
+};
+
+export type WellMapPoint = GeoPointBase & {
+  aquiferSector: string;
+  levelSeries: LinePoint[];
   provider: string;
 };
 
-export const wells: Well[] = [
+export type MeteoStationPoint = GeoPointBase & {
+  humidityValue: number;
+  pressureValue: number;
+  temperatureValue: number;
+  windValue: number;
+};
+
+export type WaterQualityRecord = {
+  conductivity: number;
+  lastSampleDate: string;
+  pH: number;
+  qualityStatus: WaterQualityStatus;
+  turbidity: number;
+  wellId: string;
+};
+
+export type ManualWellEntry = {
+  date: string;
+  id: string;
+  level: number;
+  note: string;
+  operator: string;
+  sourceDevice: "mobile/tablet";
+  time: string;
+  wellId: string;
+};
+
+export type OverviewCard = {
+  id: string;
+  lastUpdate: string;
+  primaryKpi: string;
+  secondaryKpi: string;
+  status: GeoPointStatus;
+  targetView: Exclude<ViewId, "overview">;
+  title: string;
+};
+
+export type ComputeOverviewCardsInput = {
+  etrLastDate: string;
+  etrLastUpdate: string;
+  etrMeanValue: number;
+  now: Date;
+  snowLastUpdate: string;
+  snowSeries: LineSeries[];
+  stations: MeteoStationPoint[];
+  staleThresholdDays?: number;
+  wells: WellMapPoint[];
+};
+
+export const staleThresholdDaysDefault = 2;
+export const mockNowIso = "2026-03-22T12:00:00-03:00";
+
+export const getFreshnessStatus = (
+  lastUpdate: string,
+  now: Date,
+  staleThresholdDays = staleThresholdDaysDefault,
+): GeoPointStatus => {
+  const last = new Date(lastUpdate).getTime();
+  const current = now.getTime();
+
+  if (Number.isNaN(last) || Number.isNaN(current)) {
+    return "stale";
+  }
+
+  const diffMs = Math.max(0, current - last);
+  const staleMs = staleThresholdDays * 24 * 60 * 60 * 1000;
+
+  if (diffMs > staleMs) {
+    return "stale";
+  }
+
+  if (diffMs > staleMs / 2) {
+    return "warning";
+  }
+
+  return "fresh";
+};
+
+const getNetworkStatus = (items: { status: GeoPointStatus }[]): GeoPointStatus => {
+  if (items.some((item) => item.status === "stale")) {
+    return "stale";
+  }
+
+  if (items.some((item) => item.status === "warning")) {
+    return "warning";
+  }
+
+  return "fresh";
+};
+
+const getLatestUpdate = (items: { lastUpdate: string }[]) =>
+  items.reduce((latest, item) => {
+    if (!latest) {
+      return item.lastUpdate;
+    }
+
+    return new Date(item.lastUpdate).getTime() > new Date(latest).getTime()
+      ? item.lastUpdate
+      : latest;
+  }, "");
+
+export const computeOverviewCards = ({
+  etrLastDate,
+  etrLastUpdate,
+  etrMeanValue,
+  now,
+  snowLastUpdate,
+  snowSeries,
+  stations,
+  staleThresholdDays = staleThresholdDaysDefault,
+  wells,
+}: ComputeOverviewCardsInput): OverviewCard[] => {
+  const snowCurrent = snowSeries[0]?.points[snowSeries[0].points.length - 1]?.value ?? 0;
+  const snowPrevious = snowSeries[1]?.points[snowSeries[1].points.length - 1]?.value ?? 0;
+  const snowDelta = snowCurrent - snowPrevious;
+  const wellsOnTime = wells.filter((well) => well.status !== "stale").length;
+  const wellsStale = wells.filter((well) => well.status === "stale").length;
+  const stationsOnTime = stations.filter((station) => station.status !== "stale").length;
+  const stationsStale = stations.filter((station) => station.status === "stale").length;
+
+  return [
+    {
+      id: "overview-etr",
+      title: "ETR",
+      targetView: "etr",
+      primaryKpi: `ETR media ${etrMeanValue.toFixed(1)} mm/dia`,
+      secondaryKpi: `Ultima fecha ${etrLastDate}`,
+      status: getFreshnessStatus(etrLastUpdate, now, staleThresholdDays),
+      lastUpdate: etrLastUpdate,
+    },
+    {
+      id: "overview-snow",
+      title: "Snow",
+      targetView: "snow",
+      primaryKpi: `FSCA area ${snowCurrent.toFixed(0)}%`,
+      secondaryKpi: `Vs ano pasado ${snowDelta >= 0 ? "+" : ""}${snowDelta.toFixed(0)} pp`,
+      status: getFreshnessStatus(snowLastUpdate, now, staleThresholdDays),
+      lastUpdate: snowLastUpdate,
+    },
+    {
+      id: "overview-wells",
+      title: "Pozos",
+      targetView: "wells",
+      primaryKpi: `${wellsOnTime}/${wells.length} al dia`,
+      secondaryKpi: `${wellsStale} en rojo (>2 dias)`,
+      status: getNetworkStatus(wells),
+      lastUpdate: getLatestUpdate(wells),
+    },
+    {
+      id: "overview-meteo",
+      title: "Meteo",
+      targetView: "meteo",
+      primaryKpi: `${stationsOnTime}/${stations.length} al dia`,
+      secondaryKpi: `${stationsStale} en rojo (>2 dias)`,
+      status: getNetworkStatus(stations),
+      lastUpdate: getLatestUpdate(stations),
+    },
+  ];
+};
+
+const wellSeriesDates = [
+  "Mar 12",
+  "Mar 13",
+  "Mar 14",
+  "Mar 15",
+  "Mar 16",
+  "Mar 17",
+  "Mar 18",
+  "Mar 19",
+  "Mar 20",
+  "Mar 21",
+];
+
+const toWellSeries = (values: number[]): LinePoint[] =>
+  wellSeriesDates.map((label, index) => ({
+    label,
+    value: values[index],
+  }));
+
+const wellSeedData: Omit<WellMapPoint, "status">[] = [
   {
     id: "guatulame",
-    label: "Pozo Guatulame",
-    lastTransmission: "Hace 12 min",
-    points: [
-      { label: "Feb 15", value: 3.62 },
-      { label: "Feb 18", value: 3.74 },
-      { label: "Feb 21", value: 3.85 },
-      { label: "Feb 24", value: 3.61 },
-      { label: "Feb 27", value: 3.51 },
-      { label: "Mar 01", value: 3.6 },
-      { label: "Mar 05", value: 3.73 },
-      { label: "Mar 08", value: 3.85 },
-      { label: "Mar 11", value: 3.97 },
-      { label: "Mar 13", value: 4.06 },
-      { label: "Mar 14", value: 3.95 },
-    ],
+    name: "Pozo Guatulame",
+    lat: -27.281,
+    lng: -70.361,
+    lastUpdate: "2026-03-22T10:20:00-03:00",
+    sourceType: "telemetry",
     provider: "Proveedor Norte",
+    aquiferSector: "Acuifero 1",
+    levelSeries: toWellSeries([3.6, 3.62, 3.65, 3.68, 3.7, 3.74, 3.78, 3.81, 3.87, 3.95]),
   },
   {
     id: "mal-paso",
-    label: "Pozo Mal Paso",
-    lastTransmission: "Hace 28 min",
-    points: [
-      { label: "Feb 15", value: 3.71 },
-      { label: "Feb 18", value: 3.76 },
-      { label: "Feb 21", value: 3.83 },
-      { label: "Feb 24", value: 3.78 },
-      { label: "Feb 27", value: 3.68 },
-      { label: "Mar 01", value: 3.64 },
-      { label: "Mar 05", value: 3.72 },
-      { label: "Mar 08", value: 3.78 },
-      { label: "Mar 11", value: 3.84 },
-      { label: "Mar 13", value: 3.88 },
-      { label: "Mar 14", value: 3.86 },
-    ],
+    name: "Pozo Mal Paso",
+    lat: -27.368,
+    lng: -70.451,
+    lastUpdate: "2026-03-21T07:40:00-03:00",
+    sourceType: "telemetry",
     provider: "Proveedor Centro",
+    aquiferSector: "Acuifero 2",
+    levelSeries: toWellSeries([3.72, 3.7, 3.69, 3.68, 3.67, 3.66, 3.67, 3.7, 3.73, 3.76]),
   },
   {
     id: "las-juntas",
-    label: "Pozo Las Juntas",
-    lastTransmission: "Hace 41 min",
-    points: [
-      { label: "Feb 15", value: 3.58 },
-      { label: "Feb 18", value: 3.62 },
-      { label: "Feb 21", value: 3.68 },
-      { label: "Feb 24", value: 3.66 },
-      { label: "Feb 27", value: 3.59 },
-      { label: "Mar 01", value: 3.57 },
-      { label: "Mar 05", value: 3.63 },
-      { label: "Mar 08", value: 3.67 },
-      { label: "Mar 11", value: 3.7 },
-      { label: "Mar 13", value: 3.72 },
-      { label: "Mar 14", value: 3.69 },
-    ],
-    provider: "Proveedor Centro",
+    name: "Pozo Las Juntas",
+    lat: -27.14,
+    lng: -70.211,
+    lastUpdate: "2026-03-18T08:30:00-03:00",
+    sourceType: "manual",
+    provider: "Carga Manual",
+    aquiferSector: "Acuifero 3",
+    levelSeries: toWellSeries([3.55, 3.56, 3.58, 3.59, 3.6, 3.62, 3.61, 3.6, 3.58, 3.57]),
   },
   {
     id: "piedra-colgada",
-    label: "Pozo Piedra Colgada",
-    lastTransmission: "Hace 1 h 12 min",
-    points: [
-      { label: "Feb 15", value: 3.82 },
-      { label: "Feb 18", value: 3.86 },
-      { label: "Feb 21", value: 3.91 },
-      { label: "Feb 24", value: 3.85 },
-      { label: "Feb 27", value: 3.79 },
-      { label: "Mar 01", value: 3.8 },
-      { label: "Mar 05", value: 3.88 },
-      { label: "Mar 08", value: 3.94 },
-      { label: "Mar 11", value: 3.99 },
-      { label: "Mar 13", value: 4.03 },
-      { label: "Mar 14", value: 4.01 },
-    ],
-    provider: "Proveedor Sur",
+    name: "Pozo Piedra Colgada",
+    lat: -27.312,
+    lng: -70.286,
+    lastUpdate: "2026-03-20T16:15:00-03:00",
+    sourceType: "manual",
+    provider: "Carga Manual",
+    aquiferSector: "Acuifero 4",
+    levelSeries: toWellSeries([3.82, 3.81, 3.8, 3.79, 3.78, 3.79, 3.8, 3.83, 3.86, 3.9]),
   },
 ];
 
-export const meteoStations = [
+export const wellMapPoints: WellMapPoint[] = wellSeedData.map((well) => ({
+  ...well,
+  status: getFreshnessStatus(well.lastUpdate, new Date(mockNowIso)),
+}));
+
+export const waterQualityRecords: WaterQualityRecord[] = [
   {
-    name: "Copiapo",
-    temperature: "15.6°C",
-    temperatureValue: 15.6,
-    temperatureTrend: [13.8, 14.2, 14.6, 14.9, 15.1, 15.3, 15.6],
-    humidity: "93%",
-    humidityValue: 93,
-    wind: "4.7 km/h",
-    windValue: 4.7,
-    status: "Parcial",
-    signal: "Estable",
-    updatedAt: "Actualizado hace 12 min",
+    wellId: "guatulame",
+    lastSampleDate: "2026-03-20",
+    qualityStatus: "good",
+    conductivity: 1.1,
+    pH: 7.1,
+    turbidity: 1.2,
   },
   {
-    name: "Tierra Amarilla",
-    temperature: "16.1°C",
-    temperatureValue: 16.1,
-    temperatureTrend: [14.0, 14.6, 15.0, 15.2, 15.7, 15.9, 16.1],
-    humidity: "73%",
-    humidityValue: 73,
-    wind: "7.8 km/h",
-    windValue: 7.8,
-    status: "Despejado",
-    signal: "Estable",
-    updatedAt: "Actualizado hace 10 min",
+    wellId: "mal-paso",
+    lastSampleDate: "2026-03-19",
+    qualityStatus: "watch",
+    conductivity: 1.6,
+    pH: 7.7,
+    turbidity: 2.3,
   },
   {
-    name: "Jorquera",
-    temperature: "12.8°C",
-    temperatureValue: 12.8,
-    temperatureTrend: [10.2, 10.9, 11.1, 11.6, 12.0, 12.3, 12.8],
-    humidity: "61%",
-    humidityValue: 61,
-    wind: "9.2 km/h",
-    windValue: 9.2,
-    status: "Despejado",
-    signal: "Intermitente",
-    updatedAt: "Actualizado hace 16 min",
+    wellId: "las-juntas",
+    lastSampleDate: "2026-03-15",
+    qualityStatus: "alert",
+    conductivity: 2.1,
+    pH: 8.2,
+    turbidity: 4.8,
   },
   {
-    name: "Piedra Colgada",
-    temperature: "17.4°C",
-    temperatureValue: 17.4,
-    temperatureTrend: [15.0, 15.6, 16.0, 16.3, 16.7, 17.0, 17.4],
-    humidity: "58%",
-    humidityValue: 58,
-    wind: "6.2 km/h",
-    windValue: 6.2,
-    status: "Despejado",
-    signal: "Estable",
-    updatedAt: "Actualizado hace 8 min",
+    wellId: "piedra-colgada",
+    lastSampleDate: "2026-03-21",
+    qualityStatus: "good",
+    conductivity: 1.3,
+    pH: 7.3,
+    turbidity: 1.5,
   },
 ];
+
+const meteoSeedData: Omit<MeteoStationPoint, "status">[] = [
+  {
+    id: "meteo-copiapo",
+    name: "Estacion Copiapo",
+    lat: -27.366,
+    lng: -70.332,
+    lastUpdate: "2026-03-22T09:10:00-03:00",
+    sourceType: "telemetry",
+    temperatureValue: 18.2,
+    humidityValue: 42,
+    windValue: 11.3,
+    pressureValue: 1012,
+  },
+  {
+    id: "meteo-tierra-amarilla",
+    name: "Estacion Tierra Amarilla",
+    lat: -27.479,
+    lng: -70.26,
+    lastUpdate: "2026-03-19T06:20:00-03:00",
+    sourceType: "telemetry",
+    temperatureValue: 17.4,
+    humidityValue: 47,
+    windValue: 8.6,
+    pressureValue: 1015,
+  },
+  {
+    id: "meteo-jorquera",
+    name: "Estacion Jorquera",
+    lat: -27.192,
+    lng: -69.952,
+    lastUpdate: "2026-03-21T08:05:00-03:00",
+    sourceType: "telemetry",
+    temperatureValue: 14.9,
+    humidityValue: 53,
+    windValue: 13.1,
+    pressureValue: 1010,
+  },
+];
+
+export const meteoStationPoints: MeteoStationPoint[] = meteoSeedData.map((station) => ({
+  ...station,
+  status: getFreshnessStatus(station.lastUpdate, new Date(mockNowIso)),
+}));
