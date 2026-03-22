@@ -1,5 +1,5 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
-import { EtrMap } from "./components/EtrMap";
+import { EtrMap, type EtrSectorSelection } from "./components/EtrMap";
 import { MiniSparkline } from "./components/MiniSparkline";
 import { SimpleBarChart } from "./components/SimpleBarChart";
 import { SimpleLineChart } from "./components/SimpleLineChart";
@@ -193,12 +193,78 @@ const upsertSeriesPoint = (
   return next.slice(-18);
 };
 
+const defaultEtrSectorSelection: EtrSectorSelection = {
+  sectorId: "1",
+  sectorName: "Bodega",
+  regionId: "acuifer-1-4",
+  regionLabel: "Sectores acuifero 1 al 4",
+};
+
+const getSectorSeed = (sectorId: string) => {
+  const parsed = Number.parseInt(sectorId, 10);
+  return Number.isNaN(parsed) ? 1 : parsed;
+};
+
+const buildSectorBarGroups = (sectorId: string, baseGroups: typeof etrOverviewBarGroups) => {
+  const seed = getSectorSeed(sectorId);
+
+  return baseGroups.map((group, groupIndex) => ({
+    ...group,
+    series: group.series.map((series, seriesIndex) => {
+      const factor = 0.88 + ((seed * 13 + groupIndex * 7 + seriesIndex * 11) % 30) / 100;
+      const bias = seriesIndex === 0 ? -0.25 : 0.25;
+      const value = Math.max(0.2, Number((series.value * factor + bias).toFixed(1)));
+      return {
+        ...series,
+        value,
+      };
+    }),
+  }));
+};
+
+const buildSectorSeasonSeries = (
+  sectorId: string,
+  baseSeries: typeof etrOverviewSeasonSeries,
+) => {
+  const seed = getSectorSeed(sectorId);
+
+  return baseSeries.map((series, seriesIndex) => ({
+    ...series,
+    points: series.points.map((point, index) => {
+      const wave = (((seed + index * 3 + seriesIndex * 5) % 9) - 4) * 0.02;
+      const drift = ((seed % 5) - 2) * 0.01;
+      return {
+        ...point,
+        value: Math.max(0, Number((point.value + wave + drift).toFixed(2))),
+      };
+    }),
+  }));
+};
+
 function EtrView() {
-  const [selectedRegionId, setSelectedRegionId] = useState(etrRegions[0].id);
-  const selectedRegion = useMemo(
-    () => etrRegions.find((region) => region.id === selectedRegionId) ?? etrRegions[0],
-    [selectedRegionId],
+  const [selectedSector, setSelectedSector] = useState<EtrSectorSelection>(
+    defaultEtrSectorSelection,
   );
+  const selectedRegion = useMemo(
+    () => etrRegions.find((region) => region.id === selectedSector.regionId) ?? etrRegions[0],
+    [selectedSector.regionId],
+  );
+  const selectedSectorBarGroups = useMemo(
+    () => buildSectorBarGroups(selectedSector.sectorId, selectedRegion.barGroups),
+    [selectedRegion.barGroups, selectedSector.sectorId],
+  );
+  const selectedSectorSeasonSeries = useMemo(
+    () => buildSectorSeasonSeries(selectedSector.sectorId, selectedRegion.seasonSeries),
+    [selectedRegion.seasonSeries, selectedSector.sectorId],
+  );
+  const selectedSeasonMax = useMemo(() => {
+    const max = Math.max(
+      ...selectedSectorSeasonSeries.flatMap((series) =>
+        series.points.map((point) => point.value),
+      ),
+    );
+    return Math.max(1.8, Math.ceil(max * 10) / 10);
+  }, [selectedSectorSeasonSeries]);
 
   return (
     <div className="view-stack etr-page">
@@ -247,21 +313,18 @@ function EtrView() {
           title="Mapa sectores y areas de gestion CAS Copiapo"
         >
           <EtrMap
-            regions={etrRegions.map((region) => ({
-              id: region.id,
-              label: region.label,
-            }))}
-            selectedRegionId={selectedRegionId}
-            onSelect={(regionId) => setSelectedRegionId(regionId as typeof selectedRegionId)}
+            selectedSectorId={selectedSector.sectorId}
+            selectedSummaryLabel={`${selectedSector.sectorName} · ${selectedSector.regionLabel}`}
+            onSelect={setSelectedSector}
           />
         </Panel>
 
         <Panel
           title="Distribucion de ETR (mm) por clase de cultivo en la ultima fecha disponible"
-          subtitle={selectedRegion.label}
+          subtitle={`${selectedSector.sectorName} · ${selectedRegion.label}`}
         >
           <SimpleBarChart
-            groups={selectedRegion.barGroups}
+            groups={selectedSectorBarGroups}
             maxValue={35}
             tickStep={5}
             unit="mm"
@@ -276,9 +339,9 @@ function EtrView() {
       >
         <SimpleLineChart
           labelEvery={2}
-          maxValue={1.8}
+          maxValue={selectedSeasonMax}
           minValue={0}
-          series={selectedRegion.seasonSeries}
+          series={selectedSectorSeasonSeries}
           unit="mm"
           xLabelAngle={-45}
         />

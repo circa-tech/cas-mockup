@@ -1,73 +1,158 @@
-export type EtrMapRegion = {
-  id: string;
-  label: string;
+import { LayersControl, MapContainer, Polygon, TileLayer, Tooltip } from "react-leaflet";
+import etrSectorsGeoJson from "../data/etrSectorsGeoJson.json";
+
+export type EtrSectorSelection = {
+  regionId: string;
+  regionLabel: string;
+  sectorId: string;
+  sectorName: string;
 };
 
 type EtrMapProps = {
-  regions: EtrMapRegion[];
-  selectedRegionId: string;
-  onSelect: (regionId: string) => void;
+  selectedSectorId: string;
+  selectedSummaryLabel: string;
+  onSelect: (selection: EtrSectorSelection) => void;
+};
+
+const copiapoBounds: [[number, number], [number, number]] = [
+  [-28.75, -71.05],
+  [-26.95, -68.95],
+];
+
+type GeoJsonCoordinates = number[][][][] | number[][][];
+
+type EtrSectorFeature = {
+  id: number | string;
+  geometry: {
+    coordinates: GeoJsonCoordinates;
+    type: "MultiPolygon" | "Polygon";
+  };
+  properties: {
+    nombre: string;
+    sector_id: number;
+  };
+};
+
+type EtrSectorFeatureCollection = {
+  features: EtrSectorFeature[];
+  type: "FeatureCollection";
+};
+
+const etrFeatures = (etrSectorsGeoJson as EtrSectorFeatureCollection).features;
+
+const sectorGroupById: Record<number, string> = {
+  1: "acuifer-1-4",
+  2: "acuifer-1-4",
+  3: "acuifer-1-4",
+  4: "acuifer-1-4",
+  5: "tierra-amarilla",
+  6: "tierra-amarilla",
+  7: "tierra-amarilla",
+  8: "tierra-amarilla",
+  9: "tierra-amarilla",
+  10: "tierra-amarilla",
+  11: "tierra-amarilla",
+  12: "tierra-amarilla",
+  13: "tierra-amarilla",
+  14: "tierra-amarilla",
+  15: "tierra-amarilla",
+  16: "tierra-amarilla",
+  17: "tierra-amarilla",
+  18: "tierra-amarilla",
+  19: "valle-bajo",
+  20: "valle-bajo",
+  21: "valle-bajo",
+  22: "valle-bajo",
+};
+
+const regionLabelById: Record<string, string> = {
+  "acuifer-1-4": "Sectores acuifero 1 al 4",
+  "tierra-amarilla": "Tierra Amarilla",
+  "valle-bajo": "Valle bajo",
+};
+
+const toLatLng = (position: number[]) => [position[1], position[0]] as [number, number];
+
+const toPolygonPositions = (geometry: EtrSectorFeature["geometry"]) => {
+  if (geometry.type === "Polygon") {
+    return (geometry.coordinates as number[][][]).map((ring) => ring.map(toLatLng));
+  }
+
+  return (geometry.coordinates as number[][][][]).map((polygon) =>
+    polygon.map((ring) => ring.map(toLatLng)),
+  );
 };
 
 export function EtrMap({
-  regions,
-  selectedRegionId,
+  selectedSectorId,
+  selectedSummaryLabel,
   onSelect,
 }: EtrMapProps) {
-  const selectedRegion =
-    regions.find((region) => region.id === selectedRegionId) ?? regions[0];
-
   return (
     <div className="etr-map">
-      <div className="etr-map-surface">
-        <div className="etr-map-ocean" aria-hidden="true" />
-        <div className="etr-map-grid" aria-hidden="true" />
+      <div className="etr-region-map-shell">
+        <MapContainer
+          bounds={copiapoBounds}
+          className="etr-region-map"
+          scrollWheelZoom
+          zoomControl
+        >
+          <LayersControl position="topright">
+            <LayersControl.BaseLayer checked name="OpenStreetMap">
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+            </LayersControl.BaseLayer>
+            <LayersControl.BaseLayer name="Esri Satellite">
+              <TileLayer
+                attribution="Tiles &copy; Esri"
+                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+              />
+            </LayersControl.BaseLayer>
+          </LayersControl>
 
-        <div className="etr-map-controls" aria-hidden="true">
-          <button type="button">+</button>
-          <button type="button">−</button>
-        </div>
+          {etrFeatures.map((feature) => {
+            const sectorId = Number(feature.properties.sector_id ?? feature.id);
+            const regionId = sectorGroupById[sectorId];
+            if (!regionId) {
+              return null;
+            }
 
-        <button type="button" className="etr-map-layers" aria-label="Layers">
-          <span />
-          <span />
-          <span />
-        </button>
+            const isSelected = selectedSectorId === String(sectorId);
 
-        {regions.map((region) => (
-          <button
-            key={region.id}
-            type="button"
-            className={`etr-map-region ${
-              selectedRegionId === region.id ? "is-active" : ""
-            }`}
-            data-region={region.id}
-            onClick={() => onSelect(region.id)}
-            aria-label={region.label}
-          />
-        ))}
+            return (
+              <Polygon
+                key={String(feature.id)}
+                eventHandlers={{
+                  click: () =>
+                    onSelect({
+                      sectorId: String(sectorId),
+                      sectorName: feature.properties.nombre,
+                      regionId,
+                      regionLabel: regionLabelById[regionId] ?? regionId,
+                    }),
+                }}
+                pathOptions={{
+                  color: isSelected ? "#1b66d3" : "#ef6d83",
+                  fillColor: "#eb5676",
+                  fillOpacity: isSelected ? 0.58 : 0.24,
+                  weight: isSelected ? 3 : 2,
+                }}
+                positions={toPolygonPositions(feature.geometry)}
+              >
+                <Tooltip sticky>
+                  {feature.properties.nombre}
+                </Tooltip>
+              </Polygon>
+            );
+          })}
+        </MapContainer>
 
-        <div className="etr-map-overlay-copy">
-          <strong>{selectedRegion.label}</strong>
+        <div className="etr-region-overlay">
+          <strong>{selectedSummaryLabel}</strong>
           <span>Seleccione un poligono</span>
         </div>
-
-        <div className="etr-map-attribution">
-          Leaflet | Esri, i-cubed, USDA, USGS
-        </div>
-      </div>
-
-      <div className="etr-map-footer">
-        {regions.map((region) => (
-          <button
-            key={region.id}
-            type="button"
-            className={selectedRegionId === region.id ? "is-active" : ""}
-            onClick={() => onSelect(region.id)}
-          >
-            {region.label}
-          </button>
-        ))}
       </div>
     </div>
   );
