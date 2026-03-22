@@ -3,6 +3,7 @@ import { EtrMap, type EtrSectorSelection } from "./components/EtrMap";
 import { MiniSparkline } from "./components/MiniSparkline";
 import { SimpleBarChart } from "./components/SimpleBarChart";
 import { SimpleLineChart } from "./components/SimpleLineChart";
+import { SnowCoverageMap } from "./components/SnowCoverageMap";
 import { StatusLeafletMap } from "./components/StatusLeafletMap";
 import {
   computeOverviewCards,
@@ -551,16 +552,13 @@ function SnowView() {
               en la cuenca para una fecha dada.
             </p>
             <p>
-              El mockup mantiene solo lo esencial: imagen disponible y series de
-              evolucion anual por area de estudio.
+              El mockup muestra las areas de estudio cargadas desde GeoJSON sobre
+              mapa satelital y mantiene las series de evolucion anual por cuenca.
             </p>
           </div>
 
           <div className="snow-image-card">
-            <div className="snow-image-placeholder">
-              <div className="snow-map-core" />
-              <span>Imagen visible / MODIS</span>
-            </div>
+            <SnowCoverageMap />
           </div>
         </Panel>
 

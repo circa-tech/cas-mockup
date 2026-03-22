@@ -12,6 +12,7 @@ import {
   TelemetrySourceType,
   WaterQualityStatus,
 } from "../data/mockupData";
+import { ModifierWheelZoom } from "./ModifierWheelZoom";
 
 export type StatusLeafletPoint = {
   id: string;
@@ -49,9 +50,9 @@ const qualityClassMap: Record<WaterQualityStatus, string> = {
 };
 
 const statusLabelMap: Record<GeoPointStatus, string> = {
-  fresh: "Al dia",
-  warning: "Con atraso",
-  stale: "Atrasado > 2 dias",
+  fresh: "Actualizado < 24 h",
+  warning: "Actualizado 24-48 h",
+  stale: "Sin reporte > 48 h",
 };
 
 const sourceLabelMap: Record<TelemetrySourceType, string> = {
@@ -92,17 +93,18 @@ export function StatusLeafletMap({
     <MapContainer
       bounds={copiapoBounds}
       className={`status-leaflet-map ${className ?? ""}`.trim()}
-      scrollWheelZoom
+      scrollWheelZoom={false}
       zoomControl
     >
+      <ModifierWheelZoom />
       <LayersControl position="topright">
-        <LayersControl.BaseLayer checked name="OpenStreetMap">
+        <LayersControl.BaseLayer name="OpenStreetMap">
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
         </LayersControl.BaseLayer>
-        <LayersControl.BaseLayer name="Esri Satellite">
+        <LayersControl.BaseLayer checked name="Esri Satellite">
           <TileLayer
             attribution="Tiles &copy; Esri"
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"

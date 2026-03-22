@@ -1,5 +1,6 @@
 import { LayersControl, MapContainer, Polygon, TileLayer, Tooltip } from "react-leaflet";
 import etrSectorsGeoJson from "../data/etrSectorsGeoJson.json";
+import { ModifierWheelZoom } from "./ModifierWheelZoom";
 
 export type EtrSectorSelection = {
   regionId: string;
@@ -94,17 +95,18 @@ export function EtrMap({
         <MapContainer
           bounds={copiapoBounds}
           className="etr-region-map"
-          scrollWheelZoom
+          scrollWheelZoom={false}
           zoomControl
         >
+          <ModifierWheelZoom />
           <LayersControl position="topright">
-            <LayersControl.BaseLayer checked name="OpenStreetMap">
+            <LayersControl.BaseLayer name="OpenStreetMap">
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
             </LayersControl.BaseLayer>
-            <LayersControl.BaseLayer name="Esri Satellite">
+            <LayersControl.BaseLayer checked name="Esri Satellite">
               <TileLayer
                 attribution="Tiles &copy; Esri"
                 url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"

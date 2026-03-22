@@ -413,26 +413,14 @@ select {
   padding: 16px;
 }
 
-.snow-image-placeholder {
-  display: grid;
-  place-items: center;
-  gap: 12px;
-  height: 280px;
+.snow-coverage-map-shell {
+  position: relative;
   border: 1px solid var(--border);
-  background: linear-gradient(180deg, #f2f3f6 0%, #ececef 100%);
-  color: var(--muted);
 }
 
-.snow-map-core {
-  width: 180px;
-  height: 220px;
-  border: 3px solid #2f6bc2;
-  border-radius: 44% 56% 42% 58% / 47% 33% 67% 53%;
-  background:
-    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), transparent 28%),
-    radial-gradient(circle at 60% 40%, rgba(0, 0, 0, 0.18), transparent 22%),
-    radial-gradient(circle at 52% 68%, rgba(255, 255, 255, 0.78), transparent 26%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.56));
+.snow-coverage-map {
+  width: 100%;
+  height: 320px;
 }
 
 .snow-chart-summary {
@@ -1044,6 +1032,10 @@ select {
 
   .etr-region-map {
     height: 390px;
+  }
+
+  .snow-coverage-map {
+    height: 290px;
   }
 
   .etr-region-overlay {
