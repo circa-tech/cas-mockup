@@ -13,6 +13,7 @@ import {
   etrStats,
   getFreshnessStatus,
   ManualWellEntry,
+  MeteoStationPoint,
   meteoStationPoints,
   mockNowIso,
   snowJorqueraSeries,
@@ -51,9 +52,15 @@ const freshnessClassMap = {
 } as const;
 
 const freshnessLabelMap = {
-  fresh: "Al dia",
-  warning: "Con atraso",
-  stale: "Atrasado > 2 dias",
+  fresh: "Actualizado < 24 h",
+  warning: "Actualizado 24-48 h",
+  stale: "Sin reporte > 48 h",
+} as const;
+
+const freshnessCompactLabelMap = {
+  fresh: "OK",
+  warning: "Seguim.",
+  stale: "Alerta",
 } as const;
 
 const qualityClassMap: Record<WaterQualityStatus, string> = {
@@ -192,6 +199,182 @@ const upsertSeriesPoint = (
   next.push({ label, value });
   return next.slice(-18);
 };
+
+const toOverviewMiniDateLabel = (value: string) => {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [, month, day] = value.split("-");
+    return `${day}/${month}`;
+  }
+
+  return value.length > 8 ? value.slice(0, 8) : value;
+};
+
+function OverviewMiniLine({
+  labels,
+  lines,
+}: {
+  labels?: string[];
+  lines: { color: string; label: string; values: number[] }[];
+}) {
+  const [hoverPoint, setHoverPoint] = useState<{
+    color: string;
+    label: string;
+    seriesLabel: string;
+    value: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const width = 520;
+  const height = 128;
+  const padX = 10;
+  const padY = 14;
+  const padBottom = 24;
+  const allValues = lines.flatMap((line) => line.values);
+  const min = Math.min(...allValues);
+  const max = Math.max(...allValues);
+  const span = max - min || 1;
+  const xLabels = labels ?? [];
+  const firstLabel = xLabels[0] ?? "";
+  const lastLabel = xLabels[xLabels.length - 1] ?? "";
+  const firstLabelShort = firstLabel ? toOverviewMiniDateLabel(firstLabel) : "";
+  const lastLabelShort = lastLabel ? toOverviewMiniDateLabel(lastLabel) : "";
+  const tooltipValueText = hoverPoint
+    ? `${hoverPoint.seriesLabel}: ${hoverPoint.value.toFixed(2)}`
+    : "";
+  const tooltipWidth = hoverPoint
+    ? Math.max(82, hoverPoint.label.length * 5.2, tooltipValueText.length * 5.2) + 12
+    : 0;
+  const tooltipHeight = 32;
+  const rawTooltipX = hoverPoint ? hoverPoint.x + 6 : 0;
+  const tooltipX = hoverPoint
+    ? Math.max(padX, Math.min(rawTooltipX, width - padX - tooltipWidth))
+    : 0;
+  const rawTooltipY = hoverPoint ? hoverPoint.y - tooltipHeight - 8 : 0;
+  const tooltipY = hoverPoint ? (rawTooltipY < padY ? hoverPoint.y + 8 : rawTooltipY) : 0;
+
+  const toPath = (values: number[]) => {
+    const stepX = values.length > 1 ? (width - padX * 2) / (values.length - 1) : 0;
+    return values
+      .map((value, index) => {
+        const x = padX + index * stepX;
+        const y = height - padBottom - ((value - min) / span) * (height - padY - padBottom);
+        return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+      })
+      .join(" ");
+  };
+
+  return (
+    <div className="overview-mini-chart">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="overview-mini-svg"
+        role="img"
+        preserveAspectRatio="xMinYMin meet"
+        onMouseLeave={() => setHoverPoint(null)}
+      >
+        <line x1={padX} y1={padY} x2={padX} y2={height - padBottom} className="overview-mini-axis" />
+        <line
+          x1={padX}
+          y1={height - padBottom}
+          x2={width - padX}
+          y2={height - padBottom}
+          className="overview-mini-axis"
+        />
+        <text x={padX + 2} y={padY - 2} className="overview-mini-tick">
+          {max.toFixed(1)}
+        </text>
+        <text x={padX + 2} y={height - padBottom - 2} className="overview-mini-tick">
+          {min.toFixed(1)}
+        </text>
+        {firstLabel && (
+          <text x={padX} y={height - 8} className="overview-mini-tick" textAnchor="start">
+            {firstLabelShort}
+          </text>
+        )}
+        {lastLabel && (
+          <text x={width - padX} y={height - 8} className="overview-mini-tick" textAnchor="end">
+            {lastLabelShort}
+          </text>
+        )}
+        {lines.map((line) => (
+          <path
+            key={line.label}
+            d={toPath(line.values)}
+            fill="none"
+            stroke={line.color}
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ))}
+        {lines.map((line) => {
+          const stepX =
+            line.values.length > 1 ? (width - padX * 2) / (line.values.length - 1) : 0;
+          return line.values.map((value, index) => {
+            const x = padX + index * stepX;
+            const y =
+              height - padBottom - ((value - min) / span) * (height - padY - padBottom);
+            const label = xLabels[index] ?? `P${index + 1}`;
+            return (
+              <circle key={`${line.label}-${label}-${index}`} cx={x} cy={y} r="2.2" fill={line.color}>
+                <title>{`${label}: ${value.toFixed(2)}`}</title>
+              </circle>
+            );
+          });
+        })}
+        {lines.map((line) => {
+          const stepX =
+            line.values.length > 1 ? (width - padX * 2) / (line.values.length - 1) : 0;
+          return line.values.map((value, index) => {
+            const x = padX + index * stepX;
+            const y =
+              height - padBottom - ((value - min) / span) * (height - padY - padBottom);
+            const label = xLabels[index] ?? `P${index + 1}`;
+            return (
+              <circle
+                key={`hover-${line.label}-${index}`}
+                cx={x}
+                cy={y}
+                r="8"
+                className="overview-mini-hit"
+                onMouseEnter={() =>
+                  setHoverPoint({
+                    color: line.color,
+                    label,
+                    seriesLabel: line.label,
+                    value,
+                    x,
+                    y,
+                  })
+                }
+              />
+            );
+          });
+        })}
+        {hoverPoint && (
+          <>
+            <line
+              x1={hoverPoint.x}
+              y1={padY}
+              x2={hoverPoint.x}
+              y2={height - padBottom}
+              className="overview-mini-hover-line"
+            />
+            <g transform={`translate(${tooltipX}, ${tooltipY})`}>
+              <rect width={tooltipWidth} height={tooltipHeight} rx="4" className="overview-mini-tooltip-box" />
+              <text x={6} y={12} className="overview-mini-tooltip-label">
+                {toOverviewMiniDateLabel(hoverPoint.label)}
+              </text>
+              <text x={6} y={24} className="overview-mini-tooltip-value" fill={hoverPoint.color}>
+                {tooltipValueText}
+              </text>
+            </g>
+          </>
+        )}
+      </svg>
+    </div>
+  );
+}
 
 const defaultEtrSectorSelection: EtrSectorSelection = {
   sectorId: "1",
@@ -448,10 +631,52 @@ function SnowView() {
 function OverviewView({
   cards,
   onOpenView,
+  stations,
+  wells,
 }: {
   cards: ReturnType<typeof computeOverviewCards>;
   onOpenView: (viewId: Exclude<ViewId, "overview">) => void;
+  stations: MeteoStationPoint[];
+  wells: WellMapPoint[];
 }) {
+  const etrMiniLines = etrOverviewSeasonSeries.map((line) => ({
+    color: line.color,
+    label: line.label,
+    values: line.points.slice(-12).map((point) => point.value),
+  }));
+  const etrMiniLabels = etrOverviewSeasonSeries[0]?.points
+    .slice(-12)
+    .map((point) => point.label) ?? [];
+
+  const snowMiniLines = snowOverviewSeries.map((line) => ({
+    color: line.color,
+    label: line.label,
+    values: line.points.map((point) => point.value),
+  }));
+  const snowMiniLabels = snowOverviewSeries[0]?.points.map((point) => point.label) ?? [];
+
+  const recentWells = [...wells]
+    .sort((a, b) => new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime())
+    .slice(0, 4)
+    .map((well) => ({
+      id: well.id,
+      name: well.name.replace("Pozo ", ""),
+      level: getCurrentValue(well.levelSeries),
+      dailyChange: getDailyChangeValue(well.levelSeries),
+      status: well.status,
+    }));
+
+  const meteoSnapshot = [...stations]
+    .sort((a, b) => new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime())
+    .slice(0, 3)
+    .map((station) => ({
+      id: station.id,
+      name: station.name.replace("Estacion ", ""),
+      humidity: station.humidityValue,
+      status: station.status,
+      temperature: station.temperatureValue,
+    }));
+
   return (
     <div className="view-stack">
       <div className="view-intro">
@@ -459,24 +684,91 @@ function OverviewView({
         <p>Acceso rapido a ET-LAT, MODIS-Snow, Pozos y Meteo.</p>
       </div>
       <div className="overview-grid">
-        {cards.map((card) => (
-          <button
-            key={card.id}
-            type="button"
-            className="overview-card"
-            onClick={() => onOpenView(card.targetView)}
-          >
-            <div className="overview-card-header">
-              <h3>{card.title}</h3>
-              <span className={`status-pill ${freshnessClassMap[card.status]}`}>
-                {freshnessLabelMap[card.status]}
-              </span>
-            </div>
-            <strong>{card.primaryKpi}</strong>
-            <p>{card.secondaryKpi}</p>
-            <small>Ultima actualizacion: {formatDateTime(card.lastUpdate)}</small>
-          </button>
-        ))}
+        {cards.map((card) => {
+          const isNetworkCard = card.targetView === "wells" || card.targetView === "meteo";
+          const cardStatusLabel = isNetworkCard
+            ? card.status === "stale"
+              ? "Red con alertas"
+              : card.status === "warning"
+                ? "Red en seguimiento"
+                : "Red estable"
+            : freshnessLabelMap[card.status];
+
+          const cardSecondaryKpi =
+            card.targetView === "wells"
+              ? `${wells.length} pozos monitoreados`
+              : card.targetView === "meteo"
+                ? `${stations.length} estaciones monitoreadas`
+                : card.secondaryKpi;
+
+          return (
+            <button
+              key={card.id}
+              type="button"
+              className="overview-card"
+              onClick={() => onOpenView(card.targetView)}
+            >
+              <div className="overview-card-header">
+                <h3>{card.title}</h3>
+                <span className={`status-pill ${freshnessClassMap[card.status]}`}>
+                  {cardStatusLabel}
+                </span>
+              </div>
+              <strong>{card.primaryKpi}</strong>
+              <p>{cardSecondaryKpi}</p>
+              {card.targetView === "etr" && (
+                <OverviewMiniLine labels={etrMiniLabels} lines={etrMiniLines} />
+              )}
+              {card.targetView === "snow" && (
+                <OverviewMiniLine labels={snowMiniLabels} lines={snowMiniLines} />
+              )}
+              {card.targetView === "wells" && (
+                <div className="overview-mini-table">
+                  <div className="overview-mini-table-head">
+                    <span>Pozo</span>
+                    <span>Nivel</span>
+                    <span>Cambio</span>
+                    <span>Estado</span>
+                  </div>
+                  {recentWells.map((well) => (
+                    <div key={well.id} className="overview-mini-table-row">
+                      <span className="overview-mini-name">{well.name}</span>
+                      <span>{well.level.toFixed(2)} m</span>
+                      <span className={`overview-mini-delta ${well.dailyChange >= 0 ? "is-up" : "is-down"}`}>
+                        {well.dailyChange >= 0 ? "+" : ""}
+                        {well.dailyChange.toFixed(2)} m
+                      </span>
+                      <span className={`overview-mini-status ${well.status}`}>
+                        {freshnessCompactLabelMap[well.status]}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {card.targetView === "meteo" && (
+                <div className="overview-mini-table">
+                  <div className="overview-mini-table-head">
+                    <span>Estacion</span>
+                    <span>Temp</span>
+                    <span>HR</span>
+                    <span>Estado</span>
+                  </div>
+                  {meteoSnapshot.map((station) => (
+                    <div key={station.id} className="overview-mini-table-row">
+                      <span className="overview-mini-name">{station.name}</span>
+                      <span>{station.temperature.toFixed(1)}°C</span>
+                      <span>{station.humidity.toFixed(0)}%</span>
+                      <span className={`overview-mini-status ${station.status}`}>
+                        {freshnessCompactLabelMap[station.status]}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <small>Ultima actualizacion: {formatDateTime(card.lastUpdate)}</small>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -545,7 +837,7 @@ function WellsView({
         <article className="stat-card">
           <span>Pozos al dia</span>
           <strong>{wellsFreshCount}/{wells.length}</strong>
-          <small>{wellsStaleCount} en rojo por atraso mayor a 2 dias</small>
+          <small>{wellsStaleCount} sin reporte en las ultimas 48 h</small>
         </article>
         <article className="stat-card">
           <span>Pozos con carga manual</span>
@@ -567,7 +859,7 @@ function WellsView({
       <div className="map-detail-grid">
         <Panel
           title="Mapa de pozos (Copiapo)"
-          subtitle="Rojo: sin actualizar por mas de 2 dias · Borde punteado: carga manual"
+          subtitle="Semaforo de frescura: verde <24 h · amarillo 24-48 h · rojo >48 h"
         >
           <StatusLeafletMap
             points={wellRows.map((well) => ({
@@ -584,9 +876,9 @@ function WellsView({
             onSelect={onSelectWell}
           />
           <div className="map-legend">
-            <span><i className="legend-dot fresh" /> Al dia</span>
-            <span><i className="legend-dot warning" /> Con atraso</span>
-            <span><i className="legend-dot stale" /> Atrasado &gt; 2 dias</span>
+            <span><i className="legend-dot fresh" /> Actualizado &lt; 24 h</span>
+            <span><i className="legend-dot warning" /> Actualizado 24-48 h</span>
+            <span><i className="legend-dot stale" /> Sin reporte &gt; 48 h</span>
             <span><i className="legend-dot quality-alert" /> Calidad en alerta</span>
           </div>
         </Panel>
@@ -834,7 +1126,7 @@ function MeteoView({
         <article className="stat-card">
           <span>Estaciones al dia</span>
           <strong>{stationsFreshCount}/3</strong>
-          <small>{stationsStaleCount} en rojo por atraso mayor a 2 dias</small>
+          <small>{stationsStaleCount} sin reporte en las ultimas 48 h</small>
         </article>
         <article className="stat-card">
           <span>Ultima sincronizacion global</span>
@@ -852,7 +1144,10 @@ function MeteoView({
       </div>
 
       <div className="map-detail-grid">
-        <Panel title="Mapa de estaciones (Copiapo)" subtitle="Rojo: sin actualizar por mas de 2 dias">
+        <Panel
+          title="Mapa de estaciones (Copiapo)"
+          subtitle="Semaforo de frescura: verde <24 h · amarillo 24-48 h · rojo >48 h"
+        >
           <StatusLeafletMap
             points={stations.map((station) => ({
               id: station.id,
@@ -866,6 +1161,11 @@ function MeteoView({
             selectedPointId={selectedStationId}
             onSelect={onSelectStation}
           />
+          <div className="map-legend">
+            <span><i className="legend-dot fresh" /> Actualizado &lt; 24 h</span>
+            <span><i className="legend-dot warning" /> Actualizado 24-48 h</span>
+            <span><i className="legend-dot stale" /> Sin reporte &gt; 48 h</span>
+          </div>
         </Panel>
 
         <Panel title={selectedStation.name} subtitle={`${formatRelativeAge(selectedStation.lastUpdate, now)} · ${formatDateTime(selectedStation.lastUpdate)}`}>
@@ -1073,6 +1373,8 @@ export default function App() {
           <OverviewView
             cards={overviewCards}
             onOpenView={(viewId) => setActiveView(viewId)}
+            stations={stations}
+            wells={wells}
           />
         )}
         {activeView === "etr" && <EtrView />}

@@ -189,7 +189,7 @@ select {
 
 .overview-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -201,6 +201,9 @@ select {
   text-align: left;
   cursor: pointer;
   transition: border-color 0.15s ease;
+  display: grid;
+  align-content: start;
+  gap: 8px;
 }
 
 .overview-card:hover {
@@ -224,11 +227,11 @@ select {
   display: block;
   font-size: 22px;
   font-weight: 650;
-  margin-bottom: 6px;
+  margin: 0;
 }
 
 .overview-card p {
-  margin: 0 0 8px;
+  margin: 0;
   color: #30333b;
   font-size: 14px;
 }
@@ -236,6 +239,127 @@ select {
 .overview-card small {
   color: var(--muted);
   font-size: 12px;
+}
+
+.overview-mini-chart {
+  margin: 2px 0 0;
+  border: 1px solid #e9ecf2;
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 4px 6px;
+}
+
+.overview-mini-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.overview-mini-axis {
+  stroke: #cfd4df;
+  stroke-width: 1;
+}
+
+.overview-mini-tick {
+  fill: #6a707c;
+  font-size: 7px;
+}
+
+.overview-mini-table {
+  border: 1px solid #e9ecf2;
+  border-radius: 8px;
+  background: #fbfcfe;
+  overflow: hidden;
+}
+
+.overview-mini-table-head,
+.overview-mini-table-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) 56px;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+.overview-mini-table-head {
+  background: #f2f5fa;
+  color: #5d6370;
+  font-weight: 600;
+}
+
+.overview-mini-table-row {
+  border-top: 1px solid #e9ecf2;
+  color: #2e3440;
+}
+
+.overview-mini-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.overview-mini-delta {
+  font-weight: 600;
+}
+
+.overview-mini-delta.is-up {
+  color: #2f8b57;
+}
+
+.overview-mini-delta.is-down {
+  color: #bf4257;
+}
+
+.overview-mini-status {
+  justify-self: center;
+  border-radius: 999px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.overview-mini-status.fresh {
+  background: #e6f6ec;
+  color: #2f8b57;
+}
+
+.overview-mini-status.warning {
+  background: #fff2de;
+  color: #975e10;
+}
+
+.overview-mini-status.stale {
+  background: #fde8ec;
+  color: #b03a51;
+}
+
+.overview-mini-hit {
+  fill: transparent;
+  cursor: crosshair;
+}
+
+.overview-mini-hover-line {
+  stroke: #a5b6cd;
+  stroke-width: 0.9;
+  stroke-dasharray: 2 2;
+}
+
+.overview-mini-tooltip-box {
+  fill: rgba(255, 255, 255, 0.98);
+  stroke: #b7c4d8;
+  stroke-width: 0.8;
+}
+
+.overview-mini-tooltip-label {
+  fill: #4e5662;
+  font-size: 8px;
+}
+
+.overview-mini-tooltip-value {
+  font-size: 8px;
+  font-weight: 600;
 }
 
 .etr-summary-grid {
@@ -733,13 +857,49 @@ select {
   stroke-width: 1;
 }
 
+.chart-axis-line {
+  stroke: #bfc5d1;
+  stroke-width: 1.2;
+}
+
 .chart-axis-label {
   fill: #5f6470;
-  font-size: 13px;
+  font-size: 11px;
 }
 
 .chart-axis-label--left {
   text-anchor: end;
+}
+
+.chart-axis-label--bottom {
+  text-anchor: middle;
+}
+
+.chart-hover-target {
+  fill: transparent;
+  cursor: crosshair;
+}
+
+.chart-hover-line {
+  stroke: #9db0cb;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.chart-tooltip-box {
+  fill: rgba(255, 255, 255, 0.97);
+  stroke: #b7c4d8;
+  stroke-width: 1;
+}
+
+.chart-tooltip-label {
+  fill: #4e5662;
+  font-size: 11px;
+}
+
+.chart-tooltip-value {
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .chart-legend {
@@ -753,13 +913,13 @@ select {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: 12px;
   color: #464954;
 }
 
 .legend-swatch {
-  width: 32px;
-  height: 4px;
+  width: 24px;
+  height: 3px;
   border-radius: 999px;
 }
 
@@ -825,7 +985,6 @@ select {
 }
 
 @media (max-width: 1180px) {
-  .overview-grid,
   .station-card-grid,
   .detail-grid,
   .etr-summary-grid,
@@ -840,6 +999,12 @@ select {
   }
 
   .comparison-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 980px) {
+  .overview-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -891,5 +1056,11 @@ select {
   .manual-entry-form button {
     min-height: 48px;
     font-size: 16px;
+  }
+
+  .overview-mini-table-head,
+  .overview-mini-table-row {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) 48px;
+    font-size: 11px;
   }
 }

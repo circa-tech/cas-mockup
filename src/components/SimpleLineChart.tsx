@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 export type LinePoint = {
   label: string;
   value: number;
@@ -10,6 +12,7 @@ export type LineSeries = {
 };
 
 type SimpleLineChartProps = {
+  xAxisLabel?: string;
   labelEvery?: number;
   maxValue: number;
   minValue: number;
@@ -51,6 +54,7 @@ const makeLinePath = (
 };
 
 export function SimpleLineChart({
+  xAxisLabel = "Fecha",
   labelEvery = 1,
   maxValue,
   minValue,
@@ -59,6 +63,14 @@ export function SimpleLineChart({
   unit,
   xLabelAngle = 0,
 }: SimpleLineChartProps) {
+  const [hoverPoint, setHoverPoint] = useState<{
+    color: string;
+    label: string;
+    seriesLabel: string;
+    value: number;
+    x: number;
+    y: number;
+  } | null>(null);
   const width = 900;
   const height = 360;
   const paddingLeft = 64;
@@ -82,10 +94,50 @@ export function SimpleLineChart({
         ((point.value - minValue) / span) * chartHeight,
     })),
   }));
+  const hoverValueText = hoverPoint
+    ? `${hoverPoint.seriesLabel}: ${hoverPoint.value.toFixed(2)} ${unit}`
+    : "";
+  const tooltipWidth = hoverPoint
+    ? Math.max(132, hoverPoint.label.length * 6.5, hoverValueText.length * 6.5) + 18
+    : 0;
+  const tooltipHeight = 44;
+  const rawTooltipX = hoverPoint ? hoverPoint.x + 12 : 0;
+  const tooltipX = hoverPoint
+    ? Math.max(
+        paddingLeft,
+        Math.min(rawTooltipX, width - paddingRight - tooltipWidth),
+      )
+    : 0;
+  const rawTooltipY = hoverPoint ? hoverPoint.y - tooltipHeight - 10 : 0;
+  const tooltipY = hoverPoint
+    ? rawTooltipY < paddingTop
+      ? hoverPoint.y + 10
+      : rawTooltipY
+    : 0;
 
   return (
     <div className="simple-chart">
-      <svg viewBox={`0 0 ${width} ${height}`} className="simple-chart-svg" role="img">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="simple-chart-svg"
+        role="img"
+        onMouseLeave={() => setHoverPoint(null)}
+      >
+        <line
+          x1={paddingLeft}
+          y1={paddingTop}
+          x2={paddingLeft}
+          y2={paddingTop + chartHeight}
+          className="chart-axis-line"
+        />
+        <line
+          x1={paddingLeft}
+          y1={paddingTop + chartHeight}
+          x2={width - paddingRight}
+          y2={paddingTop + chartHeight}
+          className="chart-axis-line"
+        />
+
         {Array.from({ length: yTicks + 1 }).map((_, tickIndex) => {
           const tickValue = minValue + (span / yTicks) * tickIndex;
           const y = paddingTop + chartHeight - (chartHeight / yTicks) * tickIndex;
@@ -126,8 +178,51 @@ export function SimpleLineChart({
               cy={point.y}
               r="3"
               fill={item.color}
+            >
+              <title>{`${item.points[index].label} · ${item.label}: ${item.points[index].value.toFixed(2)} ${unit}`}</title>
+            </circle>
+          )),
+        )}
+        {chartSeries.map((item) =>
+          item.coordinates.map((point, index) => (
+            <circle
+              key={`hover-${item.label}-${item.points[index].label}`}
+              cx={point.x}
+              cy={point.y}
+              r="10"
+              className="chart-hover-target"
+              onMouseEnter={() =>
+                setHoverPoint({
+                  color: item.color,
+                  label: item.points[index].label,
+                  seriesLabel: item.label,
+                  value: item.points[index].value,
+                  x: point.x,
+                  y: point.y,
+                })
+              }
             />
           )),
+        )}
+        {hoverPoint && (
+          <>
+            <line
+              x1={hoverPoint.x}
+              y1={paddingTop}
+              x2={hoverPoint.x}
+              y2={paddingTop + chartHeight}
+              className="chart-hover-line"
+            />
+            <g transform={`translate(${tooltipX}, ${tooltipY})`}>
+              <rect width={tooltipWidth} height={tooltipHeight} rx="6" className="chart-tooltip-box" />
+              <text x={9} y={16} className="chart-tooltip-label">
+                {hoverPoint.label}
+              </text>
+              <text x={9} y={33} className="chart-tooltip-value" fill={hoverPoint.color}>
+                {hoverValueText}
+              </text>
+            </g>
+          </>
         )}
 
         {series[0]?.points.map((point, index) =>
@@ -156,6 +251,10 @@ export function SimpleLineChart({
           transform={`rotate(-90 20 ${paddingTop + chartHeight / 2})`}
         >
           {unit}
+        </text>
+
+        <text x={paddingLeft + chartWidth / 2} y={height - 12} className="chart-axis-label chart-axis-label--bottom">
+          {xAxisLabel}
         </text>
       </svg>
 
