@@ -1,3 +1,14 @@
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+
 type BarSeries = {
   color: string;
   label: string;
@@ -17,6 +28,60 @@ type SimpleBarChartProps = {
   xLabelAngle?: number;
 };
 
+type BarRow = {
+  label: string;
+  [key: string]: number | string;
+};
+
+const buildRows = (groups: BarGroup[]): BarRow[] =>
+  groups.map((group) => {
+    const row: BarRow = { label: group.label };
+    group.series.forEach((series) => {
+      row[series.label] = series.value;
+    });
+    return row;
+  });
+
+const getSeriesOrder = (groups: BarGroup[]) => {
+  const labels = new Set<string>();
+  groups.forEach((group) => {
+    group.series.forEach((series) => labels.add(series.label));
+  });
+  return Array.from(labels);
+};
+
+const getSeriesColors = (groups: BarGroup[]) => {
+  const palette = new Map<string, string>();
+  groups.forEach((group) => {
+    group.series.forEach((series) => {
+      if (!palette.has(series.label)) {
+        palette.set(series.label, series.color);
+      }
+    });
+  });
+  return palette;
+};
+
+type LegendItem = {
+  color?: string;
+  value?: string | number;
+};
+
+const renderLegend = ({ payload }: { payload?: readonly LegendItem[] }) => (
+  <div className="chart-legend">
+    {(payload ?? []).map((entry) => (
+      <span key={String(entry.value ?? "")} className="legend-item">
+        <span
+          className="legend-swatch"
+          style={{ backgroundColor: entry.color ?? "rgb(59, 169, 206)" }}
+          aria-hidden="true"
+        />
+        {String(entry.value ?? "")}
+      </span>
+    ))}
+  </div>
+);
+
 export function SimpleBarChart({
   groups,
   maxValue,
@@ -24,94 +89,73 @@ export function SimpleBarChart({
   unit,
   xLabelAngle = 0,
 }: SimpleBarChartProps) {
-  const width = 760;
-  const height = 320;
-  const paddingLeft = 52;
-  const paddingRight = 20;
-  const paddingTop = 24;
-  const paddingBottom = xLabelAngle === 0 ? 62 : 84;
-  const chartWidth = width - paddingLeft - paddingRight;
-  const chartHeight = height - paddingTop - paddingBottom;
-  const groupWidth = chartWidth / groups.length;
-  const innerGap = 10;
-  const barWidth = Math.min(28, (groupWidth - innerGap * 3) / 2);
-  const step = tickStep ?? Math.max(1, Math.round(maxValue / 5));
-  const ticks = Array.from(
-    { length: Math.floor(maxValue / step) + 1 },
-    (_, index) => index * step,
-  );
+  const rows = buildRows(groups);
+  const seriesLabels = getSeriesOrder(groups);
+  const colors = getSeriesColors(groups);
 
   return (
     <div className="simple-chart">
-      <svg viewBox={`0 0 ${width} ${height}`} className="simple-chart-svg" role="img">
-        {ticks.map((tick) => {
-          const y = paddingTop + chartHeight - (tick / maxValue) * chartHeight;
-
-          return (
-            <g key={tick}>
-              <line
-                x1={paddingLeft}
-                y1={y}
-                x2={width - paddingRight}
-                y2={y}
-                className="chart-grid-line"
+      <div className="simple-chart-recharts-shell">
+        <ResponsiveContainer height={310} width="100%">
+          <BarChart data={rows} margin={{ bottom: xLabelAngle === 0 ? 14 : 44, left: 6, right: 8, top: 10 }} barGap={4}>
+            <CartesianGrid stroke="hsl(210 18% 89%)" strokeDasharray="3 3" vertical={false} />
+            <XAxis
+              angle={xLabelAngle}
+              dataKey="label"
+              tick={{ fill: "hsl(215 14% 50%)", fontSize: 11 }}
+              tickLine={false}
+              axisLine={{ stroke: "hsl(210 18% 84%)" }}
+              textAnchor={xLabelAngle === 0 ? "middle" : "end"}
+            />
+            <YAxis
+              axisLine={{ stroke: "hsl(210 18% 84%)" }}
+              domain={[0, maxValue]}
+              tick={{ fill: "hsl(215 14% 50%)", fontSize: 11 }}
+              tickLine={false}
+              width={40}
+              ticks={
+                tickStep && tickStep > 0
+                  ? Array.from({ length: Math.floor(maxValue / tickStep) + 1 }, (_, index) => index * tickStep)
+                  : undefined
+              }
+              label={{
+                value: unit,
+                angle: -90,
+                position: "insideLeft",
+                dx: -6,
+                style: { fill: "hsl(215 14% 50%)", fontSize: 11 },
+              }}
+            />
+            <Tooltip
+              animationDuration={150}
+              contentStyle={{
+                background: "hsl(0 0% 100%)",
+                border: "1px solid hsl(210 18% 84%)",
+                borderRadius: "8px",
+                boxShadow: "0 8px 16px rgba(16, 44, 92, 0.14)",
+                fontSize: "12px",
+              }}
+              cursor={{ fill: "rgba(30, 79, 154, 0.06)" }}
+              formatter={(value, name) => [`${Number(value ?? 0).toFixed(2)} ${unit}`, String(name)]}
+              labelStyle={{ color: "hsl(215 14% 40%)", fontWeight: 600 }}
+            />
+            <Legend content={renderLegend} verticalAlign="top" />
+            {seriesLabels.map((label, index) => (
+              <Bar
+                key={label}
+                animationBegin={index * 80}
+                animationDuration={640}
+                dataKey={label}
+                fill={colors.get(label) ?? "rgb(59, 169, 206)"}
+                isAnimationActive
+                maxBarSize={30}
+                name={label}
+                radius={[4, 4, 0, 0]}
               />
-              <text x={paddingLeft - 12} y={y + 4} className="chart-axis-label chart-axis-label--left">
-                {tick}
-              </text>
-            </g>
-          );
-        })}
-
-        {groups.map((group, groupIndex) => {
-          const originX = paddingLeft + groupIndex * groupWidth;
-
-          return (
-            <g key={group.label}>
-              {group.series.map((series, seriesIndex) => {
-                const x = originX + innerGap + seriesIndex * (barWidth + innerGap);
-                const barHeight = (series.value / maxValue) * chartHeight;
-                const y = paddingTop + chartHeight - barHeight;
-
-                return (
-                  <rect
-                    key={series.label}
-                    x={x}
-                    y={y}
-                    width={barWidth}
-                    height={barHeight}
-                    rx="1"
-                    fill={series.color}
-                  />
-                );
-              })}
-
-              <text
-                x={originX + groupWidth / 2}
-                y={height - 16}
-                className="chart-axis-label"
-                textAnchor="middle"
-                transform={
-                  xLabelAngle !== 0
-                    ? `rotate(${xLabelAngle} ${originX + groupWidth / 2} ${height - 16})`
-                    : undefined
-                }
-              >
-                {group.label}
-              </text>
-            </g>
-          );
-        })}
-
-        <text
-          x={16}
-          y={paddingTop + chartHeight / 2}
-          className="chart-axis-label chart-axis-label--left"
-          transform={`rotate(-90 16 ${paddingTop + chartHeight / 2})`}
-        >
-          {unit}
-        </text>
-      </svg>
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }

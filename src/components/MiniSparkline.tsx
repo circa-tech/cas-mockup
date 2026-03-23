@@ -4,7 +4,7 @@ type MiniSparklineProps = {
 };
 
 export function MiniSparkline({
-  color = "#2d6ea3",
+  color = "rgb(23, 112, 130)",
   points,
 }: MiniSparklineProps) {
   const width = 140;
@@ -32,8 +32,12 @@ export function MiniSparkline({
       aria-hidden="true"
     >
       <path
+        className="mini-sparkline-path"
         d={path}
         fill="none"
+        pathLength={100}
+        strokeDasharray={100}
+        strokeDashoffset={100}
         stroke={color}
         strokeWidth="2.5"
         strokeLinecap="round"

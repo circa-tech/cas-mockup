@@ -1,11 +1,32 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  CloudSnow,
+  Droplets,
+  Gauge,
+  MapPinned,
+  Radio,
+  Snowflake,
+  Thermometer,
+  Waves,
+} from "lucide-react";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { EtrMap, type EtrSectorSelection } from "./components/EtrMap";
+import { KpiCard } from "./components/KpiCard";
 import { MiniSparkline } from "./components/MiniSparkline";
 import { SimpleBarChart } from "./components/SimpleBarChart";
 import { SimpleLineChart } from "./components/SimpleLineChart";
 import { SnowCoverageMap } from "./components/SnowCoverageMap";
 import { StatusLeafletMap } from "./components/StatusLeafletMap";
 import {
+  chartPalette,
   computeOverviewCards,
   etrLastUpdateIso,
   etrOverviewBarGroups,
@@ -45,6 +66,14 @@ const monthLabels = [
   "Nov",
   "Dec",
 ];
+
+const navIconMap = {
+  overview: Gauge,
+  etr: Droplets,
+  snow: Snowflake,
+  wells: Waves,
+  meteo: Thermometer,
+} as const;
 
 const freshnessClassMap = {
   fresh: "is-good",
@@ -210,169 +239,90 @@ const toOverviewMiniDateLabel = (value: string) => {
   return value.length > 8 ? value.slice(0, 8) : value;
 };
 
+type OverviewMiniSeries = {
+  color: string;
+  label: string;
+  values: number[];
+};
+
+const buildOverviewMiniRows = (
+  labels: string[] | undefined,
+  lines: OverviewMiniSeries[],
+) => {
+  const pointsLength = Math.max(0, ...lines.map((line) => line.values.length));
+  return Array.from({ length: pointsLength }, (_, index) => {
+    const row: Record<string, number | string> = {
+      label: labels?.[index] ?? `P${index + 1}`,
+    };
+    lines.forEach((line) => {
+      row[line.label] = line.values[index] ?? 0;
+    });
+    return row;
+  });
+};
+
 function OverviewMiniLine({
   labels,
   lines,
+  unit,
 }: {
   labels?: string[];
-  lines: { color: string; label: string; values: number[] }[];
+  lines: OverviewMiniSeries[];
+  unit: string;
 }) {
-  const [hoverPoint, setHoverPoint] = useState<{
-    color: string;
-    label: string;
-    seriesLabel: string;
-    value: number;
-    x: number;
-    y: number;
-  } | null>(null);
-  const width = 520;
-  const height = 128;
-  const padX = 10;
-  const padY = 14;
-  const padBottom = 24;
-  const allValues = lines.flatMap((line) => line.values);
-  const min = Math.min(...allValues);
-  const max = Math.max(...allValues);
-  const span = max - min || 1;
-  const xLabels = labels ?? [];
-  const firstLabel = xLabels[0] ?? "";
-  const lastLabel = xLabels[xLabels.length - 1] ?? "";
-  const firstLabelShort = firstLabel ? toOverviewMiniDateLabel(firstLabel) : "";
-  const lastLabelShort = lastLabel ? toOverviewMiniDateLabel(lastLabel) : "";
-  const tooltipValueText = hoverPoint
-    ? `${hoverPoint.seriesLabel}: ${hoverPoint.value.toFixed(2)}`
-    : "";
-  const tooltipWidth = hoverPoint
-    ? Math.max(82, hoverPoint.label.length * 5.2, tooltipValueText.length * 5.2) + 12
-    : 0;
-  const tooltipHeight = 32;
-  const rawTooltipX = hoverPoint ? hoverPoint.x + 6 : 0;
-  const tooltipX = hoverPoint
-    ? Math.max(padX, Math.min(rawTooltipX, width - padX - tooltipWidth))
-    : 0;
-  const rawTooltipY = hoverPoint ? hoverPoint.y - tooltipHeight - 8 : 0;
-  const tooltipY = hoverPoint ? (rawTooltipY < padY ? hoverPoint.y + 8 : rawTooltipY) : 0;
-
-  const toPath = (values: number[]) => {
-    const stepX = values.length > 1 ? (width - padX * 2) / (values.length - 1) : 0;
-    return values
-      .map((value, index) => {
-        const x = padX + index * stepX;
-        const y = height - padBottom - ((value - min) / span) * (height - padY - padBottom);
-        return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
-      })
-      .join(" ");
-  };
+  const rows = useMemo(() => buildOverviewMiniRows(labels, lines), [labels, lines]);
 
   return (
     <div className="overview-mini-chart">
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="overview-mini-svg"
-        role="img"
-        preserveAspectRatio="xMinYMin meet"
-        onMouseLeave={() => setHoverPoint(null)}
-      >
-        <line x1={padX} y1={padY} x2={padX} y2={height - padBottom} className="overview-mini-axis" />
-        <line
-          x1={padX}
-          y1={height - padBottom}
-          x2={width - padX}
-          y2={height - padBottom}
-          className="overview-mini-axis"
-        />
-        <text x={padX + 2} y={padY - 2} className="overview-mini-tick">
-          {max.toFixed(1)}
-        </text>
-        <text x={padX + 2} y={height - padBottom - 2} className="overview-mini-tick">
-          {min.toFixed(1)}
-        </text>
-        {firstLabel && (
-          <text x={padX} y={height - 8} className="overview-mini-tick" textAnchor="start">
-            {firstLabelShort}
-          </text>
-        )}
-        {lastLabel && (
-          <text x={width - padX} y={height - 8} className="overview-mini-tick" textAnchor="end">
-            {lastLabelShort}
-          </text>
-        )}
-        {lines.map((line) => (
-          <path
-            key={line.label}
-            d={toPath(line.values)}
-            fill="none"
-            stroke={line.color}
-            strokeWidth="2.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+      <ResponsiveContainer height={156} width="100%">
+        <LineChart data={rows} margin={{ bottom: 28, left: -14, right: 6, top: 8 }}>
+          <CartesianGrid stroke="hsl(210 18% 91%)" strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            angle={-35}
+            axisLine={{ stroke: "hsl(210 18% 86%)" }}
+            dataKey="label"
+            height={58}
+            interval="preserveStartEnd"
+            tick={{ fill: "hsl(215 14% 50%)", fontSize: 10 }}
+            tickFormatter={(value: string) => toOverviewMiniDateLabel(value)}
+            tickLine={false}
+            textAnchor="end"
           />
-        ))}
-        {lines.map((line) => {
-          const stepX =
-            line.values.length > 1 ? (width - padX * 2) / (line.values.length - 1) : 0;
-          return line.values.map((value, index) => {
-            const x = padX + index * stepX;
-            const y =
-              height - padBottom - ((value - min) / span) * (height - padY - padBottom);
-            const label = xLabels[index] ?? `P${index + 1}`;
-            return (
-              <circle key={`${line.label}-${label}-${index}`} cx={x} cy={y} r="2.2" fill={line.color}>
-                <title>{`${label}: ${value.toFixed(2)}`}</title>
-              </circle>
-            );
-          });
-        })}
-        {lines.map((line) => {
-          const stepX =
-            line.values.length > 1 ? (width - padX * 2) / (line.values.length - 1) : 0;
-          return line.values.map((value, index) => {
-            const x = padX + index * stepX;
-            const y =
-              height - padBottom - ((value - min) / span) * (height - padY - padBottom);
-            const label = xLabels[index] ?? `P${index + 1}`;
-            return (
-              <circle
-                key={`hover-${line.label}-${index}`}
-                cx={x}
-                cy={y}
-                r="8"
-                className="overview-mini-hit"
-                onMouseEnter={() =>
-                  setHoverPoint({
-                    color: line.color,
-                    label,
-                    seriesLabel: line.label,
-                    value,
-                    x,
-                    y,
-                  })
-                }
-              />
-            );
-          });
-        })}
-        {hoverPoint && (
-          <>
-            <line
-              x1={hoverPoint.x}
-              y1={padY}
-              x2={hoverPoint.x}
-              y2={height - padBottom}
-              className="overview-mini-hover-line"
+          <YAxis
+            axisLine={{ stroke: "hsl(210 18% 86%)" }}
+            tick={{ fill: "hsl(215 14% 50%)", fontSize: 10 }}
+            tickLine={false}
+            width={30}
+          />
+          <RechartsTooltip
+            animationDuration={120}
+            contentStyle={{
+              background: "hsl(0 0% 100%)",
+              border: "1px solid hsl(210 18% 87%)",
+              borderRadius: "8px",
+              boxShadow: "0 8px 16px rgba(16, 44, 92, 0.12)",
+              fontSize: "11px",
+            }}
+            cursor={{ stroke: "hsl(215 38% 70%)", strokeDasharray: "3 3" }}
+            formatter={(value, name) => [`${Number(value ?? 0).toFixed(2)} ${unit}`, String(name)]}
+            labelFormatter={(label) => String(toOverviewMiniDateLabel(String(label)))}
+          />
+          {lines.map((line, index) => (
+            <Line
+              key={line.label}
+              activeDot={{ r: 4 }}
+              animationBegin={index * 90}
+              animationDuration={620}
+              dataKey={line.label}
+              dot={{ r: 2 }}
+              isAnimationActive
+              stroke={line.color}
+              strokeWidth={2.1}
+              type="monotone"
             />
-            <g transform={`translate(${tooltipX}, ${tooltipY})`}>
-              <rect width={tooltipWidth} height={tooltipHeight} rx="4" className="overview-mini-tooltip-box" />
-              <text x={6} y={12} className="overview-mini-tooltip-label">
-                {toOverviewMiniDateLabel(hoverPoint.label)}
-              </text>
-              <text x={6} y={24} className="overview-mini-tooltip-value" fill={hoverPoint.color}>
-                {tooltipValueText}
-              </text>
-            </g>
-          </>
-        )}
-      </svg>
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -457,12 +407,30 @@ function EtrView() {
       </div>
 
       <div className="stat-grid">
-        {etrStats.map((item) => (
-          <article key={item.label} className="stat-card">
-            <span>{item.label}</span>
-            <strong>{item.value}</strong>
-          </article>
-        ))}
+        <KpiCard
+          delayMs={0}
+          icon={Gauge}
+          title={etrStats[0].label}
+          value={etrStats[0].value}
+          note="Disponibilidad ET-LAT"
+          noteTone="neutral"
+        />
+        <KpiCard
+          delayMs={80}
+          icon={Droplets}
+          title={etrStats[1].label}
+          value={etrStats[1].value}
+          note="Balance hidrico base"
+          noteTone="positive"
+        />
+        <KpiCard
+          delayMs={160}
+          icon={MapPinned}
+          title={etrStats[2].label}
+          value={etrStats[2].value}
+          note="Potencial atmosferico"
+          noteTone="neutral"
+        />
       </div>
 
       <div className="etr-summary-grid">
@@ -715,10 +683,10 @@ function OverviewView({
               <strong>{card.primaryKpi}</strong>
               <p>{cardSecondaryKpi}</p>
               {card.targetView === "etr" && (
-                <OverviewMiniLine labels={etrMiniLabels} lines={etrMiniLines} />
+                <OverviewMiniLine labels={etrMiniLabels} lines={etrMiniLines} unit="mm" />
               )}
               {card.targetView === "snow" && (
-                <OverviewMiniLine labels={snowMiniLabels} lines={snowMiniLines} />
+                <OverviewMiniLine labels={snowMiniLabels} lines={snowMiniLines} unit="%" />
               )}
               {card.targetView === "wells" && (
                 <div className="overview-mini-table">
@@ -832,26 +800,38 @@ function WellsView({
       </div>
 
       <div className="stat-grid">
-        <article className="stat-card">
-          <span>Pozos al dia</span>
-          <strong>{wellsFreshCount}/{wells.length}</strong>
-          <small>{wellsStaleCount} sin reporte en las ultimas 48 h</small>
-        </article>
-        <article className="stat-card">
-          <span>Pozos con carga manual</span>
-          <strong>{manualWells}</strong>
-          <small>Lecturas diarias desde mobile/tablet</small>
-        </article>
-        <article className="stat-card">
-          <span>Calidad en alerta</span>
-          <strong>{waterAlerts}</strong>
-          <small>Muestras de calidad de agua fuera de rango</small>
-        </article>
-        <article className="stat-card">
-          <span>Ultima sincronizacion global</span>
-          <strong>{formatDateTime(maxUpdate)}</strong>
-          <small>{formatRelativeAge(maxUpdate, now)}</small>
-        </article>
+        <KpiCard
+          delayMs={0}
+          icon={Waves}
+          title="Pozos al dia"
+          value={`${wellsFreshCount}/${wells.length}`}
+          note={`${wellsStaleCount} sin reporte en las ultimas 48 h`}
+          noteTone={wellsStaleCount > 0 ? "negative" : "positive"}
+        />
+        <KpiCard
+          delayMs={80}
+          icon={Radio}
+          title="Pozos con carga manual"
+          value={String(manualWells)}
+          note="Lecturas diarias desde mobile/tablet"
+          noteTone="neutral"
+        />
+        <KpiCard
+          delayMs={160}
+          icon={Droplets}
+          title="Calidad en alerta"
+          value={String(waterAlerts)}
+          note="Muestras de calidad de agua fuera de rango"
+          noteTone={waterAlerts > 0 ? "negative" : "positive"}
+        />
+        <KpiCard
+          delayMs={240}
+          icon={Gauge}
+          title="Ultima sincronizacion global"
+          value={formatDateTime(maxUpdate)}
+          note={formatRelativeAge(maxUpdate, now)}
+          noteTone="neutral"
+        />
       </div>
 
       <div className="map-detail-grid">
@@ -964,7 +944,10 @@ function WellsView({
                     </strong>
                   </div>
                 </div>
-                <MiniSparkline points={well.levelSeries.map((point) => point.value)} color="#f26d3d" />
+                <MiniSparkline
+                  points={well.levelSeries.map((point) => point.value)}
+                  color={chartPalette.chart6}
+                />
                 <span className={`status-pill ${freshnessClassMap[well.status]}`}>
                   {freshnessLabelMap[well.status]}
                 </span>
@@ -1077,7 +1060,7 @@ function WellsView({
           series={[
             {
               label: selectedWell.name,
-              color: "#f26d3d",
+              color: chartPalette.chart6,
               points: selectedWell.levelSeries,
             },
           ]}
@@ -1121,24 +1104,30 @@ function MeteoView({
       </div>
 
       <div className="stat-grid">
-        <article className="stat-card">
-          <span>Estaciones al dia</span>
-          <strong>{stationsFreshCount}/3</strong>
-          <small>{stationsStaleCount} sin reporte en las ultimas 48 h</small>
-        </article>
-        <article className="stat-card">
-          <span>Ultima sincronizacion global</span>
-          <strong>{formatDateTime(latestSync)}</strong>
-          <small>{formatRelativeAge(latestSync, now)}</small>
-        </article>
-        <article className="stat-card">
-          <span>Temperatura media red</span>
-          <strong>
-            {(stations.reduce((total, station) => total + station.temperatureValue, 0) / stations.length).toFixed(1)}
-            °C
-          </strong>
-          <small>Promedio simple de las 3 estaciones</small>
-        </article>
+        <KpiCard
+          delayMs={0}
+          icon={CloudSnow}
+          title="Estaciones al dia"
+          value={`${stationsFreshCount}/3`}
+          note={`${stationsStaleCount} sin reporte en las ultimas 48 h`}
+          noteTone={stationsStaleCount > 0 ? "negative" : "positive"}
+        />
+        <KpiCard
+          delayMs={80}
+          icon={Gauge}
+          title="Ultima sincronizacion global"
+          value={formatDateTime(latestSync)}
+          note={formatRelativeAge(latestSync, now)}
+          noteTone="neutral"
+        />
+        <KpiCard
+          delayMs={160}
+          icon={Thermometer}
+          title="Temperatura media red"
+          value={`${(stations.reduce((total, station) => total + station.temperatureValue, 0) / stations.length).toFixed(1)} °C`}
+          note="Promedio simple de las 3 estaciones"
+          noteTone="neutral"
+        />
       </div>
 
       <div className="map-detail-grid">
@@ -1341,30 +1330,36 @@ export default function App() {
   return (
     <div className="page-shell">
       <header className="site-header">
-        <div>
-          <h1>Agua con Dato</h1>
-          <p>
-            Mockup unificado para ET-LAT, MODIS-Snow, Pozos y Meteo sobre una
-            infraestructura comun.
-          </p>
+        <div className="site-brand">
+          <div className="site-brand-icon" aria-hidden="true">
+            <Droplets size={16} />
+          </div>
+          <div>
+            <h1>Agua con Dato</h1>
+            <p>
+              Mockup unificado para ET-LAT, MODIS-Snow, Pozos y Meteo sobre una
+              infraestructura comun.
+            </p>
+          </div>
         </div>
-        <div className="site-tag">
-          Dummy data funcional con foco en usabilidad operativa y lectura rapida.
-        </div>
-      </header>
 
-      <nav className="top-nav" aria-label="Views">
-        {views.map((view) => (
-          <button
-            key={view.id}
-            type="button"
-            className={view.id === activeView ? "is-active" : ""}
-            onClick={() => setActiveView(view.id)}
-          >
-            {view.label}
-          </button>
-        ))}
-      </nav>
+        <nav className="top-nav" aria-label="Views">
+          {views.map((view) => {
+            const Icon = navIconMap[view.id];
+            return (
+              <button
+                key={view.id}
+                type="button"
+                className={view.id === activeView ? "is-active" : ""}
+                onClick={() => setActiveView(view.id)}
+              >
+                <Icon className="nav-icon" size={14} />
+                {view.label}
+              </button>
+            );
+          })}
+        </nav>
+      </header>
 
       <main className="content-shell">
         {activeView === "overview" && (

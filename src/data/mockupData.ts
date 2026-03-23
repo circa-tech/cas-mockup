@@ -20,40 +20,56 @@ export const etrStats = [
 export const etrLastUpdateIso = "2026-03-21T07:15:00-03:00";
 export const snowLastUpdateIso = "2026-03-20T06:45:00-03:00";
 
+export const chartPalette = {
+  chart1: "rgb(20, 104, 163)",
+  chart2: "rgb(48, 166, 156)",
+  chart3: "rgb(59, 169, 206)",
+  chart4: "rgb(89, 123, 192)",
+  chart5: "rgb(77, 179, 144)",
+  chart6: "rgb(23, 112, 130)",
+  chart7: "rgb(135, 166, 197)",
+  chart8: "rgb(89, 197, 175)",
+} as const;
+
+const ETR_COLOR = chartPalette.chart2;
+const ETMAX_COLOR = chartPalette.chart4;
+const SNOW_CURRENT_COLOR = chartPalette.chart1;
+const SNOW_PREVIOUS_COLOR = chartPalette.chart7;
+
 export const etrOverviewBarGroups: BarGroup[] = [
   {
     label: "Frutales",
     series: [
-      { label: "ETR", value: 9.0, color: "#8ff22a" },
-      { label: "ETMAX", value: 18.8, color: "#ff6788" },
+      { label: "ETR", value: 9.0, color: ETR_COLOR },
+      { label: "ETMAX", value: 18.8, color: ETMAX_COLOR },
     ],
   },
   {
     label: "Hortalizas y Flores",
     series: [
-      { label: "ETR", value: 8.1, color: "#8ff22a" },
-      { label: "ETMAX", value: 16.0, color: "#ff6788" },
+      { label: "ETR", value: 8.1, color: ETR_COLOR },
+      { label: "ETMAX", value: 16.0, color: ETMAX_COLOR },
     ],
   },
   {
     label: "Praderas",
     series: [
-      { label: "ETR", value: 10.3, color: "#8ff22a" },
-      { label: "ETMAX", value: 17.4, color: "#ff6788" },
+      { label: "ETR", value: 10.3, color: ETR_COLOR },
+      { label: "ETMAX", value: 17.4, color: ETMAX_COLOR },
     ],
   },
   {
     label: "Sin Cultivo",
     series: [
-      { label: "ETR", value: 5.9, color: "#8ff22a" },
-      { label: "ETMAX", value: 14.1, color: "#ff6788" },
+      { label: "ETR", value: 5.9, color: ETR_COLOR },
+      { label: "ETMAX", value: 14.1, color: ETMAX_COLOR },
     ],
   },
   {
     label: "Vides y Parronales",
     series: [
-      { label: "ETR", value: 16.7, color: "#8ff22a" },
-      { label: "ETMAX", value: 20.8, color: "#ff6788" },
+      { label: "ETR", value: 16.7, color: ETR_COLOR },
+      { label: "ETMAX", value: 20.8, color: ETMAX_COLOR },
     ],
   },
 ];
@@ -116,12 +132,12 @@ const toLinePoints = (values: number[]): LinePoint[] =>
 const buildEtrSeries = (etr: number[], etmax: number[]): LineSeries[] => [
   {
     label: "ETR media",
-    color: "#8ff22a",
+    color: ETR_COLOR,
     points: toLinePoints(etr),
   },
   {
     label: "ETMAX media",
-    color: "#ff6788",
+    color: ETMAX_COLOR,
     points: toLinePoints(etmax),
   },
 ];
@@ -147,29 +163,29 @@ export const etrRegions: EtrRegion[] = [
       {
         label: "Frutales",
         series: [
-          { label: "ETR", value: 31.2, color: "#8ff22a" },
-          { label: "ETMAX", value: 28.0, color: "#ff6788" },
+          { label: "ETR", value: 31.2, color: ETR_COLOR },
+          { label: "ETMAX", value: 28.0, color: ETMAX_COLOR },
         ],
       },
       {
         label: "Praderas",
         series: [
-          { label: "ETR", value: 5.0, color: "#8ff22a" },
-          { label: "ETMAX", value: 13.2, color: "#ff6788" },
+          { label: "ETR", value: 5.0, color: ETR_COLOR },
+          { label: "ETMAX", value: 13.2, color: ETMAX_COLOR },
         ],
       },
       {
         label: "Sin Cultivo",
         series: [
-          { label: "ETR", value: 5.2, color: "#8ff22a" },
-          { label: "ETMAX", value: 12.7, color: "#ff6788" },
+          { label: "ETR", value: 5.2, color: ETR_COLOR },
+          { label: "ETMAX", value: 12.7, color: ETMAX_COLOR },
         ],
       },
       {
         label: "Vides y Parronales",
         series: [
-          { label: "ETR", value: 15.4, color: "#8ff22a" },
-          { label: "ETMAX", value: 19.8, color: "#ff6788" },
+          { label: "ETR", value: 15.4, color: ETR_COLOR },
+          { label: "ETMAX", value: 19.8, color: ETMAX_COLOR },
         ],
       },
     ],
@@ -193,29 +209,29 @@ export const etrRegions: EtrRegion[] = [
       {
         label: "Frutales",
         series: [
-          { label: "ETR", value: 24.6, color: "#8ff22a" },
-          { label: "ETMAX", value: 26.3, color: "#ff6788" },
+          { label: "ETR", value: 24.6, color: ETR_COLOR },
+          { label: "ETMAX", value: 26.3, color: ETMAX_COLOR },
         ],
       },
       {
         label: "Praderas",
         series: [
-          { label: "ETR", value: 6.8, color: "#8ff22a" },
-          { label: "ETMAX", value: 14.8, color: "#ff6788" },
+          { label: "ETR", value: 6.8, color: ETR_COLOR },
+          { label: "ETMAX", value: 14.8, color: ETMAX_COLOR },
         ],
       },
       {
         label: "Sin Cultivo",
         series: [
-          { label: "ETR", value: 4.4, color: "#8ff22a" },
-          { label: "ETMAX", value: 11.6, color: "#ff6788" },
+          { label: "ETR", value: 4.4, color: ETR_COLOR },
+          { label: "ETMAX", value: 11.6, color: ETMAX_COLOR },
         ],
       },
       {
         label: "Vides y Parronales",
         series: [
-          { label: "ETR", value: 12.8, color: "#8ff22a" },
-          { label: "ETMAX", value: 17.1, color: "#ff6788" },
+          { label: "ETR", value: 12.8, color: ETR_COLOR },
+          { label: "ETMAX", value: 17.1, color: ETMAX_COLOR },
         ],
       },
     ],
@@ -239,29 +255,29 @@ export const etrRegions: EtrRegion[] = [
       {
         label: "Frutales",
         series: [
-          { label: "ETR", value: 28.4, color: "#8ff22a" },
-          { label: "ETMAX", value: 30.1, color: "#ff6788" },
+          { label: "ETR", value: 28.4, color: ETR_COLOR },
+          { label: "ETMAX", value: 30.1, color: ETMAX_COLOR },
         ],
       },
       {
         label: "Praderas",
         series: [
-          { label: "ETR", value: 7.6, color: "#8ff22a" },
-          { label: "ETMAX", value: 15.8, color: "#ff6788" },
+          { label: "ETR", value: 7.6, color: ETR_COLOR },
+          { label: "ETMAX", value: 15.8, color: ETMAX_COLOR },
         ],
       },
       {
         label: "Sin Cultivo",
         series: [
-          { label: "ETR", value: 6.2, color: "#8ff22a" },
-          { label: "ETMAX", value: 13.9, color: "#ff6788" },
+          { label: "ETR", value: 6.2, color: ETR_COLOR },
+          { label: "ETMAX", value: 13.9, color: ETMAX_COLOR },
         ],
       },
       {
         label: "Vides y Parronales",
         series: [
-          { label: "ETR", value: 17.3, color: "#8ff22a" },
-          { label: "ETMAX", value: 21.6, color: "#ff6788" },
+          { label: "ETR", value: 17.3, color: ETR_COLOR },
+          { label: "ETMAX", value: 21.6, color: ETMAX_COLOR },
         ],
       },
     ],
@@ -283,7 +299,7 @@ export const etrRegions: EtrRegion[] = [
 export const snowOverviewSeries: LineSeries[] = [
   {
     label: "Este ano",
-    color: "#5a86d6",
+    color: SNOW_CURRENT_COLOR,
     points: [
       { label: "Abr", value: 18 },
       { label: "May", value: 26 },
@@ -297,7 +313,7 @@ export const snowOverviewSeries: LineSeries[] = [
   },
   {
     label: "Ano pasado",
-    color: "#f16e43",
+    color: SNOW_PREVIOUS_COLOR,
     points: [
       { label: "Abr", value: 14 },
       { label: "May", value: 21 },
@@ -314,7 +330,7 @@ export const snowOverviewSeries: LineSeries[] = [
 export const snowJorqueraSeries: LineSeries[] = [
   {
     label: "Este ano",
-    color: "#5a86d6",
+    color: SNOW_CURRENT_COLOR,
     points: [
       { label: "Abr", value: 20 },
       { label: "May", value: 31 },
@@ -328,7 +344,7 @@ export const snowJorqueraSeries: LineSeries[] = [
   },
   {
     label: "Ano pasado",
-    color: "#f16e43",
+    color: SNOW_PREVIOUS_COLOR,
     points: [
       { label: "Abr", value: 16 },
       { label: "May", value: 24 },
@@ -345,7 +361,7 @@ export const snowJorqueraSeries: LineSeries[] = [
 export const snowPulidoSeries: LineSeries[] = [
   {
     label: "Este ano",
-    color: "#5a86d6",
+    color: SNOW_CURRENT_COLOR,
     points: [
       { label: "Abr", value: 17 },
       { label: "May", value: 27 },
@@ -359,7 +375,7 @@ export const snowPulidoSeries: LineSeries[] = [
   },
   {
     label: "Ano pasado",
-    color: "#f16e43",
+    color: SNOW_PREVIOUS_COLOR,
     points: [
       { label: "Abr", value: 13 },
       { label: "May", value: 21 },
@@ -376,7 +392,7 @@ export const snowPulidoSeries: LineSeries[] = [
 export const snowManflasSeries: LineSeries[] = [
   {
     label: "Este ano",
-    color: "#5a86d6",
+    color: SNOW_CURRENT_COLOR,
     points: [
       { label: "Abr", value: 15 },
       { label: "May", value: 24 },
@@ -390,7 +406,7 @@ export const snowManflasSeries: LineSeries[] = [
   },
   {
     label: "Ano pasado",
-    color: "#f16e43",
+    color: SNOW_PREVIOUS_COLOR,
     points: [
       { label: "Abr", value: 11 },
       { label: "May", value: 18 },

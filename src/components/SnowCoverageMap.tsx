@@ -8,6 +8,7 @@ import {
   Tooltip,
   useMap,
 } from "react-leaflet";
+import { chartPalette } from "../data/mockupData";
 import snowCoverageGeoJson from "../data/snowCoverageGeoJson.json";
 import { ModifierWheelZoom } from "./ModifierWheelZoom";
 
@@ -55,6 +56,13 @@ const toPolygonPositions = (geometry: SnowGeometry) => {
     polygon.map((ring) => ring.map(toLatLng)),
   );
 };
+
+const snowPolygonStyle = {
+  color: chartPalette.chart1,
+  fillColor: chartPalette.chart7,
+  fillOpacity: 0.24,
+  weight: 2,
+} as const;
 
 function FitSnowBounds({ bounds }: { bounds: L.LatLngBounds | null }) {
   const map = useMap();
@@ -189,10 +197,10 @@ export function SnowCoverageMap() {
           <Polygon
             key={item.id}
             pathOptions={{
-              color: "#2d66c5",
-              fillColor: "#5ea1ff",
-              fillOpacity: 0.18,
-              weight: 2,
+              color: snowPolygonStyle.color,
+              fillColor: snowPolygonStyle.fillColor,
+              fillOpacity: snowPolygonStyle.fillOpacity,
+              weight: snowPolygonStyle.weight,
             }}
             positions={item.positions}
           >

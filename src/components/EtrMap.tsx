@@ -1,5 +1,6 @@
 import { LayersControl, MapContainer, Polygon, TileLayer, Tooltip } from "react-leaflet";
 import etrSectorsGeoJson from "../data/etrSectorsGeoJson.json";
+import { chartPalette } from "../data/mockupData";
 import { ModifierWheelZoom } from "./ModifierWheelZoom";
 
 export type EtrSectorSelection = {
@@ -84,6 +85,21 @@ const toPolygonPositions = (geometry: EtrSectorFeature["geometry"]) => {
   );
 };
 
+const sectorStyle = {
+  default: {
+    color: chartPalette.chart4,
+    fillColor: chartPalette.chart7,
+    fillOpacity: 0.3,
+    weight: 2,
+  },
+  selected: {
+    color: chartPalette.chart1,
+    fillColor: chartPalette.chart3,
+    fillOpacity: 0.55,
+    weight: 3,
+  },
+} as const;
+
 export function EtrMap({
   selectedSectorId,
   selectedSummaryLabel,
@@ -136,10 +152,10 @@ export function EtrMap({
                     }),
                 }}
                 pathOptions={{
-                  color: isSelected ? "#1b66d3" : "#ef6d83",
-                  fillColor: "#eb5676",
-                  fillOpacity: isSelected ? 0.58 : 0.24,
-                  weight: isSelected ? 3 : 2,
+                  color: isSelected ? sectorStyle.selected.color : sectorStyle.default.color,
+                  fillColor: isSelected ? sectorStyle.selected.fillColor : sectorStyle.default.fillColor,
+                  fillOpacity: isSelected ? sectorStyle.selected.fillOpacity : sectorStyle.default.fillOpacity,
+                  weight: isSelected ? sectorStyle.selected.weight : sectorStyle.default.weight,
                 }}
                 positions={toPolygonPositions(feature.geometry)}
               >
