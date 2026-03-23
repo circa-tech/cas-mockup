@@ -314,6 +314,7 @@ select:focus-visible {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+  align-items: stretch;
 }
 
 .overview-card {
@@ -495,12 +496,14 @@ select:focus-visible {
   display: grid;
   grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.75fr);
   gap: 18px;
+  align-items: start;
 }
 
 .etr-top-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.85fr) minmax(420px, 0.9fr);
   gap: 18px;
+  align-items: start;
 }
 
 .snow-grid {
@@ -1493,10 +1496,10 @@ body {
 }
 
 .overview-mini-chart {
-  border-radius: 10px;
-  border: 1px solid hsl(210 18% 90%);
-  background: linear-gradient(180deg, hsl(210 33% 99%) 0%, hsl(210 20% 97%) 100%);
-  padding: 4px 8px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin-top: 2px;
 }
 
 .overview-mini-table {
@@ -1545,10 +1548,10 @@ body {
 }
 
 .simple-chart-recharts-shell {
-  border-radius: 10px;
-  border: 1px solid hsl(210 18% 90%);
-  background: white;
-  padding: 6px;
+  border-radius: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
 }
 
 .simple-chart .recharts-cartesian-axis-tick-value {

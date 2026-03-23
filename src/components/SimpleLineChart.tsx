@@ -84,17 +84,19 @@ export function SimpleLineChart({
 }: SimpleLineChartProps) {
   const rows = buildRows(series);
   const rowCount = rows.length;
+  const hasRotatedLabels = xLabelAngle !== 0;
+  const showXAxisTitle = !hasRotatedLabels && xAxisLabel.trim().length > 0;
 
   return (
     <div className="simple-chart">
       <div className="simple-chart-recharts-shell">
         <ResponsiveContainer height={338} width="100%">
-          <LineChart data={rows} margin={{ bottom: xLabelAngle === 0 ? 22 : 66, left: 8, right: 8, top: 12 }}>
+          <LineChart data={rows} margin={{ bottom: hasRotatedLabels ? 18 : 22, left: 8, right: 8, top: 12 }}>
             <CartesianGrid stroke="hsl(210 18% 89%)" strokeDasharray="3 3" vertical={false} />
             <XAxis
               angle={xLabelAngle}
               dataKey="label"
-              height={xLabelAngle === 0 ? 42 : 96}
+              height={hasRotatedLabels ? 56 : 42}
               interval={0}
               minTickGap={8}
               tick={{ fill: "hsl(215 14% 50%)", fontSize: 11 }}
@@ -103,13 +105,17 @@ export function SimpleLineChart({
               }
               tickLine={false}
               axisLine={{ stroke: "hsl(210 18% 84%)" }}
-              textAnchor={xLabelAngle === 0 ? "middle" : "end"}
-              label={{
-                value: xAxisLabel,
-                position: "insideBottom",
-                dy: xLabelAngle === 0 ? 10 : 28,
-                style: { fill: "hsl(215 14% 50%)", fontSize: 11 },
-              }}
+              textAnchor={hasRotatedLabels ? "end" : "middle"}
+              label={
+                showXAxisTitle
+                  ? {
+                      value: xAxisLabel,
+                      position: "insideBottom",
+                      dy: 10,
+                      style: { fill: "hsl(215 14% 50%)", fontSize: 11 },
+                    }
+                  : undefined
+              }
             />
             <YAxis
               axisLine={{ stroke: "hsl(210 18% 84%)" }}
@@ -139,7 +145,7 @@ export function SimpleLineChart({
               formatter={(value, name) => [`${Number(value ?? 0).toFixed(2)} ${unit}`, String(name)]}
               labelStyle={{ color: "hsl(215 14% 40%)", fontWeight: 600 }}
             />
-            <Legend content={renderLegend} verticalAlign="bottom" />
+            <Legend content={renderLegend} verticalAlign="top" />
             {series.map((item, index) => (
               <Line
                 key={item.label}

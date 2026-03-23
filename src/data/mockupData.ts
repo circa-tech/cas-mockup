@@ -555,6 +555,10 @@ export const computeOverviewCards = ({
   const snowCurrent = snowSeries[0]?.points[snowSeries[0].points.length - 1]?.value ?? 0;
   const snowPrevious = snowSeries[1]?.points[snowSeries[1].points.length - 1]?.value ?? 0;
   const snowDelta = snowCurrent - snowPrevious;
+  const stationsMeanTemp =
+    stations.length > 0
+      ? stations.reduce((total, station) => total + station.temperatureValue, 0) / stations.length
+      : 0;
   const wellsOnTime = wells.filter((well) => well.status !== "stale").length;
   const wellsStale = wells.filter((well) => well.status === "stale").length;
   const stationsOnTime = stations.filter((station) => station.status !== "stale").length;
@@ -592,7 +596,7 @@ export const computeOverviewCards = ({
       id: "overview-meteo",
       title: "Meteo",
       targetView: "meteo",
-      primaryKpi: `${stationsOnTime}/${stations.length} al dia`,
+      primaryKpi: `Temp media red ${stationsMeanTemp.toFixed(1)} °C`,
       secondaryKpi: `${stationsStale} sin reporte > 48 h`,
       status: getNetworkStatus(stations),
       lastUpdate: getLatestUpdate(stations),

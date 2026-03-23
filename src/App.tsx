@@ -274,25 +274,27 @@ function OverviewMiniLine({
 
   return (
     <div className="overview-mini-chart">
-      <ResponsiveContainer height={156} width="100%">
-        <LineChart data={rows} margin={{ bottom: 28, left: -14, right: 6, top: 8 }}>
+      <ResponsiveContainer height={196} width="100%">
+        <LineChart data={rows} margin={{ bottom: 10, left: -10, right: 4, top: 6 }}>
           <CartesianGrid stroke="hsl(210 18% 91%)" strokeDasharray="3 3" vertical={false} />
           <XAxis
-            angle={-35}
+            angle={-28}
             axisLine={{ stroke: "hsl(210 18% 86%)" }}
             dataKey="label"
-            height={58}
+            height={42}
             interval="preserveStartEnd"
+            minTickGap={10}
             tick={{ fill: "hsl(215 14% 50%)", fontSize: 10 }}
             tickFormatter={(value: string) => toOverviewMiniDateLabel(value)}
             tickLine={false}
+            tickMargin={4}
             textAnchor="end"
           />
           <YAxis
             axisLine={{ stroke: "hsl(210 18% 86%)" }}
             tick={{ fill: "hsl(215 14% 50%)", fontSize: 10 }}
             tickLine={false}
-            width={30}
+            width={26}
           />
           <RechartsTooltip
             animationDuration={120}

@@ -92,20 +92,26 @@ export function SimpleBarChart({
   const rows = buildRows(groups);
   const seriesLabels = getSeriesOrder(groups);
   const colors = getSeriesColors(groups);
+  const hasRotatedLabels = xLabelAngle !== 0;
 
   return (
     <div className="simple-chart">
       <div className="simple-chart-recharts-shell">
         <ResponsiveContainer height={310} width="100%">
-          <BarChart data={rows} margin={{ bottom: xLabelAngle === 0 ? 14 : 44, left: 6, right: 8, top: 10 }} barGap={4}>
+          <BarChart
+            data={rows}
+            margin={{ bottom: hasRotatedLabels ? 20 : 14, left: 6, right: 8, top: 10 }}
+            barGap={4}
+          >
             <CartesianGrid stroke="hsl(210 18% 89%)" strokeDasharray="3 3" vertical={false} />
             <XAxis
               angle={xLabelAngle}
               dataKey="label"
+              height={hasRotatedLabels ? 52 : 30}
               tick={{ fill: "hsl(215 14% 50%)", fontSize: 11 }}
               tickLine={false}
               axisLine={{ stroke: "hsl(210 18% 84%)" }}
-              textAnchor={xLabelAngle === 0 ? "middle" : "end"}
+              textAnchor={hasRotatedLabels ? "end" : "middle"}
             />
             <YAxis
               axisLine={{ stroke: "hsl(210 18% 84%)" }}
