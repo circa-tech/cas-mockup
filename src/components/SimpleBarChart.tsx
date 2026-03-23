@@ -21,6 +21,7 @@ export type BarGroup = {
 };
 
 type SimpleBarChartProps = {
+  chartHeight?: number | `${number}%`;
   groups: BarGroup[];
   maxValue: number;
   tickStep?: number;
@@ -83,6 +84,7 @@ const renderLegend = ({ payload }: { payload?: readonly LegendItem[] }) => (
 );
 
 export function SimpleBarChart({
+  chartHeight = 310,
   groups,
   maxValue,
   tickStep,
@@ -97,7 +99,7 @@ export function SimpleBarChart({
   return (
     <div className="simple-chart">
       <div className="simple-chart-recharts-shell">
-        <ResponsiveContainer height={310} width="100%">
+        <ResponsiveContainer height={chartHeight} width="100%">
           <BarChart
             data={rows}
             margin={{ bottom: hasRotatedLabels ? 20 : 14, left: 6, right: 8, top: 10 }}

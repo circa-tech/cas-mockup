@@ -138,7 +138,7 @@ function Panel({
           {subtitle && <p>{subtitle}</p>}
         </div>
       </header>
-      {children}
+      <div className="panel-content">{children}</div>
     </section>
   );
 }
@@ -330,10 +330,10 @@ function OverviewMiniLine({
 }
 
 const defaultEtrSectorSelection: EtrSectorSelection = {
-  sectorId: "1",
-  sectorName: "Bodega",
-  regionId: "acuifer-1-4",
-  regionLabel: "Sectores acuifero 1 al 4",
+  sectorId: "19",
+  sectorName: "Aguas arriba Embalse Lautaro",
+  regionId: "valle-bajo",
+  regionLabel: "Valle bajo",
 };
 
 const getSectorSeed = (sectorId: string) => {
@@ -440,6 +440,7 @@ function EtrView() {
           title="Distribucion de ETR (mm) por clase de cultivo en la ultima fecha disponible"
         >
           <SimpleBarChart
+            chartHeight={338}
             groups={etrOverviewBarGroups}
             maxValue={25}
             tickStep={5}
@@ -464,6 +465,7 @@ function EtrView() {
 
       <div className="etr-top-grid">
         <Panel
+          className="panel-etr-map"
           title="Mapa sectores y areas de gestion CAS Copiapo"
         >
           <EtrMap
@@ -474,10 +476,12 @@ function EtrView() {
         </Panel>
 
         <Panel
+          className="panel-etr-bar"
           title="Distribucion de ETR (mm) por clase de cultivo en la ultima fecha disponible"
           subtitle={`${selectedSector.sectorName} · ${selectedRegion.label}`}
         >
           <SimpleBarChart
+            chartHeight="100%"
             groups={selectedSectorBarGroups}
             maxValue={35}
             tickStep={5}
@@ -489,6 +493,7 @@ function EtrView() {
 
       <Panel
         title="Variacion temporal de la ETR y ETmax"
+        subtitle={`${selectedSector.sectorName} · ${selectedRegion.label}`}
         className="panel-accent-blue"
       >
         <SimpleLineChart

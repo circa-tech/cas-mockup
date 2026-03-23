@@ -503,7 +503,70 @@ select:focus-visible {
   display: grid;
   grid-template-columns: minmax(0, 1.85fr) minmax(420px, 0.9fr);
   gap: 18px;
-  align-items: start;
+  align-items: stretch;
+}
+
+.etr-summary-grid .panel-header,
+.etr-top-grid .panel-header {
+  min-height: 56px;
+  padding-top: 11px;
+  padding-bottom: 10px;
+}
+
+.etr-summary-grid .panel-header p,
+.etr-top-grid .panel-header p {
+  margin-top: 4px;
+  line-height: 1.28;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-content {
+  min-height: 0;
+}
+
+.etr-top-grid .panel {
+  height: 100%;
+}
+
+.etr-top-grid .panel-content {
+  flex: 1;
+  min-height: 350px;
+}
+
+.panel-etr-map .panel-content {
+  padding: 12px;
+}
+
+.panel-etr-map .etr-map {
+  height: 100%;
+  padding: 0;
+}
+
+.panel-etr-map .etr-region-map-shell {
+  height: 100%;
+}
+
+.panel-etr-map .etr-region-map {
+  height: 100%;
+  min-height: 350px;
+}
+
+.panel-etr-bar .panel-content {
+  display: flex;
+}
+
+.panel-etr-bar .simple-chart {
+  flex: 1;
+  height: 100%;
+  padding: 10px 14px 12px;
+}
+
+.panel-etr-bar .simple-chart-recharts-shell {
+  height: 100%;
 }
 
 .snow-grid {
@@ -1133,7 +1196,7 @@ select:focus-visible {
 
 .etr-region-map {
   width: 100%;
-  height: 500px;
+  height: 350px;
   border: 1px solid #d4deed;
   border-radius: 12px;
   overflow: hidden;
@@ -1294,7 +1357,7 @@ select:focus-visible {
   }
 
   .etr-region-map {
-    height: 390px;
+    height: 350px;
   }
 
   .snow-coverage-map {
@@ -1584,6 +1647,13 @@ body {
 .snow-coverage-map {
   border: 1px solid hsl(210 18% 87%);
   border-radius: 12px;
+}
+
+.etr-region-map:focus,
+.etr-region-map:focus-visible,
+.etr-region-map .leaflet-interactive:focus,
+.etr-region-map .leaflet-interactive:focus-visible {
+  outline: none;
 }
 
 .map-legend {

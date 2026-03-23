@@ -1,4 +1,5 @@
-import { LayersControl, MapContainer, Polygon, TileLayer, Tooltip } from "react-leaflet";
+import { useEffect, useRef } from "react";
+import { LayersControl, MapContainer, Polygon, TileLayer, Tooltip, useMap } from "react-leaflet";
 import etrSectorsGeoJson from "../data/etrSectorsGeoJson.json";
 import { chartPalette } from "../data/mockupData";
 import { ModifierWheelZoom } from "./ModifierWheelZoom";
@@ -85,6 +86,23 @@ const toPolygonPositions = (geometry: EtrSectorFeature["geometry"]) => {
   );
 };
 
+function InitialEtrViewport() {
+  const map = useMap();
+  const hasInitialized = useRef(false);
+
+  useEffect(() => {
+    if (hasInitialized.current) {
+      return;
+    }
+
+    hasInitialized.current = true;
+    map.fitBounds(copiapoBounds, { padding: [12, 12] });
+    map.setZoom(map.getZoom() + 1);
+  }, [map]);
+
+  return null;
+}
+
 const sectorStyle = {
   default: {
     color: chartPalette.chart4,
@@ -115,6 +133,7 @@ export function EtrMap({
           zoomControl
         >
           <ModifierWheelZoom />
+          <InitialEtrViewport />
           <LayersControl position="topright">
             <LayersControl.BaseLayer name="OpenStreetMap">
               <TileLayer
