@@ -298,7 +298,7 @@ export const etrRegions: EtrRegion[] = [
 
 export const snowOverviewSeries: LineSeries[] = [
   {
-    label: "Este ano",
+    label: "2025",
     color: SNOW_CURRENT_COLOR,
     points: [
       { label: "Abr", value: 18 },
@@ -312,7 +312,7 @@ export const snowOverviewSeries: LineSeries[] = [
     ],
   },
   {
-    label: "Ano pasado",
+    label: "2024",
     color: SNOW_PREVIOUS_COLOR,
     points: [
       { label: "Abr", value: 14 },
@@ -329,7 +329,7 @@ export const snowOverviewSeries: LineSeries[] = [
 
 export const snowJorqueraSeries: LineSeries[] = [
   {
-    label: "Este ano",
+    label: "2025",
     color: SNOW_CURRENT_COLOR,
     points: [
       { label: "Abr", value: 20 },
@@ -343,7 +343,7 @@ export const snowJorqueraSeries: LineSeries[] = [
     ],
   },
   {
-    label: "Ano pasado",
+    label: "2024",
     color: SNOW_PREVIOUS_COLOR,
     points: [
       { label: "Abr", value: 16 },
@@ -360,7 +360,7 @@ export const snowJorqueraSeries: LineSeries[] = [
 
 export const snowPulidoSeries: LineSeries[] = [
   {
-    label: "Este ano",
+    label: "2025",
     color: SNOW_CURRENT_COLOR,
     points: [
       { label: "Abr", value: 17 },
@@ -374,7 +374,7 @@ export const snowPulidoSeries: LineSeries[] = [
     ],
   },
   {
-    label: "Ano pasado",
+    label: "2024",
     color: SNOW_PREVIOUS_COLOR,
     points: [
       { label: "Abr", value: 13 },
@@ -391,7 +391,7 @@ export const snowPulidoSeries: LineSeries[] = [
 
 export const snowManflasSeries: LineSeries[] = [
   {
-    label: "Este ano",
+    label: "2025",
     color: SNOW_CURRENT_COLOR,
     points: [
       { label: "Abr", value: 15 },
@@ -405,7 +405,7 @@ export const snowManflasSeries: LineSeries[] = [
     ],
   },
   {
-    label: "Ano pasado",
+    label: "2024",
     color: SNOW_PREVIOUS_COLOR,
     points: [
       { label: "Abr", value: 11 },
@@ -579,7 +579,7 @@ export const computeOverviewCards = ({
       title: "Snow",
       targetView: "snow",
       primaryKpi: `FSCA area ${snowCurrent.toFixed(0)}%`,
-      secondaryKpi: `Vs ano pasado ${snowDelta >= 0 ? "+" : ""}${snowDelta.toFixed(0)} pp`,
+      secondaryKpi: `Vs año pasado ${snowDelta >= 0 ? "+" : ""}${snowDelta.toFixed(0)} pp`,
       status: getFreshnessStatus(snowLastUpdate, now, staleThresholdDays),
       lastUpdate: snowLastUpdate,
     },

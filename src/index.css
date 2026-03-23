@@ -717,15 +717,21 @@ select:focus-visible {
 }
 
 .status-map-marker.is-quality-good {
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 0 4px rgba(48, 166, 156, 0.45);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.9),
+    0 0 0 4px rgba(48, 166, 156, 0.45);
 }
 
 .status-map-marker.is-quality-watch {
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 0 4px rgba(135, 166, 197, 0.5);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.9),
+    0 0 0 4px rgba(135, 166, 197, 0.5);
 }
 
 .status-map-marker.is-quality-alert {
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 0 4px rgba(214, 56, 79, 0.55);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.9),
+    0 0 0 4px rgba(214, 56, 79, 0.55);
 }
 
 .status-map-marker.is-selected {
@@ -936,7 +942,9 @@ select:focus-visible {
   font-weight: 600;
   cursor: pointer;
   box-shadow: 0 10px 18px rgba(33, 100, 209, 0.25);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .manual-entry-form button:hover {
@@ -1133,7 +1141,7 @@ select:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
-  padding: 10px 6px 0;
+  padding: 8px 6px 16px;
 }
 
 .legend-item {
@@ -1523,7 +1531,9 @@ body {
   border-radius: 10px;
   background: hsl(195 30% 94%);
   color: hsl(205 50% 28%);
-  transition: background-color 0.18s ease, color 0.18s ease;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease;
 }
 
 .kpi-card:hover .kpi-card-icon {
@@ -1568,7 +1578,11 @@ body {
 .overview-mini-table {
   border-radius: 10px;
   border: 1px solid hsl(210 18% 90%);
-  background: linear-gradient(180deg, hsl(210 33% 99%) 0%, hsl(210 20% 97%) 100%);
+  background: linear-gradient(
+    180deg,
+    hsl(210 33% 99%) 0%,
+    hsl(210 20% 97%) 100%
+  );
 }
 
 .overview-mini-table-head {
@@ -1607,7 +1621,11 @@ body {
 
 .simple-chart {
   padding: 10px 14px 14px;
-  background: linear-gradient(180deg, hsl(210 28% 99%) 0%, hsl(210 24% 98%) 100%);
+  background: linear-gradient(
+    180deg,
+    hsl(210 28% 99%) 0%,
+    hsl(210 24% 98%) 100%
+  );
 }
 
 .simple-chart-recharts-shell {
@@ -1657,7 +1675,11 @@ body {
 }
 
 .map-legend {
-  background: linear-gradient(180deg, hsl(210 40% 99%) 0%, hsl(210 26% 97%) 100%);
+  background: linear-gradient(
+    180deg,
+    hsl(210 40% 99%) 0%,
+    hsl(210 26% 97%) 100%
+  );
   border-top-color: hsl(210 18% 90%);
 }
 
