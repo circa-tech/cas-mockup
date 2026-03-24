@@ -1077,8 +1077,44 @@ select:focus-visible {
   margin-bottom: 10px;
 }
 
+.station-card-title {
+  display: grid;
+  gap: 7px;
+}
+
 .station-card-head strong {
   font-size: 15px;
+}
+
+.station-weather {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 620;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+}
+
+.station-weather--sun {
+  color: hsl(26 78% 34%);
+  background: hsl(39 96% 92%);
+  border-color: hsl(39 68% 79%);
+}
+
+.station-weather--cloud {
+  color: hsl(208 42% 35%);
+  background: hsl(208 54% 94%);
+  border-color: hsl(208 44% 82%);
+}
+
+.station-weather--rain {
+  color: hsl(212 58% 34%);
+  background: hsl(212 62% 93%);
+  border-color: hsl(212 46% 81%);
 }
 
 .station-card-metrics {

@@ -69,7 +69,7 @@ const sectorGroupById: Record<number, string> = {
 };
 
 const regionLabelById: Record<string, string> = {
-  "acuifer-1-4": "Sectores acuifero 1 al 4",
+  "acuifer-1-4": "Sectores acuífero 1 al 4",
   "tierra-amarilla": "Tierra Amarilla",
   "valle-bajo": "Valle bajo",
 };
@@ -188,7 +188,7 @@ export function EtrMap({
 
         <div className="etr-region-overlay">
           <strong>{selectedSummaryLabel}</strong>
-          <span>Seleccione un poligono</span>
+          <span>Seleccione un polígono</span>
         </div>
       </div>
     </div>

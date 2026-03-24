@@ -1,11 +1,13 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import {
-  CloudSnow,
+  CloudRain,
+  CloudSun,
   Droplets,
   Gauge,
   MapPinned,
   Radio,
   Snowflake,
+  Sun,
   Thermometer,
   Waves,
 } from "lucide-react";
@@ -101,14 +103,38 @@ const qualityClassMap: Record<WaterQualityStatus, string> = {
 
 const qualityLabelMap: Record<WaterQualityStatus, string> = {
   good: "Buena",
-  watch: "Atencion",
+  watch: "Atención",
   alert: "Alerta",
 };
 
 const sourceLabelMap = {
-  telemetry: "Telemetria",
+  telemetry: "Telemetría",
   manual: "Manual",
 } as const;
+
+const getStationWeatherSummary = (station: MeteoStationPoint) => {
+  if (station.humidityValue >= 52 || (station.temperatureValue <= 15.5 && station.humidityValue >= 47)) {
+    return {
+      icon: CloudRain,
+      label: "Precipitaciones",
+      tone: "rain",
+    } as const;
+  }
+
+  if (station.humidityValue >= 44) {
+    return {
+      icon: CloudSun,
+      label: "Parcial nublado",
+      tone: "cloud",
+    } as const;
+  }
+
+  return {
+    icon: Sun,
+    label: "Soleado",
+    tone: "sun",
+  } as const;
+};
 
 type ManualFormState = {
   date: string;
@@ -179,7 +205,7 @@ const formatRelativeAge = (lastUpdate: string, now: Date) => {
     return `Hace ${Math.round(diffMs / hour)} h`;
   }
 
-  return `Hace ${Math.round(diffMs / day)} dias`;
+  return `Hace ${Math.round(diffMs / day)} días`;
 };
 
 const getCurrentValue = (points: { value: number }[]) =>
@@ -381,7 +407,7 @@ function EtrView() {
   return (
     <div className="view-stack etr-page">
       <div className="view-intro">
-        <h2>Monitoreo de Evapotranspiracion en el Valle de Copiapo</h2>
+        <h2>Monitoreo de Evapotranspiración en el Valle de Copiapó</h2>
       </div>
 
       <div className="stat-grid">
@@ -398,7 +424,7 @@ function EtrView() {
           icon={Droplets}
           title={etrStats[1].label}
           value={etrStats[1].value}
-          note="Balance hidrico base"
+          note="Balance hídrico base"
           noteTone="positive"
         />
         <KpiCard
@@ -406,14 +432,14 @@ function EtrView() {
           icon={MapPinned}
           title={etrStats[2].label}
           value={etrStats[2].value}
-          note="Potencial atmosferico"
+          note="Potencial atmosférico"
           noteTone="neutral"
         />
       </div>
 
       <div className="etr-summary-grid">
         <Panel
-          title="Distribucion de ETR (mm) por clase de cultivo en la ultima fecha disponible"
+          title="Distribución de ETR (mm) por clase de cultivo en la última fecha disponible"
         >
           <SimpleBarChart
             chartHeight={338}
@@ -442,7 +468,7 @@ function EtrView() {
       <div className="etr-top-grid">
         <Panel
           className="panel-etr-map"
-          title="Mapa sectores y areas de gestion CAS Copiapo"
+          title="Mapa sectores y áreas de gestión CAS Copiapó"
         >
           <EtrMap
             selectedSectorId={selectedSector.sectorId}
@@ -453,7 +479,7 @@ function EtrView() {
 
         <Panel
           className="panel-etr-bar"
-          title="Distribucion de ETR (mm) por clase de cultivo en la ultima fecha disponible"
+          title="Distribución de ETR (mm) por clase de cultivo en la última fecha disponible"
           subtitle={`${selectedSector.sectorName} · ${selectedRegion.label}`}
         >
           <SimpleBarChart
@@ -468,7 +494,7 @@ function EtrView() {
       </div>
 
       <Panel
-        title="Variacion temporal de la ETR y ETmax"
+        title="Variación temporal de la ETR y ETmax"
         subtitle={`${selectedSector.sectorName} · ${selectedRegion.label}`}
         className="panel-accent-blue"
       >
@@ -495,7 +521,7 @@ function SnowView() {
       <div className="snow-grid">
         <Panel
           title="Cobertura nival"
-          subtitle="Ultima imagen disponible (2025-12-30)"
+          subtitle="Última imagen disponible (2025-12-30)"
         >
           <div className="snow-copy">
             <p>
@@ -503,8 +529,8 @@ function SnowView() {
               en la cuenca para una fecha dada.
             </p>
             <p>
-              El mockup muestra las areas de estudio cargadas desde GeoJSON sobre
-              mapa satelital y mantiene las series de evolucion anual por cuenca.
+              El mockup muestra las áreas de estudio cargadas desde GeoJSON sobre
+              mapa satelital y mantiene las series de evolución anual por cuenca.
             </p>
           </div>
 
@@ -515,17 +541,17 @@ function SnowView() {
 
         <div className="snow-charts">
           <div className="snow-description">
-            <h3>Graficas de evolucion diaria de FSCA.</h3>
+            <h3>Gráficas de evolución diaria de FSCA.</h3>
             <p>
-              Los graficos de evolucion diaria de cobertura de nieve (FSCA)
-              muestran el porcentaje del area de estudio y de cada cuenca que
-              esta cubierta con nieve durante los dias correspondientes al periodo
-              humedo (abril-septiembre) del año actual y el anterior.
+              Los gráficos de evolución diaria de cobertura de nieve (FSCA)
+              muestran el porcentaje del área de estudio y de cada cuenca que
+              está cubierta con nieve durante los días correspondientes al período
+              húmedo (abril-septiembre) del año actual y el anterior.
             </p>
           </div>
 
           <Panel
-            title="Evolucion diaria de la cobertura de nieve en el area de estudio (%)"
+            title="Evolución diaria de la cobertura de nieve en el área de estudio (%)"
           >
             <SimpleLineChart
               maxValue={100}
@@ -536,7 +562,7 @@ function SnowView() {
           </Panel>
 
           <Panel
-            title="Evolucion diaria de FSCA de la cuenca de Jorquera"
+            title="Evolución diaria de FSCA de la cuenca de Jorquera"
           >
             <SimpleLineChart
               maxValue={100}
@@ -547,7 +573,7 @@ function SnowView() {
           </Panel>
 
           <Panel
-            title="Evolucion diaria de FSCA de la cuenca de Pulido"
+            title="Evolución diaria de FSCA de la cuenca de Pulido"
           >
             <SimpleLineChart
               maxValue={100}
@@ -558,7 +584,7 @@ function SnowView() {
           </Panel>
 
           <Panel
-            title="Evolucion diaria de FSCA de la cuenca de Manflas"
+            title="Evolución diaria de FSCA de la cuenca de Manflas"
           >
             <SimpleLineChart
               maxValue={100}
@@ -616,7 +642,7 @@ function OverviewView({
     .slice(0, 3)
     .map((station) => ({
       id: station.id,
-      name: station.name.replace("Estacion ", ""),
+      name: station.name.replace("Estación ", ""),
       humidity: station.humidityValue,
       status: station.status,
       temperature: station.temperatureValue,
@@ -626,7 +652,7 @@ function OverviewView({
     <div className="view-stack">
       <div className="view-intro">
         <h2>Resumen operativo</h2>
-        <p>Acceso rapido a ET-LAT, MODIS-Snow, Pozos y Meteo.</p>
+        <p>Acceso rápido a ET-LAT, MODIS-Snow, Pozos y Meteo.</p>
       </div>
       <div className="overview-grid">
         {cards.map((card) => {
@@ -693,7 +719,7 @@ function OverviewView({
               {card.targetView === "meteo" && (
                 <div className="overview-mini-table">
                   <div className="overview-mini-table-head">
-                    <span>Estacion</span>
+                    <span>Estación</span>
                     <span>Temp</span>
                     <span>HR</span>
                     <span>Estado</span>
@@ -710,7 +736,7 @@ function OverviewView({
                   ))}
                 </div>
               )}
-              <small>Ultima actualizacion: {formatDateTime(card.lastUpdate)}</small>
+              <small>Última actualización: {formatDateTime(card.lastUpdate)}</small>
             </button>
           );
         })}
@@ -782,9 +808,9 @@ function WellsView({
         <KpiCard
           delayMs={0}
           icon={Waves}
-          title="Pozos al dia"
+          title="Pozos al día"
           value={`${wellsFreshCount}/${wells.length}`}
-          note={`${wellsStaleCount} sin reporte en las ultimas 48 h`}
+          note={`${wellsStaleCount} sin reporte en las últimas 48 h`}
           noteTone={wellsStaleCount > 0 ? "negative" : "positive"}
         />
         <KpiCard
@@ -806,7 +832,7 @@ function WellsView({
         <KpiCard
           delayMs={240}
           icon={Gauge}
-          title="Ultima sincronizacion global"
+          title="Última sincronización global"
           value={formatDateTime(maxUpdate)}
           note={formatRelativeAge(maxUpdate, now)}
           noteTone="neutral"
@@ -815,8 +841,8 @@ function WellsView({
 
       <div className="map-detail-grid">
         <Panel
-          title="Mapa de pozos (Copiapo)"
-          subtitle="Semaforo de frescura: verde <24 h · amarillo 24-48 h · rojo >48 h"
+          title="Mapa de pozos (Copiapó)"
+          subtitle="Semáforo de frescura: verde <24 h · amarillo 24-48 h · rojo >48 h"
         >
           <StatusLeafletMap
             points={wellRows.map((well) => ({
@@ -857,7 +883,7 @@ function WellsView({
               </strong>
             </article>
             <article className="detail-kpi">
-              <span>Rango periodo</span>
+              <span>Rango del período</span>
               <strong>{getRangeValue(selectedWell.levelSeries).toFixed(2)} m</strong>
             </article>
           </div>
@@ -883,7 +909,7 @@ function WellsView({
                 </span>
               </div>
               <div className="quality-grid">
-                <span>Ultima muestra: {selectedQuality.lastSampleDate}</span>
+                <span>Última muestra: {selectedQuality.lastSampleDate}</span>
                 <span>CE: {selectedQuality.conductivity.toFixed(1)} dS/m</span>
                 <span>pH: {selectedQuality.pH.toFixed(1)}</span>
                 <span>Turbidez: {selectedQuality.turbidity.toFixed(1)} NTU</span>
@@ -895,7 +921,7 @@ function WellsView({
 
       <div className="detail-grid">
         <Panel
-          title="Comparacion rapida de pozos"
+          title="Comparación rápida de pozos"
           subtitle="Seleccione un pozo para ver su serie y detalle"
         >
           <div className="comparison-list">
@@ -938,7 +964,7 @@ function WellsView({
         {false && (
           <Panel
             title="Carga manual diaria (mobile/tablet)"
-            subtitle="Solo para pozos sin telemetria"
+            subtitle="Solo para pozos sin telemetría"
           >
           {/*
             <form className="manual-entry-form" onSubmit={onManualSubmit}>
@@ -1000,7 +1026,7 @@ function WellsView({
               </label>
 
               <label>
-                <span>Observacion corta</span>
+                <span>Observación corta</span>
                 <input
                   type="text"
                   value={manualForm.note}
@@ -1014,8 +1040,8 @@ function WellsView({
           */}
 
           <div className="manual-history">
-            <h4>Ultimas cargas</h4>
-            {manualEntries.length === 0 && <p>No hay cargas manuales en esta sesion.</p>}
+            <h4>Últimas cargas</h4>
+            {manualEntries.length === 0 && <p>No hay cargas manuales en esta sesión.</p>}
             {manualEntries.slice(0, 4).map((entry) => {
               const wellName = wells.find((well) => well.id === entry.wellId)?.name ?? entry.wellId;
               return (
@@ -1032,7 +1058,7 @@ function WellsView({
       </div>
 
       <Panel
-        title={`Variacion temporal: ${selectedWell.name}`}
+        title={`Variación temporal: ${selectedWell.name}`}
         subtitle={`Cambio diario ${getDailyChangeValue(selectedWell.levelSeries) >= 0 ? "+" : ""}${getDailyChangeValue(selectedWell.levelSeries).toFixed(2)} m`}
       >
         <SimpleLineChart
@@ -1067,40 +1093,39 @@ function MeteoView({
   stations: typeof meteoStationPoints;
 }) {
   const selectedStation = stations.find((station) => station.id === selectedStationId) ?? stations[0];
-  const stationsFreshCount = stations.filter((station) => station.status !== "stale").length;
-  const stationsStaleCount = stations.filter((station) => station.status === "stale").length;
-  const latestSync = stations.reduce((latest, station) => {
-    if (!latest) {
-      return station.lastUpdate;
-    }
-
-    return new Date(station.lastUpdate).getTime() > new Date(latest).getTime()
-      ? station.lastUpdate
-      : latest;
-  }, "");
 
   return (
     <div className="view-stack">
       <div className="view-intro">
-        <h2>Estaciones meteorologicas</h2>
-        <p>Tres estaciones con datos individuales y estado de actualizacion por punto.</p>
+        <h2>Estaciones meteorológicas</h2>
+        <p>Tres estaciones con datos individuales y estado de actualización por punto.</p>
       </div>
 
+      {/*
       <div className="stat-grid">
         <KpiCard
           delayMs={0}
-          icon={CloudSnow}
-          title="Estaciones al dia"
-          value={`${stationsFreshCount}/3`}
-          note={`${stationsStaleCount} sin reporte en las ultimas 48 h`}
-          noteTone={stationsStaleCount > 0 ? "negative" : "positive"}
+          icon={Gauge}
+          title="Estaciones al día"
+          value={`${stations.filter((station) => station.status !== "stale").length}/3`}
+          note={`${stations.filter((station) => station.status === "stale").length} sin reporte en las últimas 48 h`}
+          noteTone={stations.some((station) => station.status === "stale") ? "negative" : "positive"}
         />
         <KpiCard
           delayMs={80}
           icon={Gauge}
-          title="Ultima sincronizacion global"
-          value={formatDateTime(latestSync)}
-          note={formatRelativeAge(latestSync, now)}
+          title="Última sincronización global"
+          value={formatDateTime(
+            stations.reduce((latest, station) => {
+              if (!latest) {
+                return station.lastUpdate;
+              }
+              return new Date(station.lastUpdate).getTime() > new Date(latest).getTime()
+                ? station.lastUpdate
+                : latest;
+            }, ""),
+          )}
+          note="Frescura de red meteo"
           noteTone="neutral"
         />
         <KpiCard
@@ -1112,11 +1137,47 @@ function MeteoView({
           noteTone="neutral"
         />
       </div>
+      */}
+
+      <div className="station-card-grid">
+        {stations.map((station) => {
+          const weather = getStationWeatherSummary(station);
+          const WeatherIcon = weather.icon;
+
+          return (
+            <button
+              key={station.id}
+              type="button"
+              className={`station-card ${selectedStationId === station.id ? "is-selected" : ""}`}
+              onClick={() => onSelectStation(station.id)}
+            >
+              <div className="station-card-head">
+                <div className="station-card-title">
+                  <strong>{station.name}</strong>
+                  <span className={`station-weather station-weather--${weather.tone}`}>
+                    <WeatherIcon size={14} />
+                    {weather.label}
+                  </span>
+                </div>
+                <span className={`status-pill ${freshnessClassMap[station.status]}`}>
+                  {freshnessLabelMap[station.status]}
+                </span>
+              </div>
+              <div className="station-card-metrics">
+                <span>Temp {station.temperatureValue.toFixed(1)}°C</span>
+                <span>HR {station.humidityValue.toFixed(0)}%</span>
+                <span>Viento {station.windValue.toFixed(1)} km/h</span>
+                <span>Presión {station.pressureValue.toFixed(0)} hPa</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
       <div className="map-detail-grid">
         <Panel
-          title="Mapa de estaciones (Copiapo)"
-          subtitle="Semaforo de frescura: verde <24 h · amarillo 24-48 h · rojo >48 h"
+          title="Mapa de estaciones (Copiapó)"
+          subtitle="Semáforo de frescura: verde <24 h · amarillo 24-48 h · rojo >48 h"
         >
           <StatusLeafletMap
             points={stations.map((station) => ({
@@ -1153,7 +1214,7 @@ function MeteoView({
               <strong>{selectedStation.windValue.toFixed(1)} km/h</strong>
             </article>
             <article className="detail-kpi">
-              <span>Presion</span>
+              <span>Presión</span>
               <strong>{selectedStation.pressureValue.toFixed(0)} hPa</strong>
             </article>
           </div>
@@ -1162,33 +1223,9 @@ function MeteoView({
             <span className={`status-pill ${freshnessClassMap[selectedStation.status]}`}>
               {freshnessLabelMap[selectedStation.status]}
             </span>
-            <span className="status-pill is-neutral">Fuente: Telemetria</span>
+            <span className="status-pill is-neutral">Fuente: Telemetría</span>
           </div>
         </Panel>
-      </div>
-
-      <div className="station-card-grid">
-        {stations.map((station) => (
-          <button
-            key={station.id}
-            type="button"
-            className={`station-card ${selectedStationId === station.id ? "is-selected" : ""}`}
-            onClick={() => onSelectStation(station.id)}
-          >
-            <div className="station-card-head">
-              <strong>{station.name}</strong>
-              <span className={`status-pill ${freshnessClassMap[station.status]}`}>
-                {freshnessLabelMap[station.status]}
-              </span>
-            </div>
-            <div className="station-card-metrics">
-              <span>Temp {station.temperatureValue.toFixed(1)}°C</span>
-              <span>HR {station.humidityValue.toFixed(0)}%</span>
-              <span>Viento {station.windValue.toFixed(1)} km/h</span>
-              <span>Presion {station.pressureValue.toFixed(0)} hPa</span>
-            </div>
-          </button>
-        ))}
       </div>
     </div>
   );
@@ -1321,7 +1358,7 @@ export default function App() {
             <h1>Agua con Dato</h1>
             <p>
               Mockup unificado para ET-LAT, MODIS-Snow, Pozos y Meteo sobre una
-              infraestructura comun.
+              infraestructura común.
             </p>
           </div>
         </div>

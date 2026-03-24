@@ -49,7 +49,7 @@ const qualityClassMap: Record<WaterQualityStatus, string> = {
 };
 
 /*
-  Popup desactivado temporalmente para simplificar la interaccion en el mapa.
+  Popup desactivado temporalmente para simplificar la interacción en el mapa.
   Para reactivar:
   1) Importar `Popup` desde react-leaflet.
   2) Descomentar los mapas de etiquetas y el bloque JSX dentro de <Marker>.
@@ -61,13 +61,13 @@ const statusLabelMap: Record<GeoPointStatus, string> = {
 };
 
 const sourceLabelMap: Record<TelemetrySourceType, string> = {
-  telemetry: "Telemetria",
+  telemetry: "Telemetría",
   manual: "Carga manual",
 };
 
 const qualityLabelMap: Record<WaterQualityStatus, string> = {
   good: "Buena",
-  watch: "Atencion",
+  watch: "Atención",
   alert: "Alerta",
 };
 */

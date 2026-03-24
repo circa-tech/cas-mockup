@@ -12,9 +12,9 @@ export const views: { id: ViewId; label: string }[] = [
 ];
 
 export const etrStats = [
-  { label: "Ultima fecha disponible", value: "2025-10-09" },
-  { label: "ETR media", value: "1.2 mm/dia" },
-  { label: "ETMAX media", value: "1.8 mm/dia" },
+  { label: "Última fecha disponible", value: "2025-10-09" },
+  { label: "ETR media", value: "1.2 mm/día" },
+  { label: "ETMAX media", value: "1.8 mm/día" },
 ];
 
 export const etrLastUpdateIso = "2026-03-21T07:15:00-03:00";
@@ -158,7 +158,7 @@ export const etrOverviewSeasonSeries = buildEtrSeries(
 export const etrRegions: EtrRegion[] = [
   {
     id: "acuifer-1-4",
-    label: "Sectores acuifero 1 al 4",
+    label: "Sectores acuífero 1 al 4",
     barGroups: [
       {
         label: "Frutales",
@@ -569,8 +569,8 @@ export const computeOverviewCards = ({
       id: "overview-etr",
       title: "ETR",
       targetView: "etr",
-      primaryKpi: `ETR media ${etrMeanValue.toFixed(1)} mm/dia`,
-      secondaryKpi: `Ultima fecha ${etrLastDate}`,
+      primaryKpi: `ETR media ${etrMeanValue.toFixed(1)} mm/día`,
+      secondaryKpi: `Última fecha ${etrLastDate}`,
       status: getFreshnessStatus(etrLastUpdate, now, staleThresholdDays),
       lastUpdate: etrLastUpdate,
     },
@@ -578,7 +578,7 @@ export const computeOverviewCards = ({
       id: "overview-snow",
       title: "Snow",
       targetView: "snow",
-      primaryKpi: `FSCA area ${snowCurrent.toFixed(0)}%`,
+      primaryKpi: `FSCA área ${snowCurrent.toFixed(0)}%`,
       secondaryKpi: `Vs año pasado ${snowDelta >= 0 ? "+" : ""}${snowDelta.toFixed(0)} pp`,
       status: getFreshnessStatus(snowLastUpdate, now, staleThresholdDays),
       lastUpdate: snowLastUpdate,
@@ -587,7 +587,7 @@ export const computeOverviewCards = ({
       id: "overview-wells",
       title: "Pozos",
       targetView: "wells",
-      primaryKpi: `${wellsOnTime}/${wells.length} al dia`,
+      primaryKpi: `${wellsOnTime}/${wells.length} al día`,
       secondaryKpi: `${wellsStale} sin reporte > 48 h`,
       status: getNetworkStatus(wells),
       lastUpdate: getLatestUpdate(wells),
@@ -632,7 +632,7 @@ const wellSeedData: Omit<WellMapPoint, "status">[] = [
     lastUpdate: "2026-03-22T10:20:00-03:00",
     sourceType: "telemetry",
     provider: "Proveedor Norte",
-    aquiferSector: "Acuifero 1",
+    aquiferSector: "Acuífero 1",
     levelSeries: toWellSeries([3.6, 3.62, 3.65, 3.68, 3.7, 3.74, 3.78, 3.81, 3.87, 3.95]),
   },
   {
@@ -643,7 +643,7 @@ const wellSeedData: Omit<WellMapPoint, "status">[] = [
     lastUpdate: "2026-03-21T07:40:00-03:00",
     sourceType: "telemetry",
     provider: "Proveedor Centro",
-    aquiferSector: "Acuifero 2",
+    aquiferSector: "Acuífero 2",
     levelSeries: toWellSeries([3.72, 3.7, 3.69, 3.68, 3.67, 3.66, 3.67, 3.7, 3.73, 3.76]),
   },
   {
@@ -654,7 +654,7 @@ const wellSeedData: Omit<WellMapPoint, "status">[] = [
     lastUpdate: "2026-03-18T08:30:00-03:00",
     sourceType: "manual",
     provider: "Carga Manual",
-    aquiferSector: "Acuifero 3",
+    aquiferSector: "Acuífero 3",
     levelSeries: toWellSeries([3.55, 3.56, 3.58, 3.59, 3.6, 3.62, 3.61, 3.6, 3.58, 3.57]),
   },
   {
@@ -665,7 +665,7 @@ const wellSeedData: Omit<WellMapPoint, "status">[] = [
     lastUpdate: "2026-03-20T16:15:00-03:00",
     sourceType: "manual",
     provider: "Carga Manual",
-    aquiferSector: "Acuifero 4",
+    aquiferSector: "Acuífero 4",
     levelSeries: toWellSeries([3.82, 3.81, 3.8, 3.79, 3.78, 3.79, 3.8, 3.83, 3.86, 3.9]),
   },
 ];
@@ -713,7 +713,7 @@ export const waterQualityRecords: WaterQualityRecord[] = [
 const meteoSeedData: Omit<MeteoStationPoint, "status">[] = [
   {
     id: "meteo-copiapo",
-    name: "Estacion Copiapo",
+    name: "Estación Copiapó",
     lat: -27.366,
     lng: -70.332,
     lastUpdate: "2026-03-22T09:10:00-03:00",
@@ -725,7 +725,7 @@ const meteoSeedData: Omit<MeteoStationPoint, "status">[] = [
   },
   {
     id: "meteo-tierra-amarilla",
-    name: "Estacion Tierra Amarilla",
+    name: "Estación Tierra Amarilla",
     lat: -27.479,
     lng: -70.26,
     lastUpdate: "2026-03-19T06:20:00-03:00",
@@ -737,7 +737,7 @@ const meteoSeedData: Omit<MeteoStationPoint, "status">[] = [
   },
   {
     id: "meteo-jorquera",
-    name: "Estacion Jorquera",
+    name: "Estación Jorquera",
     lat: -27.192,
     lng: -69.952,
     lastUpdate: "2026-03-21T08:05:00-03:00",
