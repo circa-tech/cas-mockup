@@ -836,7 +836,7 @@ function WellsView({
             <span><i className="legend-dot fresh" /> Actualizado &lt; 24 h</span>
             <span><i className="legend-dot warning" /> Actualizado 24-48 h</span>
             <span><i className="legend-dot stale" /> Sin reporte &gt; 48 h</span>
-            <span><i className="legend-dot quality-alert" /> Calidad en alerta</span>
+            <span><i className="legend-dot quality-alert" /> Urgencia calidad de agua</span>
           </div>
         </Panel>
 
@@ -935,80 +935,83 @@ function WellsView({
           </div>
         </Panel>
 
-        <Panel
-          title="Carga manual diaria (mobile/tablet)"
-          subtitle="Solo para pozos sin telemetria"
-        >
-          <form className="manual-entry-form" onSubmit={onManualSubmit}>
-            <label>
-              <span>Pozo</span>
-              <select
-                value={manualForm.wellId}
-                onChange={(event) => onManualChange({ wellId: event.target.value })}
-              >
-                {wells
-                  .filter((well) => well.sourceType === "manual")
-                  .map((well) => (
-                    <option key={well.id} value={well.id}>
-                      {well.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-
-            <div className="manual-two-col">
+        {false && (
+          <Panel
+            title="Carga manual diaria (mobile/tablet)"
+            subtitle="Solo para pozos sin telemetria"
+          >
+          {/*
+            <form className="manual-entry-form" onSubmit={onManualSubmit}>
               <label>
-                <span>Fecha</span>
+                <span>Pozo</span>
+                <select
+                  value={manualForm.wellId}
+                  onChange={(event) => onManualChange({ wellId: event.target.value })}
+                >
+                  {wells
+                    .filter((well) => well.sourceType === "manual")
+                    .map((well) => (
+                      <option key={well.id} value={well.id}>
+                        {well.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+
+              <div className="manual-two-col">
+                <label>
+                  <span>Fecha</span>
+                  <input
+                    type="date"
+                    value={manualForm.date}
+                    onChange={(event) => onManualChange({ date: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Hora</span>
+                  <input
+                    type="time"
+                    value={manualForm.time}
+                    onChange={(event) => onManualChange({ time: event.target.value })}
+                  />
+                </label>
+              </div>
+
+              <label>
+                <span>Nivel (m)</span>
                 <input
-                  type="date"
-                  value={manualForm.date}
-                  onChange={(event) => onManualChange({ date: event.target.value })}
+                  type="number"
+                  step="0.01"
+                  value={manualForm.level}
+                  placeholder="Ej: 3.74"
+                  onChange={(event) => onManualChange({ level: event.target.value })}
+                  required
                 />
               </label>
+
               <label>
-                <span>Hora</span>
+                <span>Operador</span>
                 <input
-                  type="time"
-                  value={manualForm.time}
-                  onChange={(event) => onManualChange({ time: event.target.value })}
+                  type="text"
+                  value={manualForm.operator}
+                  onChange={(event) => onManualChange({ operator: event.target.value })}
+                  required
                 />
               </label>
-            </div>
 
-            <label>
-              <span>Nivel (m)</span>
-              <input
-                type="number"
-                step="0.01"
-                value={manualForm.level}
-                placeholder="Ej: 3.74"
-                onChange={(event) => onManualChange({ level: event.target.value })}
-                required
-              />
-            </label>
+              <label>
+                <span>Observacion corta</span>
+                <input
+                  type="text"
+                  value={manualForm.note}
+                  onChange={(event) => onManualChange({ note: event.target.value })}
+                />
+              </label>
 
-            <label>
-              <span>Operador</span>
-              <input
-                type="text"
-                value={manualForm.operator}
-                onChange={(event) => onManualChange({ operator: event.target.value })}
-                required
-              />
-            </label>
-
-            <label>
-              <span>Observacion corta</span>
-              <input
-                type="text"
-                value={manualForm.note}
-                onChange={(event) => onManualChange({ note: event.target.value })}
-              />
-            </label>
-
-            <div className="manual-source-pill">Origen: mobile/tablet</div>
-            <button type="submit">Guardar registro manual</button>
-          </form>
+              <div className="manual-source-pill">Origen: mobile/tablet</div>
+              <button type="submit">Guardar registro manual</button>
+            </form>
+          */}
 
           <div className="manual-history">
             <h4>Ultimas cargas</h4>
@@ -1024,7 +1027,8 @@ function WellsView({
               );
             })}
           </div>
-        </Panel>
+          </Panel>
+        )}
       </div>
 
       <Panel

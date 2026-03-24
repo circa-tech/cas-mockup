@@ -653,7 +653,7 @@ select:focus-visible {
 
 .detail-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
 }
 
@@ -687,11 +687,16 @@ select:focus-visible {
 
 .status-map-marker {
   display: block;
+  position: relative;
   width: 22px;
   height: 22px;
   border-radius: 999px;
   border: 2px solid #243850;
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+  transition:
+    transform 0.16s ease,
+    opacity 0.16s ease,
+    filter 0.16s ease;
 }
 
 .status-map-marker.is-fresh {
@@ -731,11 +736,36 @@ select:focus-visible {
 .status-map-marker.is-quality-alert {
   box-shadow:
     0 0 0 2px rgba(255, 255, 255, 0.9),
-    0 0 0 4px rgba(214, 56, 79, 0.55);
+    0 0 0 4px rgba(122, 90, 184, 0.58);
+}
+
+.status-map-marker.is-quality-alert::after {
+  content: "!";
+  position: absolute;
+  right: -5px;
+  top: -5px;
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 8px;
+  font-weight: 700;
+  color: #ffffff;
+  background: rgb(122, 90, 184);
+  border: 1px solid #ffffff;
+  box-shadow: 0 1px 2px rgba(12, 24, 48, 0.32);
 }
 
 .status-map-marker.is-selected {
-  transform: scale(1.12);
+  transform: scale(1.36);
+  opacity: 1;
+  filter: drop-shadow(0 1px 4px rgba(10, 38, 78, 0.38));
+}
+
+.status-map-marker.is-dim {
+  opacity: 0.5;
+  transform: scale(0.9);
 }
 
 .map-legend {
@@ -774,8 +804,20 @@ select:focus-visible {
 }
 
 .legend-dot.quality-alert {
-  background: hsl(0 72% 56%);
-  box-shadow: 0 0 0 2px rgba(214, 56, 79, 0.24);
+  position: relative;
+  background: rgb(122, 90, 184);
+  box-shadow: 0 0 0 2px rgba(122, 90, 184, 0.28);
+}
+
+.legend-dot.quality-alert::after {
+  content: "!";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 7px;
+  font-weight: 700;
+  color: #ffffff;
 }
 
 .detail-kpi-grid {
@@ -839,7 +881,7 @@ select:focus-visible {
 
 .comparison-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(190px, 0.8fr) 130px auto;
+  grid-template-columns: minmax(0, 1fr) 320px 140px 176px;
   gap: 12px;
   align-items: center;
   border: 1px solid #e4eaf4;
@@ -852,6 +894,13 @@ select:focus-visible {
     border-color 0.2s ease,
     transform 0.2s ease,
     box-shadow 0.2s ease;
+}
+
+.comparison-row .status-pill {
+  justify-self: stretch;
+  width: auto;
+  justify-content: center;
+  text-align: center;
 }
 
 .comparison-row.is-selected {
@@ -883,9 +932,18 @@ select:focus-visible {
   gap: 10px;
 }
 
+.comparison-metrics > div {
+  display: grid;
+  gap: 3px;
+  align-content: start;
+}
+
 .comparison-metrics strong {
+  display: block;
+  margin-top: 2px;
   font-size: 15px;
   font-weight: 600;
+  line-height: 1.2;
 }
 
 .manual-entry-form {

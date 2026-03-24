@@ -71,13 +71,19 @@ const copiapoBounds = L.latLngBounds(
   L.latLng(-26.9, -69.75),
 );
 
-const buildMarkerIcon = (point: StatusLeafletPoint, isSelected: boolean) =>
+const buildMarkerIcon = (
+  point: StatusLeafletPoint,
+  isSelected: boolean,
+  hasSelection: boolean,
+) =>
   L.divIcon({
     className: "status-map-marker-shell",
     html: `<span class="status-map-marker ${statusClassMap[point.status]} ${
       sourceClassMap[point.sourceType]
     } ${point.qualityStatus ? qualityClassMap[point.qualityStatus] : ""} ${
       isSelected ? "is-selected" : ""
+    } ${
+      hasSelection && !isSelected ? "is-dim" : ""
     }"></span>`,
     iconAnchor: [11, 11],
     iconSize: [22, 22],
@@ -89,6 +95,8 @@ export function StatusLeafletMap({
   points,
   selectedPointId,
 }: StatusLeafletMapProps) {
+  const hasSelection = Boolean(selectedPointId);
+
   return (
     <MapContainer
       bounds={copiapoBounds}
@@ -121,8 +129,9 @@ export function StatusLeafletMap({
             eventHandlers={{
               click: () => onSelect?.(point.id),
             }}
-            icon={buildMarkerIcon(point, isSelected)}
+            icon={buildMarkerIcon(point, isSelected, hasSelection)}
             position={[point.lat, point.lng]}
+            zIndexOffset={isSelected ? 1000 : 0}
           >
             <Tooltip>{point.name}</Tooltip>
             <Popup>
