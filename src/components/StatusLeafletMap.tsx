@@ -3,7 +3,6 @@ import {
   LayersControl,
   MapContainer,
   Marker,
-  Popup,
   TileLayer,
   Tooltip,
 } from "react-leaflet";
@@ -49,6 +48,12 @@ const qualityClassMap: Record<WaterQualityStatus, string> = {
   alert: "is-quality-alert",
 };
 
+/*
+  Popup desactivado temporalmente para simplificar la interaccion en el mapa.
+  Para reactivar:
+  1) Importar `Popup` desde react-leaflet.
+  2) Descomentar los mapas de etiquetas y el bloque JSX dentro de <Marker>.
+
 const statusLabelMap: Record<GeoPointStatus, string> = {
   fresh: "Actualizado < 24 h",
   warning: "Actualizado 24-48 h",
@@ -65,6 +70,7 @@ const qualityLabelMap: Record<WaterQualityStatus, string> = {
   watch: "Atencion",
   alert: "Alerta",
 };
+*/
 
 const copiapoBounds = L.latLngBounds(
   L.latLng(-27.75, -71.05),
@@ -134,6 +140,7 @@ export function StatusLeafletMap({
             zIndexOffset={isSelected ? 1000 : 0}
           >
             <Tooltip>{point.name}</Tooltip>
+            {/*
             <Popup>
               <div className="status-map-popup">
                 <strong>{point.name}</strong>
@@ -144,6 +151,7 @@ export function StatusLeafletMap({
                 )}
               </div>
             </Popup>
+            */}
           </Marker>
         );
       })}
