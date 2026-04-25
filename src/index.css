@@ -1880,7 +1880,8 @@ body {
   gap: 14px;
 }
 
-.snow-balance-controls {
+.snow-balance-controls,
+.snow-balance-global-controls {
   display: flex;
   justify-content: flex-end;
   align-items: center;
@@ -1888,21 +1889,32 @@ body {
   padding: 10px 14px 0;
 }
 
-.snow-balance-controls label {
-  color: hsl(215 14% 50%);
-  font-size: 12px;
-  font-weight: 600;
+.snow-balance-global-controls {
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 2px 2px 0;
+  flex-wrap: wrap;
 }
 
-.snow-balance-controls select {
-  min-height: 32px;
+.snow-balance-controls label,
+.snow-balance-global-controls label {
+  color: hsl(215 22% 35%);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.snow-balance-controls select,
+.snow-balance-global-controls select {
+  min-height: 36px;
+  min-width: 132px;
   border: 1px solid hsl(210 18% 86%);
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fff;
   color: hsl(215 32% 15%);
-  padding: 0 10px;
-  font-size: 12px;
-  font-weight: 600;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 650;
+  box-shadow: 0 1px 2px rgba(15, 35, 65, 0.08);
 }
 
 .snow-balance-chart-layout {
@@ -2013,6 +2025,11 @@ body {
 
   .snow-balance-chart-layout {
     grid-template-columns: 1fr;
+  }
+
+  .snow-balance-global-controls {
+    justify-content: space-between;
+    width: 100%;
   }
 }
 

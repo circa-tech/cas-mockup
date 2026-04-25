@@ -1107,13 +1107,27 @@ const snowBalanceBasins: SnowBalanceBasinId[] = ["jorquera", "pulido", "manflas"
 
 function SnowView() {
   const [activeSnowTab, setActiveSnowTab] = useState<"coverage" | "balance">("coverage");
-  const [selectedBalanceYearByBasin, setSelectedBalanceYearByBasin] = useState<
-    Record<SnowBalanceBasinId, number>
-  >({
-    jorquera: snowBalanceLatestYear,
-    pulido: snowBalanceLatestYear,
-    manflas: snowBalanceLatestYear,
-  });
+  const availableBalanceYears = useMemo(() => {
+    const [firstBasin, ...remainingBasins] = snowBalanceBasins;
+    const firstYears = getSnowBalanceYears(firstBasin);
+
+    return [...new Set(firstYears)]
+      .filter((year) =>
+        remainingBasins.every((basin) => getSnowBalanceYears(basin).includes(year)),
+      )
+      .sort((a, b) => b - a);
+  }, []);
+  const [selectedBalanceYear, setSelectedBalanceYear] = useState<number>(
+    availableBalanceYears[0] ?? snowBalanceLatestYear,
+  );
+
+  useEffect(() => {
+    if (availableBalanceYears.includes(selectedBalanceYear)) {
+      return;
+    }
+
+    setSelectedBalanceYear(availableBalanceYears[0] ?? snowBalanceLatestYear);
+  }, [availableBalanceYears, selectedBalanceYear]);
 
   return (
     <div className="view-stack">
@@ -1222,40 +1236,32 @@ function SnowView() {
             </p>
           </div>
 
+          <div className="snow-balance-global-controls">
+            <label htmlFor="snow-balance-year-global">Año</label>
+            <select
+              id="snow-balance-year-global"
+              value={selectedBalanceYear}
+              onChange={(event) => setSelectedBalanceYear(Number(event.target.value))}
+            >
+              {availableBalanceYears.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="snow-balance-grid">
             {snowBalanceBasins.map((basin) => {
-              const years = [...getSnowBalanceYears(basin)].sort((a, b) => b - a);
-              const selectedYear = selectedBalanceYearByBasin[basin];
-              const record = getSnowBalanceRecord(basin, selectedYear);
+              const record = getSnowBalanceRecord(basin, selectedBalanceYear);
               const rows = getSnowBalanceDisplayRows(record);
 
               return (
                 <Panel
                   key={basin}
                   title={`Balance de la cuenca del río ${snowBalanceBasinLabels[basin]}`}
-                  subtitle="Intervalos de confianza (95%)"
+                  subtitle={`Intervalos de confianza (95%) · Año ${selectedBalanceYear}`}
                 >
-                  <div className="snow-balance-controls">
-                    <label htmlFor={`snow-balance-year-${basin}`}>Año</label>
-                    <select
-                      id={`snow-balance-year-${basin}`}
-                      value={selectedYear}
-                      onChange={(event) => {
-                        const nextYear = Number(event.target.value);
-                        setSelectedBalanceYearByBasin((prev) => ({
-                          ...prev,
-                          [basin]: nextYear,
-                        }));
-                      }}
-                    >
-                      {years.map((year) => (
-                        <option key={year} value={year}>
-                          {year}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
                   <div className="snow-balance-chart-layout">
                     <div className="snow-balance-donut">
                       <ResponsiveContainer width="100%" height={220}>
