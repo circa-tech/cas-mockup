@@ -102,6 +102,15 @@ const RAW_BALANCE_RECORDS: RawBalanceRecord[] = [
   { basin: "jorquera", year: 2017, perdidas: 172.48, derretimiento: 27.36, transporte: 46.78, mxPer: 187.94, mnPer: 116.86, mxDer: 40.41, mnDer: 7.46, mxTr: 58.55, mnTr: 25.07 },
 ];
 
+const DEMO_YEAR_OFFSET = 8;
+const DEMO_YEAR_START = 2018;
+const DEMO_YEAR_END = 2025;
+
+// Preserve the original mock years for docs and derive the demo range in-memory.
+const DEMO_BALANCE_RECORDS: RawBalanceRecord[] = RAW_BALANCE_RECORDS
+  .map((record) => ({ ...record, year: record.year + DEMO_YEAR_OFFSET }))
+  .filter((record) => record.year >= DEMO_YEAR_START && record.year <= DEMO_YEAR_END);
+
 function toBalanceRecord(raw: RawBalanceRecord): SnowBalanceRecord {
   const total = raw.perdidas + raw.derretimiento + raw.transporte;
 
@@ -123,7 +132,7 @@ export const snowBalanceRecordsByBasin: Record<SnowBalanceBasinId, SnowBalanceRe
   manflas: [],
 };
 
-for (const record of RAW_BALANCE_RECORDS) {
+for (const record of DEMO_BALANCE_RECORDS) {
   snowBalanceRecordsByBasin[record.basin].push(toBalanceRecord(record));
 }
 
@@ -132,7 +141,7 @@ for (const basin of Object.keys(snowBalanceRecordsByBasin) as SnowBalanceBasinId
 }
 
 export const snowBalanceLatestYear = Math.max(
-  ...RAW_BALANCE_RECORDS.map((record) => record.year),
+  ...DEMO_BALANCE_RECORDS.map((record) => record.year),
 );
 
 export function getSnowBalanceYears(basin: SnowBalanceBasinId): number[] {
