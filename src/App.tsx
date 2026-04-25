@@ -28,6 +28,11 @@ import {
 } from "recharts";
 import { EtrMap, type EtrSectorSelection } from "./components/EtrMap";
 import {
+  defaultEtrQuadrantSelection,
+  EtrQuadrantMap,
+  type EtrQuadrantSelection,
+} from "./components/EtrQuadrantMap";
+import {
   defaultEtrUsoMapSelection,
   EtrUsoMap,
   type EtrUsoSelection,
@@ -42,8 +47,10 @@ import {
   buildEtrDownloadFilename,
   chartPalette,
   computeOverviewCards,
+  etrDownloadFormats,
   etrDownloadMonthLabels,
   etrDownloadVariables,
+  EtrDownloadFormat,
   EtrDownloadVariable,
   etrLastUpdateIso,
   etrOverviewBarGroups,
@@ -817,37 +824,38 @@ function EtrUsageTab() {
 }
 
 function EtrDownloadsTab() {
-  const [selectedQuadrant, setSelectedQuadrant] = useState<EtrSectorSelection>(
-    defaultEtrSectorSelection,
+  const [selectedQuadrant, setSelectedQuadrant] = useState<EtrQuadrantSelection>(
+    defaultEtrQuadrantSelection,
   );
   const [selectedVariable, setSelectedVariable] = useState<EtrDownloadVariable>("ETR");
+  const [selectedFormat, setSelectedFormat] = useState<EtrDownloadFormat>("TIFF");
   const [selectedYear, setSelectedYear] = useState(2025);
   const [selectedMonth, setSelectedMonth] = useState(1);
   const [selectedDay, setSelectedDay] = useState(1);
   const [downloadFeedback, setDownloadFeedback] = useState("");
 
   const years = useMemo(
-    () => getEtrDownloadYears(selectedQuadrant.sectorId, selectedVariable),
-    [selectedQuadrant.sectorId, selectedVariable],
+    () => getEtrDownloadYears(selectedQuadrant.quadrantId, selectedVariable),
+    [selectedQuadrant.quadrantId, selectedVariable],
   );
   const months = useMemo(
     () =>
       getEtrDownloadMonths(
-        selectedQuadrant.sectorId,
+        selectedQuadrant.quadrantId,
         selectedVariable,
         selectedYear,
       ),
-    [selectedQuadrant.sectorId, selectedVariable, selectedYear],
+    [selectedQuadrant.quadrantId, selectedVariable, selectedYear],
   );
   const days = useMemo(
     () =>
       getEtrDownloadDays(
-        selectedQuadrant.sectorId,
+        selectedQuadrant.quadrantId,
         selectedVariable,
         selectedYear,
         selectedMonth,
       ),
-    [selectedQuadrant.sectorId, selectedVariable, selectedYear, selectedMonth],
+    [selectedQuadrant.quadrantId, selectedVariable, selectedYear, selectedMonth],
   );
 
   useEffect(() => {
@@ -878,21 +886,26 @@ function EtrDownloadsTab() {
     event.preventDefault();
     const filename = buildEtrDownloadFilename({
       day: selectedDay,
+      format: selectedFormat,
       month: selectedMonth,
-      quadrantId: selectedQuadrant.sectorId,
+      quadrantId: selectedQuadrant.quadrantId,
       variable: selectedVariable,
       year: selectedYear,
     });
-    setDownloadFeedback(`Descarga simulada generada: ${filename}`);
+    const modeLabel =
+      selectedFormat === "JPEG"
+        ? "Exportación visual simulada"
+        : "Descarga raster simulada";
+    setDownloadFeedback(`${modeLabel}: ${filename}`);
   };
 
   return (
     <div className="view-stack">
       <div className="etr-download-grid">
         <Panel className="panel-etr-map" title="Cuadrantes disponibles para descarga">
-          <EtrMap
-            selectedSectorId={selectedQuadrant.sectorId}
-            selectedSummaryLabel={`Cuadrante ${selectedQuadrant.sectorId} · ${selectedQuadrant.sectorName}`}
+          <EtrQuadrantMap
+            selectedQuadrantId={selectedQuadrant.quadrantId}
+            selectedSummaryLabel={selectedQuadrant.quadrantLabel}
             onSelect={(selection) => {
               setSelectedQuadrant(selection);
               setDownloadFeedback("");
@@ -902,12 +915,13 @@ function EtrDownloadsTab() {
 
         <Panel
           title="Descarga de imágenes"
-          subtitle={`Cuadrante ${selectedQuadrant.sectorId} · ${selectedQuadrant.sectorName}`}
+          subtitle={selectedQuadrant.quadrantLabel}
         >
           <div className="etr-download-copy">
             <p>
-              Descarga simulada de imágenes raster (TIFF) para ETR, ETMAX, Kc y LAI.
-              Las fechas disponibles se actualizan según cuadrante y variable.
+              En la plataforma original los cuadrados corresponden a cuadrantes de
+              descarga sobre base satelital. Aquí simulamos descarga raster por
+              cuadrante, variable, fecha y formato.
             </p>
           </div>
 
@@ -921,6 +935,22 @@ function EtrDownloadsTab() {
                 {etrDownloadVariables.map((variable) => (
                   <option key={variable.value} value={variable.value}>
                     {variable.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              <span>Formato</span>
+              <select
+                value={selectedFormat}
+                onChange={(event) =>
+                  setSelectedFormat(event.target.value as EtrDownloadFormat)
+                }
+              >
+                {etrDownloadFormats.map((format) => (
+                  <option key={format.value} value={format.value}>
+                    {format.label}
                   </option>
                 ))}
               </select>
@@ -972,11 +1002,18 @@ function EtrDownloadsTab() {
           </form>
 
           <p className="etr-download-selected">
-            Selección actual: {selectedVariable} · {selectedYear} · {selectedMonthLabel} ·{" "}
+            Selección actual: {selectedQuadrant.quadrantLabel} · {selectedVariable} ·{" "}
+            {selectedFormat} · {selectedYear} · {selectedMonthLabel} ·{" "}
             {String(selectedDay).padStart(2, "0")}
           </p>
           {downloadFeedback && (
             <p className="etr-download-feedback">{downloadFeedback}</p>
+          )}
+          {selectedFormat === "JPEG" && (
+            <p className="etr-download-format-note">
+              Nota: en la app original la descarga real es GeoTIFF; JPEG aquí es
+              una opción mock para demo.
+            </p>
           )}
         </Panel>
       </div>

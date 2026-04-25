@@ -427,12 +427,18 @@ export const getEtrUsoRecord = (sectorId: string): EtrUsoRecord =>
   etrUsoRecordsBySector[sectorId] ?? etrUsoRecordsBySector["1"];
 
 export type EtrDownloadVariable = "ETR" | "ETMAX" | "KC" | "LAI";
+export type EtrDownloadFormat = "TIFF" | "JPEG";
 
 export const etrDownloadVariables: { label: string; value: EtrDownloadVariable }[] = [
   { label: "ETR", value: "ETR" },
   { label: "ETMAX", value: "ETMAX" },
   { label: "Kc", value: "KC" },
   { label: "LAI", value: "LAI" },
+];
+
+export const etrDownloadFormats: { label: string; value: EtrDownloadFormat }[] = [
+  { label: "GeoTIFF (.tif)", value: "TIFF" },
+  { label: "JPEG (.jpg)", value: "JPEG" },
 ];
 
 export const etrDownloadMonthLabels = [
@@ -531,20 +537,26 @@ export const getEtrDownloadDays = (
 
 export const buildEtrDownloadFilename = ({
   day,
+  format,
   month,
   quadrantId,
   variable,
   year,
 }: {
   day: number;
+  format: EtrDownloadFormat;
   month: number;
   quadrantId: string;
   variable: EtrDownloadVariable;
   year: number;
-}) =>
+}) => {
+  const extension = format === "JPEG" ? "jpg" : "tif";
+  return (
   `CAS_${variable}_Q${quadrantId}_${year}${String(month).padStart(2, "0")}${String(
     day,
-  ).padStart(2, "0")}.tif`;
+  ).padStart(2, "0")}.${extension}`
+  );
+};
 
 export const snowOverviewSeries: LineSeries[] = [
   {
