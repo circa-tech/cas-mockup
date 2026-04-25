@@ -296,6 +296,256 @@ export const etrRegions: EtrRegion[] = [
   },
 ];
 
+export type EtrUsoRecord = {
+  cultivo: string;
+  etmaxValue: number;
+  etrEtmaxSeries: LineSeries[];
+  etrValue: number;
+  kcSeries: LineSeries[];
+  laiSeries: LineSeries[];
+  lastDate: string;
+  sectorId: string;
+};
+
+const usoCultivos = [
+  "Uva de mesa",
+  "Olivo",
+  "Nogal",
+  "Frutales de carozo",
+  "Hortalizas",
+  "Pradera mixta",
+  "Sin cultivo",
+] as const;
+
+const roundTo = (value: number, decimals = 1) => {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+};
+
+const buildUsageSeriesPoints = (
+  sectorSeed: number,
+  {
+    base,
+    bias = 0,
+    clampMax,
+    clampMin = 0,
+    wave = 0.14,
+  }: {
+    base: number;
+    bias?: number;
+    clampMax: number;
+    clampMin?: number;
+    wave?: number;
+  },
+): LinePoint[] =>
+  etrDates.map((label, index) => {
+    const seasonal = Math.sin((index + sectorSeed * 0.38) / 4.8) * wave;
+    const jitter = (((sectorSeed * 17 + index * 7) % 9) - 4) * 0.02;
+    const trend = index * 0.003;
+    const raw = base + seasonal + jitter + trend + bias;
+    const value = Math.min(clampMax, Math.max(clampMin, raw));
+    return {
+      label,
+      value: roundTo(value, 2),
+    };
+  });
+
+const buildEtrUsoRecord = (sectorId: number): EtrUsoRecord => {
+  const crop = usoCultivos[(sectorId - 1) % usoCultivos.length];
+  const etrBase = 0.42 + ((sectorId * 11) % 7) * 0.08;
+  const etmaxBase = etrBase + 0.52 + ((sectorId * 13) % 5) * 0.05;
+  const kcBase = 0.28 + ((sectorId * 5) % 6) * 0.09;
+  const laiBase = 0.9 + ((sectorId * 3) % 5) * 0.4;
+
+  const etrSeries: LineSeries = {
+    label: "ETR media",
+    color: ETR_COLOR,
+    points: buildUsageSeriesPoints(sectorId, {
+      base: etrBase,
+      clampMax: 2.2,
+      wave: 0.19,
+    }),
+  };
+
+  const etmaxSeries: LineSeries = {
+    label: "ETMAX media",
+    color: ETMAX_COLOR,
+    points: buildUsageSeriesPoints(sectorId, {
+      base: etmaxBase,
+      clampMax: 2.8,
+      wave: 0.21,
+    }),
+  };
+
+  const kcSeries: LineSeries = {
+    label: "Kc",
+    color: chartPalette.chart1,
+    points: buildUsageSeriesPoints(sectorId, {
+      base: kcBase,
+      clampMax: 1.35,
+      clampMin: 0.15,
+      wave: 0.11,
+    }),
+  };
+
+  const laiSeries: LineSeries = {
+    label: "LAI",
+    color: chartPalette.chart5,
+    points: buildUsageSeriesPoints(sectorId, {
+      base: laiBase,
+      clampMax: 4.4,
+      clampMin: 0.1,
+      wave: 0.4,
+    }),
+  };
+
+  const lastDate = etrDates[etrDates.length - 1] ?? "2025-10-09";
+  const etrValue = etrSeries.points[etrSeries.points.length - 1]?.value ?? 0;
+  const etmaxValue = etmaxSeries.points[etmaxSeries.points.length - 1]?.value ?? 0;
+
+  return {
+    cultivo: crop,
+    etmaxValue: roundTo(etmaxValue, 1),
+    etrEtmaxSeries: [etrSeries, etmaxSeries],
+    etrValue: roundTo(etrValue, 1),
+    kcSeries: [kcSeries],
+    laiSeries: [laiSeries],
+    lastDate,
+    sectorId: String(sectorId),
+  };
+};
+
+export const etrUsoRecordsBySector: Record<string, EtrUsoRecord> = Array.from(
+  { length: 22 },
+  (_, index) => index + 1,
+).reduce((accumulator, sectorId) => {
+  accumulator[String(sectorId)] = buildEtrUsoRecord(sectorId);
+  return accumulator;
+}, {} as Record<string, EtrUsoRecord>);
+
+export const getEtrUsoRecord = (sectorId: string): EtrUsoRecord =>
+  etrUsoRecordsBySector[sectorId] ?? etrUsoRecordsBySector["1"];
+
+export type EtrDownloadVariable = "ETR" | "ETMAX" | "KC" | "LAI";
+
+export const etrDownloadVariables: { label: string; value: EtrDownloadVariable }[] = [
+  { label: "ETR", value: "ETR" },
+  { label: "ETMAX", value: "ETMAX" },
+  { label: "Kc", value: "KC" },
+  { label: "LAI", value: "LAI" },
+];
+
+export const etrDownloadMonthLabels = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+] as const;
+
+const getDownloadSeed = (quadrantId: string, variable: EtrDownloadVariable) => {
+  const parsed = Number.parseInt(quadrantId, 10);
+  const safeQuadrant = Number.isNaN(parsed) ? 1 : parsed;
+  const variableOffset =
+    etrDownloadVariables.findIndex((item) => item.value === variable) + 1;
+  return safeQuadrant * 17 + variableOffset * 13;
+};
+
+const earliestYearByVariable: Record<EtrDownloadVariable, number> = {
+  ETR: 2022,
+  ETMAX: 2022,
+  KC: 2023,
+  LAI: 2023,
+};
+
+export const getEtrDownloadYears = (
+  quadrantId: string,
+  variable: EtrDownloadVariable,
+): number[] => {
+  const seed = getDownloadSeed(quadrantId, variable);
+  const dynamicFloor = seed % 2 === 0 ? 2022 : 2023;
+  const start = Math.max(earliestYearByVariable[variable], dynamicFloor);
+  return Array.from({ length: 2025 - start + 1 }, (_, index) => start + index);
+};
+
+export const getEtrDownloadMonths = (
+  quadrantId: string,
+  variable: EtrDownloadVariable,
+  year: number,
+): number[] => {
+  const seed = getDownloadSeed(quadrantId, variable) + year;
+  const maxMonth = year === 2025 ? 10 : 12;
+  const months = Array.from({ length: maxMonth }, (_, index) => index + 1).filter(
+    (month) => {
+      if (variable === "KC") {
+        return month % 2 === 1;
+      }
+      if (variable === "LAI") {
+        return month % 2 === 0 || month === maxMonth;
+      }
+      if ((month + seed) % 7 === 0 && month !== maxMonth) {
+        return false;
+      }
+      return true;
+    },
+  );
+
+  if (months.length > 0) {
+    return months;
+  }
+
+  return [maxMonth];
+};
+
+export const getEtrDownloadDays = (
+  quadrantId: string,
+  variable: EtrDownloadVariable,
+  year: number,
+  month: number,
+): number[] => {
+  const seed = getDownloadSeed(quadrantId, variable) + year + month;
+  const monthLength = new Date(year, month, 0).getDate();
+  const cadence = [1, 9, 17, 25];
+  const shift = seed % 2 === 0 ? 0 : 1;
+  let days = cadence
+    .map((day) => day + shift)
+    .filter((day) => day <= monthLength);
+
+  if (seed % 5 === 0 && days.length > 2) {
+    days = days.slice(0, -1);
+  }
+
+  if (days.length > 0) {
+    return days;
+  }
+
+  return [Math.min(1 + shift, monthLength)];
+};
+
+export const buildEtrDownloadFilename = ({
+  day,
+  month,
+  quadrantId,
+  variable,
+  year,
+}: {
+  day: number;
+  month: number;
+  quadrantId: string;
+  variable: EtrDownloadVariable;
+  year: number;
+}) =>
+  `CAS_${variable}_Q${quadrantId}_${year}${String(month).padStart(2, "0")}${String(
+    day,
+  ).padStart(2, "0")}.tif`;
+
 export const snowOverviewSeries: LineSeries[] = [
   {
     label: "2025",

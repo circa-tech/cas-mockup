@@ -4,11 +4,14 @@ import {
   CloudSun,
   Droplets,
   Gauge,
+  LogIn,
+  LogOut,
   MapPinned,
   Radio,
   Snowflake,
   Sun,
   Thermometer,
+  UserRound,
   Waves,
 } from "lucide-react";
 import {
@@ -24,20 +27,32 @@ import {
   YAxis,
 } from "recharts";
 import { EtrMap, type EtrSectorSelection } from "./components/EtrMap";
+import {
+  defaultEtrUsoMapSelection,
+  EtrUsoMap,
+  type EtrUsoSelection,
+} from "./components/EtrUsoMap";
 import { KpiCard } from "./components/KpiCard";
 import { MiniSparkline } from "./components/MiniSparkline";
 import { SimpleBarChart } from "./components/SimpleBarChart";
-import { SimpleLineChart } from "./components/SimpleLineChart";
+import { SimpleLineChart, type LineSeries } from "./components/SimpleLineChart";
 import { SnowCoverageMap } from "./components/SnowCoverageMap";
 import { StatusLeafletMap } from "./components/StatusLeafletMap";
 import {
+  buildEtrDownloadFilename,
   chartPalette,
   computeOverviewCards,
+  etrDownloadMonthLabels,
+  etrDownloadVariables,
+  EtrDownloadVariable,
   etrLastUpdateIso,
   etrOverviewBarGroups,
   etrOverviewSeasonSeries,
   etrRegions,
   etrStats,
+  getEtrDownloadDays,
+  getEtrDownloadMonths,
+  getEtrDownloadYears,
   getFreshnessStatus,
   ManualWellEntry,
   MeteoStationPoint,
@@ -87,6 +102,10 @@ const navIconMap = {
   wells: Waves,
   meteo: Thermometer,
 } as const;
+
+const authStorageKey = "cas_mockup_is_logged_in";
+const authUserStorageKey = "cas_mockup_user_name";
+const defaultAuthUserName = "Camila Rojas";
 
 const freshnessClassMap = {
   fresh: "is-good",
@@ -390,7 +409,174 @@ const buildSectorSeasonSeries = (
   }));
 };
 
-function EtrView() {
+type EtrSubTabId = "sector" | "usage" | "downloads";
+
+const getSeriesDomain = (
+  series: LineSeries[],
+  {
+    clampMin = 0,
+    minSpan = 0.2,
+    padRatio = 0.12,
+  }: { clampMin?: number; minSpan?: number; padRatio?: number } = {},
+) => {
+  const values = series.flatMap((line) => line.points.map((point) => point.value));
+  const min = values.length > 0 ? Math.min(...values) : clampMin;
+  const max = values.length > 0 ? Math.max(...values) : clampMin + minSpan;
+  const span = Math.max(minSpan, max - min);
+  const lower = Math.max(clampMin, Number((min - span * padRatio).toFixed(2)));
+  const upper = Number((max + span * padRatio).toFixed(2));
+  return {
+    max: Math.max(lower + minSpan, upper),
+    min: lower,
+  };
+};
+
+type EtrUsoRecord = {
+  cultivo: string;
+  etmaxValue: number;
+  etrEtmaxSeries: LineSeries[];
+  etrValue: number;
+  kcSeries: LineSeries[];
+  laiSeries: LineSeries[];
+  lastDate: string;
+};
+
+const toUsoDisplayMetric = (rawValue: number) =>
+  Number((rawValue * 0.1).toFixed(1));
+
+const buildUsoDateLabels = (latestDate: string, total = 18) => {
+  const parsed = new Date(`${latestDate}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return Array.from({ length: total }, (_, index) => `P-${total - index}`);
+  }
+
+  return Array.from({ length: total }, (_, index) => {
+    const pointDate = new Date(parsed);
+    pointDate.setDate(parsed.getDate() - (total - index - 1) * 8);
+    return pointDate.toISOString().slice(0, 10);
+  });
+};
+
+const buildUsageTrend = ({
+  amplitude,
+  baseline,
+  floor,
+  labels,
+  seed,
+}: {
+  amplitude: number;
+  baseline: number;
+  floor: number;
+  labels: string[];
+  seed: number;
+}) => {
+  const total = labels.length;
+  const values = labels.map((_, index) => {
+    const progress = total <= 1 ? 1 : index / (total - 1);
+    const trend = (progress - 0.5) * baseline * 0.2;
+    const wave = Math.sin((index + seed * 0.11) / 2.6) * amplitude;
+    const jitter = ((((seed * 19 + index * 7) % 7) - 3) * amplitude) / 12;
+    return Math.max(floor, Number((baseline + trend + wave + jitter).toFixed(2)));
+  });
+
+  values[values.length - 1] = Number(baseline.toFixed(2));
+  return values;
+};
+
+const buildEtrUsoRecordFromSelection = (selection: EtrUsoSelection): EtrUsoRecord => {
+  const parsedSeed = Number.parseInt(selection.usoId, 10);
+  const seed = Number.isNaN(parsedSeed) ? 1 : parsedSeed;
+  const labels = buildUsoDateLabels(selection.date, 18);
+  const etrValue = toUsoDisplayMetric(selection.etrRaw);
+  const etmaxValue = toUsoDisplayMetric(selection.etmaxRaw);
+  const kcValue = Math.max(
+    0.2,
+    Math.min(1.35, Number((etmaxValue > 0 ? etrValue / etmaxValue : 0.55).toFixed(2))),
+  );
+  const laiValue = Math.max(
+    0.5,
+    Math.min(
+      5.8,
+      Number((0.8 + kcValue * 3 + ((seed % 5) - 2) * 0.12).toFixed(2)),
+    ),
+  );
+
+  const etrSeriesValues = buildUsageTrend({
+    amplitude: Math.max(0.05, etrValue * 0.16),
+    baseline: etrValue,
+    floor: 0.02,
+    labels,
+    seed,
+  });
+  const etmaxSeriesValues = buildUsageTrend({
+    amplitude: Math.max(0.07, etmaxValue * 0.14),
+    baseline: etmaxValue,
+    floor: 0.04,
+    labels,
+    seed: seed + 3,
+  });
+  const kcSeriesValues = buildUsageTrend({
+    amplitude: Math.max(0.05, kcValue * 0.2),
+    baseline: kcValue,
+    floor: 0.05,
+    labels,
+    seed: seed + 7,
+  });
+  const laiSeriesValues = buildUsageTrend({
+    amplitude: Math.max(0.1, laiValue * 0.16),
+    baseline: laiValue,
+    floor: 0.2,
+    labels,
+    seed: seed + 11,
+  });
+
+  return {
+    cultivo: selection.cultivo,
+    etmaxValue,
+    etrEtmaxSeries: [
+      {
+        color: chartPalette.chart2,
+        label: "ETR media",
+        points: labels.map((label, index) => ({
+          label,
+          value: etrSeriesValues[index] ?? etrValue,
+        })),
+      },
+      {
+        color: chartPalette.chart4,
+        label: "ETMAX media",
+        points: labels.map((label, index) => ({
+          label,
+          value: etmaxSeriesValues[index] ?? etmaxValue,
+        })),
+      },
+    ],
+    etrValue,
+    kcSeries: [
+      {
+        color: chartPalette.chart5,
+        label: "Kc media",
+        points: labels.map((label, index) => ({
+          label,
+          value: kcSeriesValues[index] ?? kcValue,
+        })),
+      },
+    ],
+    laiSeries: [
+      {
+        color: chartPalette.chart1,
+        label: "LAI media",
+        points: labels.map((label, index) => ({
+          label,
+          value: laiSeriesValues[index] ?? laiValue,
+        })),
+      },
+    ],
+    lastDate: selection.date,
+  };
+};
+
+function EtrSectorTab() {
   const [selectedSector, setSelectedSector] = useState<EtrSectorSelection>(
     defaultEtrSectorSelection,
   );
@@ -416,11 +602,7 @@ function EtrView() {
   }, [selectedSectorSeasonSeries]);
 
   return (
-    <div className="view-stack etr-page">
-      <div className="view-intro">
-        <h2>Monitoreo de Evapotranspiración en el Valle de Copiapó</h2>
-      </div>
-
+    <div className="view-stack">
       <div className="stat-grid">
         <KpiCard
           delayMs={0}
@@ -518,6 +700,349 @@ function EtrView() {
           xLabelAngle={-45}
         />
       </Panel>
+    </div>
+  );
+}
+
+function EtrUsageTab() {
+  const [selectedUso, setSelectedUso] = useState<EtrUsoSelection>(
+    defaultEtrUsoMapSelection,
+  );
+  const usageRecord = useMemo(
+    () => buildEtrUsoRecordFromSelection(selectedUso),
+    [selectedUso],
+  );
+  const etrEtmaxDomain = useMemo(
+    () =>
+      getSeriesDomain(usageRecord.etrEtmaxSeries, {
+        clampMin: 0,
+        minSpan: 0.35,
+        padRatio: 0.16,
+      }),
+    [usageRecord.etrEtmaxSeries],
+  );
+  const kcDomain = useMemo(
+    () =>
+      getSeriesDomain(usageRecord.kcSeries, {
+        clampMin: 0,
+        minSpan: 0.2,
+        padRatio: 0.14,
+      }),
+    [usageRecord.kcSeries],
+  );
+  const laiDomain = useMemo(
+    () =>
+      getSeriesDomain(usageRecord.laiSeries, {
+        clampMin: 0,
+        minSpan: 0.4,
+        padRatio: 0.16,
+      }),
+    [usageRecord.laiSeries],
+  );
+
+  return (
+    <div className="view-stack">
+      <div className="etr-usage-top-grid">
+        <Panel
+          className="panel-etr-map"
+          title="Mapa de uso de suelo agrícola Valle de Copiapó"
+        >
+          <EtrUsoMap
+            selectedSummaryLabel={`${selectedUso.cultivo} · Uso ${selectedUso.usoId}`}
+            selectedUsoId={selectedUso.usoId}
+            onSelect={setSelectedUso}
+          />
+        </Panel>
+
+        <Panel
+          title="Variables para el polígono seleccionado"
+          subtitle={`Uso ${selectedUso.usoId} · ${usageRecord.cultivo}`}
+        >
+          <div className="etr-usage-cards">
+            <article className="etr-usage-card">
+              <span>Cultivo</span>
+              <strong>{usageRecord.cultivo}</strong>
+            </article>
+            <article className="etr-usage-card">
+              <span>ETR para {usageRecord.lastDate}</span>
+              <strong>{usageRecord.etrValue.toFixed(1)} mm/día</strong>
+            </article>
+            <article className="etr-usage-card">
+              <span>ETMAX para {usageRecord.lastDate}</span>
+              <strong>{usageRecord.etmaxValue.toFixed(1)} mm/día</strong>
+            </article>
+          </div>
+        </Panel>
+      </div>
+
+      <Panel
+        title="Variación temporal de la ETR y ETmax"
+        subtitle={`Uso ${selectedUso.usoId} · ${usageRecord.cultivo}`}
+        className="panel-accent-blue"
+      >
+        <SimpleLineChart
+          labelEvery={3}
+          maxValue={etrEtmaxDomain.max}
+          minValue={etrEtmaxDomain.min}
+          series={usageRecord.etrEtmaxSeries}
+          unit="mm"
+          xLabelAngle={-45}
+        />
+      </Panel>
+
+      <div className="etr-usage-chart-grid">
+        <Panel title="Variación temporal del Kc">
+          <SimpleLineChart
+            labelEvery={3}
+            maxValue={kcDomain.max}
+            minValue={kcDomain.min}
+            series={usageRecord.kcSeries}
+            unit="Kc"
+            xLabelAngle={-45}
+          />
+        </Panel>
+        <Panel title="Variación temporal del LAI">
+          <SimpleLineChart
+            labelEvery={3}
+            maxValue={laiDomain.max}
+            minValue={laiDomain.min}
+            series={usageRecord.laiSeries}
+            unit="LAI"
+            xLabelAngle={-45}
+          />
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
+function EtrDownloadsTab() {
+  const [selectedQuadrant, setSelectedQuadrant] = useState<EtrSectorSelection>(
+    defaultEtrSectorSelection,
+  );
+  const [selectedVariable, setSelectedVariable] = useState<EtrDownloadVariable>("ETR");
+  const [selectedYear, setSelectedYear] = useState(2025);
+  const [selectedMonth, setSelectedMonth] = useState(1);
+  const [selectedDay, setSelectedDay] = useState(1);
+  const [downloadFeedback, setDownloadFeedback] = useState("");
+
+  const years = useMemo(
+    () => getEtrDownloadYears(selectedQuadrant.sectorId, selectedVariable),
+    [selectedQuadrant.sectorId, selectedVariable],
+  );
+  const months = useMemo(
+    () =>
+      getEtrDownloadMonths(
+        selectedQuadrant.sectorId,
+        selectedVariable,
+        selectedYear,
+      ),
+    [selectedQuadrant.sectorId, selectedVariable, selectedYear],
+  );
+  const days = useMemo(
+    () =>
+      getEtrDownloadDays(
+        selectedQuadrant.sectorId,
+        selectedVariable,
+        selectedYear,
+        selectedMonth,
+      ),
+    [selectedQuadrant.sectorId, selectedVariable, selectedYear, selectedMonth],
+  );
+
+  useEffect(() => {
+    if (!years.includes(selectedYear)) {
+      const fallbackYear = years[years.length - 1] ?? 2025;
+      setSelectedYear(fallbackYear);
+    }
+  }, [selectedYear, years]);
+
+  useEffect(() => {
+    if (!months.includes(selectedMonth)) {
+      const fallbackMonth = months[0] ?? 1;
+      setSelectedMonth(fallbackMonth);
+    }
+  }, [months, selectedMonth]);
+
+  useEffect(() => {
+    if (!days.includes(selectedDay)) {
+      const fallbackDay = days[0] ?? 1;
+      setSelectedDay(fallbackDay);
+    }
+  }, [days, selectedDay]);
+
+  const selectedMonthLabel =
+    etrDownloadMonthLabels[selectedMonth - 1] ?? `Mes ${selectedMonth}`;
+
+  const handleFakeDownload = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const filename = buildEtrDownloadFilename({
+      day: selectedDay,
+      month: selectedMonth,
+      quadrantId: selectedQuadrant.sectorId,
+      variable: selectedVariable,
+      year: selectedYear,
+    });
+    setDownloadFeedback(`Descarga simulada generada: ${filename}`);
+  };
+
+  return (
+    <div className="view-stack">
+      <div className="etr-download-grid">
+        <Panel className="panel-etr-map" title="Cuadrantes disponibles para descarga">
+          <EtrMap
+            selectedSectorId={selectedQuadrant.sectorId}
+            selectedSummaryLabel={`Cuadrante ${selectedQuadrant.sectorId} · ${selectedQuadrant.sectorName}`}
+            onSelect={(selection) => {
+              setSelectedQuadrant(selection);
+              setDownloadFeedback("");
+            }}
+          />
+        </Panel>
+
+        <Panel
+          title="Descarga de imágenes"
+          subtitle={`Cuadrante ${selectedQuadrant.sectorId} · ${selectedQuadrant.sectorName}`}
+        >
+          <div className="etr-download-copy">
+            <p>
+              Descarga simulada de imágenes raster (TIFF) para ETR, ETMAX, Kc y LAI.
+              Las fechas disponibles se actualizan según cuadrante y variable.
+            </p>
+          </div>
+
+          <form className="etr-download-form" onSubmit={handleFakeDownload}>
+            <label>
+              <span>Variable</span>
+              <select
+                value={selectedVariable}
+                onChange={(event) => setSelectedVariable(event.target.value as EtrDownloadVariable)}
+              >
+                {etrDownloadVariables.map((variable) => (
+                  <option key={variable.value} value={variable.value}>
+                    {variable.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              <span>Año</span>
+              <select
+                value={selectedYear}
+                onChange={(event) => setSelectedYear(Number(event.target.value))}
+              >
+                {years.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              <span>Mes</span>
+              <select
+                value={selectedMonth}
+                onChange={(event) => setSelectedMonth(Number(event.target.value))}
+              >
+                {months.map((month) => (
+                  <option key={month} value={month}>
+                    {etrDownloadMonthLabels[month - 1] ?? `Mes ${month}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              <span>Día</span>
+              <select
+                value={selectedDay}
+                onChange={(event) => setSelectedDay(Number(event.target.value))}
+              >
+                {days.map((day) => (
+                  <option key={day} value={day}>
+                    {String(day).padStart(2, "0")}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <button type="submit">Descargar</button>
+          </form>
+
+          <p className="etr-download-selected">
+            Selección actual: {selectedVariable} · {selectedYear} · {selectedMonthLabel} ·{" "}
+            {String(selectedDay).padStart(2, "0")}
+          </p>
+          {downloadFeedback && (
+            <p className="etr-download-feedback">{downloadFeedback}</p>
+          )}
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
+function EtrView({ isLoggedIn }: { isLoggedIn: boolean }) {
+  const [activeEtrTab, setActiveEtrTab] = useState<EtrSubTabId>("sector");
+
+  useEffect(() => {
+    if (!isLoggedIn && activeEtrTab !== "sector") {
+      setActiveEtrTab("sector");
+    }
+  }, [activeEtrTab, isLoggedIn]);
+
+  return (
+    <div className="view-stack etr-page">
+      <div className="view-intro">
+        <h2>Monitoreo de Evapotranspiración en el Valle de Copiapó</h2>
+      </div>
+
+      <div className="etr-subnav" role="tablist" aria-label="Secciones de ETR">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeEtrTab === "sector"}
+          className={activeEtrTab === "sector" ? "is-active" : ""}
+          onClick={() => setActiveEtrTab("sector")}
+        >
+          Indicadores por sector
+        </button>
+        {isLoggedIn && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeEtrTab === "usage"}
+            className={activeEtrTab === "usage" ? "is-active" : ""}
+            onClick={() => setActiveEtrTab("usage")}
+          >
+            Indicadores por uso
+          </button>
+        )}
+        {isLoggedIn && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeEtrTab === "downloads"}
+            className={activeEtrTab === "downloads" ? "is-active" : ""}
+            onClick={() => setActiveEtrTab("downloads")}
+          >
+            Descarga de imágenes
+          </button>
+        )}
+      </div>
+
+      {!isLoggedIn && (
+        <p className="etr-access-note">
+          Inicia sesión para habilitar <strong>Indicadores por uso</strong> y{" "}
+          <strong>Descarga de imágenes</strong>.
+        </p>
+      )}
+
+      {activeEtrTab === "sector" && <EtrSectorTab />}
+      {isLoggedIn && activeEtrTab === "usage" && <EtrUsageTab />}
+      {isLoggedIn && activeEtrTab === "downloads" && <EtrDownloadsTab />}
     </div>
   );
 }
@@ -1391,10 +1916,87 @@ function MeteoView({
   );
 }
 
+const readStoredAuthFlag = () => {
+  if (typeof window === "undefined") {
+    return true;
+  }
+
+  try {
+    const stored = window.localStorage.getItem(authStorageKey);
+    if (stored === null) {
+      return true;
+    }
+    return stored === "true";
+  } catch {
+    return true;
+  }
+};
+
+const readStoredAuthUserName = () => {
+  if (typeof window === "undefined") {
+    return defaultAuthUserName;
+  }
+
+  try {
+    const stored = window.localStorage.getItem(authUserStorageKey);
+    if (!stored || stored.trim().length === 0) {
+      return defaultAuthUserName;
+    }
+    return stored;
+  } catch {
+    return defaultAuthUserName;
+  }
+};
+
+function LoginView({
+  onBack,
+  onLogin,
+}: {
+  onBack: () => void;
+  onLogin: () => void;
+}) {
+  return (
+    <div className="login-shell">
+      <div className="login-card">
+        <div className="login-brand">
+          <div className="site-brand-icon" aria-hidden="true">
+            <Droplets size={16} />
+          </div>
+          <div>
+            <h1>Agua con Dato</h1>
+            <p>Mockup de acceso para usuarios y administradores.</p>
+          </div>
+        </div>
+
+        <div className="login-copy">
+          <h2>Iniciar sesión</h2>
+          <p>
+            Flujo simulado de OAuth 2.0 para demo. Al continuar, se activará el
+            estado de sesión local y volverás al resumen operativo.
+          </p>
+        </div>
+
+        <button type="button" className="login-google-btn" onClick={onLogin}>
+          <span className="login-google-mark" aria-hidden="true">G</span>
+          Continuar con Google
+        </button>
+        <button type="button" className="login-back-btn" onClick={onBack}>
+          Volver al dashboard
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const defaultManualWellId =
     wellMapPoints.find((well) => well.sourceType === "manual")?.id ?? wellMapPoints[0].id;
   const [activeView, setActiveView] = useState<ViewId>("overview");
+  const [appScreen, setAppScreen] = useState<"dashboard" | "login">("dashboard");
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => readStoredAuthFlag());
+  const [authUserName, setAuthUserName] = useState<string>(() =>
+    readStoredAuthUserName(),
+  );
   const [selectedWellId, setSelectedWellId] = useState(wellMapPoints[0].id);
   const [selectedStationId, setSelectedStationId] = useState(meteoStationPoints[0].id);
   const [manualEntries, setManualEntries] = useState<ManualWellEntry[]>([]);
@@ -1454,6 +2056,22 @@ export default function App() {
     }
   }, [selectedStationId, stations]);
 
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(authStorageKey, isLoggedIn ? "true" : "false");
+    } catch {
+      // Ignore persistence errors in mockup mode.
+    }
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(authUserStorageKey, authUserName);
+    } catch {
+      // Ignore persistence errors in mockup mode.
+    }
+  }, [authUserName]);
+
   const overviewCards = useMemo(
     () =>
       computeOverviewCards({
@@ -1507,6 +2125,33 @@ export default function App() {
     setManualForm((previous) => ({ ...previous, level: "", note: "" }));
   };
 
+  const handleOpenLogin = () => {
+    setAppScreen("login");
+  };
+
+  const handleFakeGoogleLogin = () => {
+    setIsLoggedIn(true);
+    setAuthUserName((previous) =>
+      previous.trim().length > 0 ? previous : defaultAuthUserName,
+    );
+    setActiveView("overview");
+    setAppScreen("dashboard");
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setAppScreen("dashboard");
+  };
+
+  if (appScreen === "login") {
+    return (
+      <LoginView
+        onBack={() => setAppScreen("dashboard")}
+        onLogin={handleFakeGoogleLogin}
+      />
+    );
+  }
+
   return (
     <div className="page-shell">
       <header className="site-header">
@@ -1523,22 +2168,52 @@ export default function App() {
           </div>
         </div>
 
-        <nav className="top-nav" aria-label="Views">
-          {views.map((view) => {
-            const Icon = navIconMap[view.id];
-            return (
+        <div className="site-header-actions">
+          <nav className="top-nav" aria-label="Views">
+            {views.map((view) => {
+              const Icon = navIconMap[view.id];
+              return (
+                <button
+                  key={view.id}
+                  type="button"
+                  className={view.id === activeView ? "is-active" : ""}
+                  onClick={() => setActiveView(view.id)}
+                >
+                  <Icon className="nav-icon" size={14} />
+                  {view.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="auth-controls">
+            {isLoggedIn ? (
+              <>
+                <span className="auth-user-chip">
+                  <UserRound size={13} />
+                  {authUserName}
+                </span>
+                <button
+                  type="button"
+                  className="auth-action-btn"
+                  onClick={handleLogout}
+                >
+                  <LogOut size={13} />
+                  Cerrar sesión
+                </button>
+              </>
+            ) : (
               <button
-                key={view.id}
                 type="button"
-                className={view.id === activeView ? "is-active" : ""}
-                onClick={() => setActiveView(view.id)}
+                className="auth-action-btn auth-login-btn"
+                onClick={handleOpenLogin}
               >
-                <Icon className="nav-icon" size={14} />
-                {view.label}
+                <LogIn size={13} />
+                Iniciar sesión
               </button>
-            );
-          })}
-        </nav>
+            )}
+          </div>
+        </div>
       </header>
 
       <main className="content-shell">
@@ -1550,7 +2225,7 @@ export default function App() {
             wells={wells}
           />
         )}
-        {activeView === "etr" && <EtrView />}
+        {activeView === "etr" && <EtrView isLoggedIn={isLoggedIn} />}
         {activeView === "snow" && <SnowView />}
         {activeView === "wells" && (
           <WellsView

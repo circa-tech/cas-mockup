@@ -2015,3 +2015,347 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+.site-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.auth-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.auth-user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid hsl(210 18% 86%);
+  background: #fff;
+  color: hsl(215 20% 30%);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 620;
+  white-space: nowrap;
+}
+
+.auth-action-btn {
+  border: 1px solid hsl(210 18% 86%);
+  border-radius: 999px;
+  background: #fff;
+  color: hsl(215 20% 30%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 620;
+  padding: 7px 12px;
+  cursor: pointer;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.auth-action-btn:hover {
+  transform: translateY(-1px);
+  border-color: hsl(205 42% 71%);
+  box-shadow: 0 8px 18px rgba(16, 44, 92, 0.12);
+}
+
+.auth-login-btn {
+  color: hsl(205 62% 34%);
+  border-color: hsl(205 42% 76%);
+  background: hsl(205 80% 97%);
+}
+
+.login-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background:
+    radial-gradient(circle at 20% -10%, hsl(197 82% 91%) 0%, transparent 45%),
+    radial-gradient(circle at 85% 110%, hsl(205 72% 91%) 0%, transparent 42%),
+    hsl(210 25% 97%);
+}
+
+.login-card {
+  width: min(520px, 100%);
+  display: grid;
+  gap: 18px;
+  border: 1px solid hsl(210 18% 87%);
+  border-radius: 16px;
+  background: #fff;
+  padding: 24px;
+  box-shadow: 0 16px 30px rgba(16, 44, 92, 0.12);
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.login-brand h1 {
+  margin: 0 0 2px;
+  font-size: 20px;
+}
+
+.login-brand p {
+  margin: 0;
+  color: hsl(215 14% 50%);
+  font-size: 13px;
+}
+
+.login-copy h2 {
+  margin: 0 0 6px;
+  font-size: 24px;
+}
+
+.login-copy p {
+  margin: 0;
+  color: hsl(215 14% 50%);
+  line-height: 1.45;
+}
+
+.login-google-btn,
+.login-back-btn {
+  min-height: 46px;
+  border-radius: 10px;
+  border: 1px solid hsl(210 18% 86%);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 620;
+}
+
+.login-google-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #fff;
+  color: hsl(215 18% 25%);
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.login-google-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 20px rgba(16, 44, 92, 0.12);
+}
+
+.login-google-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.login-back-btn {
+  background: hsl(210 33% 98%);
+  color: hsl(215 14% 40%);
+}
+
+.etr-subnav {
+  display: inline-flex;
+  width: fit-content;
+  gap: 4px;
+  border-radius: 10px;
+  background: hsl(195 30% 94%);
+  padding: 4px;
+}
+
+.etr-subnav button {
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: hsl(215 14% 50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 620;
+  white-space: nowrap;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.etr-subnav button:hover {
+  color: hsl(215 32% 15%);
+}
+
+.etr-subnav button.is-active {
+  background: #fff;
+  color: hsl(215 32% 15%);
+  box-shadow: 0 1px 2px rgba(15, 35, 65, 0.14);
+}
+
+.etr-access-note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid hsl(205 36% 85%);
+  background: hsl(205 70% 96%);
+  color: hsl(205 45% 30%);
+  font-size: 13px;
+}
+
+.etr-usage-top-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.etr-usage-cards {
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.etr-usage-card {
+  border: 1px solid hsl(210 18% 88%);
+  border-radius: 10px;
+  padding: 12px 13px;
+  display: grid;
+  gap: 5px;
+  background: linear-gradient(180deg, #fff 0%, hsl(210 40% 99%) 100%);
+}
+
+.etr-usage-card span {
+  color: hsl(215 14% 50%);
+  font-size: 12px;
+}
+
+.etr-usage-card strong {
+  color: hsl(215 28% 20%);
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.etr-usage-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.etr-download-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.etr-download-copy {
+  padding: 0 14px;
+}
+
+.etr-download-copy p {
+  margin: 0;
+  color: hsl(215 14% 50%);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.etr-download-form {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.etr-download-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.etr-download-form label span {
+  font-size: 12px;
+  color: hsl(215 14% 50%);
+  font-weight: 620;
+}
+
+.etr-download-form select {
+  min-height: 40px;
+  border-radius: 8px;
+  border: 1px solid hsl(210 18% 86%);
+  background: #fff;
+  padding: 0 11px;
+  color: hsl(215 32% 15%);
+  font-size: 13px;
+}
+
+.etr-download-form button {
+  margin-top: 4px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 8px;
+  background: linear-gradient(180deg, hsl(205 78% 42%), hsl(205 78% 36%));
+  color: #fff;
+  font-weight: 620;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(21, 102, 186, 0.24);
+}
+
+.etr-download-selected,
+.etr-download-feedback {
+  margin: 0;
+  padding: 0 14px 10px;
+  font-size: 12px;
+}
+
+.etr-download-selected {
+  color: hsl(215 14% 45%);
+}
+
+.etr-download-feedback {
+  color: hsl(166 55% 34%);
+  font-weight: 620;
+  padding-bottom: 14px;
+}
+
+@media (max-width: 1180px) {
+  .etr-usage-top-grid,
+  .etr-usage-chart-grid,
+  .etr-download-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .site-header-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .auth-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .auth-user-chip,
+  .auth-action-btn {
+    min-height: 40px;
+  }
+
+  .etr-subnav {
+    width: 100%;
+  }
+
+  .etr-subnav button {
+    flex: 1;
+  }
+}
