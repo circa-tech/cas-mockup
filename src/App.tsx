@@ -12,9 +12,12 @@ import {
   Waves,
 } from "lucide-react";
 import {
+  Cell,
   CartesianGrid,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
   XAxis,
@@ -53,6 +56,14 @@ import {
   waterQualityRecords,
   WaterQualityStatus,
 } from "./data/mockupData";
+import {
+  getSnowBalanceDisplayRows,
+  getSnowBalanceRecord,
+  getSnowBalanceYears,
+  snowBalanceBasinLabels,
+  snowBalanceLatestYear,
+  SnowBalanceBasinId,
+} from "./data/snowBalanceData";
 
 const monthLabels = [
   "Jan",
@@ -511,90 +522,239 @@ function EtrView() {
   );
 }
 
+const snowBalanceBasins: SnowBalanceBasinId[] = ["jorquera", "pulido", "manflas"];
+
 function SnowView() {
+  const [activeSnowTab, setActiveSnowTab] = useState<"coverage" | "balance">("coverage");
+  const [selectedBalanceYearByBasin, setSelectedBalanceYearByBasin] = useState<
+    Record<SnowBalanceBasinId, number>
+  >({
+    jorquera: snowBalanceLatestYear,
+    pulido: snowBalanceLatestYear,
+    manflas: snowBalanceLatestYear,
+  });
+
   return (
     <div className="view-stack">
       <div className="view-intro">
         <h2>Sistema de Monitoreo de Cobertura Nival</h2>
       </div>
 
-      <div className="snow-grid">
-        <Panel
-          title="Cobertura nival"
-          subtitle="Última imagen disponible (2025-12-30)"
+      <div className="snow-subnav" role="tablist" aria-label="Secciones de nieve">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeSnowTab === "coverage"}
+          className={activeSnowTab === "coverage" ? "is-active" : ""}
+          onClick={() => setActiveSnowTab("coverage")}
         >
-          <div className="snow-copy">
-            <p>
-              La imagen de cobertura nival muestra la presencia o ausencia de nieve
-              en la cuenca para una fecha dada.
-            </p>
-            <p>
-              El mockup muestra las áreas de estudio cargadas desde GeoJSON sobre
-              mapa satelital y mantiene las series de evolución anual por cuenca.
-            </p>
-          </div>
-
-          <div className="snow-image-card">
-            <SnowCoverageMap />
-          </div>
-        </Panel>
-
-        <div className="snow-charts">
-          <div className="snow-description">
-            <h3>Gráficas de evolución diaria de FSCA.</h3>
-            <p>
-              Los gráficos de evolución diaria de cobertura de nieve (FSCA)
-              muestran el porcentaje del área de estudio y de cada cuenca que
-              está cubierta con nieve durante los días correspondientes al período
-              húmedo (abril-septiembre) del año actual y el anterior.
-            </p>
-          </div>
-
-          <Panel
-            title="Evolución diaria de la cobertura de nieve en el área de estudio (%)"
-          >
-            <SimpleLineChart
-              maxValue={100}
-              minValue={0}
-              series={snowOverviewSeries}
-              unit="Cobertura (%)"
-            />
-          </Panel>
-
-          <Panel
-            title="Evolución diaria de FSCA de la cuenca de Jorquera"
-          >
-            <SimpleLineChart
-              maxValue={100}
-              minValue={0}
-              series={snowJorqueraSeries}
-              unit="Cobertura (%)"
-            />
-          </Panel>
-
-          <Panel
-            title="Evolución diaria de FSCA de la cuenca de Pulido"
-          >
-            <SimpleLineChart
-              maxValue={100}
-              minValue={0}
-              series={snowPulidoSeries}
-              unit="Cobertura (%)"
-            />
-          </Panel>
-
-          <Panel
-            title="Evolución diaria de FSCA de la cuenca de Manflas"
-          >
-            <SimpleLineChart
-              maxValue={100}
-              minValue={0}
-              series={snowManflasSeries}
-              unit="Cobertura (%)"
-            />
-          </Panel>
-        </div>
+          Cobertura MODIS
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeSnowTab === "balance"}
+          className={activeSnowTab === "balance" ? "is-active" : ""}
+          onClick={() => setActiveSnowTab("balance")}
+        >
+          Balance de Masas
+        </button>
       </div>
+
+      {activeSnowTab === "coverage" && (
+        <div className="snow-grid">
+          <Panel title="Cobertura nival" subtitle="Última imagen disponible (2025-12-30)">
+            <div className="snow-copy">
+              <p>
+                La imagen de cobertura nival muestra la presencia o ausencia de nieve
+                en la cuenca para una fecha dada.
+              </p>
+              <p>
+                El mockup muestra las áreas de estudio cargadas desde GeoJSON sobre
+                mapa satelital y mantiene las series de evolución anual por cuenca.
+              </p>
+            </div>
+
+            <div className="snow-image-card">
+              <SnowCoverageMap />
+            </div>
+          </Panel>
+
+          <div className="snow-charts">
+            <div className="snow-description">
+              <h3>Gráficas de evolución diaria de FSCA.</h3>
+              <p>
+                Los gráficos de evolución diaria de cobertura de nieve (FSCA)
+                muestran el porcentaje del área de estudio y de cada cuenca que
+                está cubierta con nieve durante los días correspondientes al período
+                húmedo (abril-septiembre) del año actual y el anterior.
+              </p>
+            </div>
+
+            <Panel title="Evolución diaria de la cobertura de nieve en el área de estudio (%)">
+              <SimpleLineChart
+                maxValue={100}
+                minValue={0}
+                series={snowOverviewSeries}
+                unit="Cobertura (%)"
+              />
+            </Panel>
+
+            <Panel title="Evolución diaria de FSCA de la cuenca de Jorquera">
+              <SimpleLineChart
+                maxValue={100}
+                minValue={0}
+                series={snowJorqueraSeries}
+                unit="Cobertura (%)"
+              />
+            </Panel>
+
+            <Panel title="Evolución diaria de FSCA de la cuenca de Pulido">
+              <SimpleLineChart
+                maxValue={100}
+                minValue={0}
+                series={snowPulidoSeries}
+                unit="Cobertura (%)"
+              />
+            </Panel>
+
+            <Panel title="Evolución diaria de FSCA de la cuenca de Manflas">
+              <SimpleLineChart
+                maxValue={100}
+                minValue={0}
+                series={snowManflasSeries}
+                unit="Cobertura (%)"
+              />
+            </Panel>
+          </div>
+        </div>
+      )}
+
+      {activeSnowTab === "balance" && (
+        <div className="snow-balance-stack">
+          <div className="snow-description">
+            <h3>Balance de masa de nieve</h3>
+            <p>
+              Estimación del derretimiento, transporte y pérdidas durante la
+              temporada húmeda. Cada cuenca permite seleccionar un año histórico
+              y revisar intervalos de confianza (95%) en mm equivalentes de agua en nieve (SWE).
+            </p>
+          </div>
+
+          <div className="snow-balance-grid">
+            {snowBalanceBasins.map((basin) => {
+              const years = [...getSnowBalanceYears(basin)].sort((a, b) => b - a);
+              const selectedYear = selectedBalanceYearByBasin[basin];
+              const record = getSnowBalanceRecord(basin, selectedYear);
+              const rows = getSnowBalanceDisplayRows(record);
+
+              return (
+                <Panel
+                  key={basin}
+                  title={`Balance de la cuenca del río ${snowBalanceBasinLabels[basin]}`}
+                  subtitle="Intervalos de confianza (95%)"
+                >
+                  <div className="snow-balance-controls">
+                    <label htmlFor={`snow-balance-year-${basin}`}>Año</label>
+                    <select
+                      id={`snow-balance-year-${basin}`}
+                      value={selectedYear}
+                      onChange={(event) => {
+                        const nextYear = Number(event.target.value);
+                        setSelectedBalanceYearByBasin((prev) => ({
+                          ...prev,
+                          [basin]: nextYear,
+                        }));
+                      }}
+                    >
+                      {years.map((year) => (
+                        <option key={year} value={year}>
+                          {year}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="snow-balance-chart-layout">
+                    <div className="snow-balance-donut">
+                      <ResponsiveContainer width="100%" height={220}>
+                        <PieChart>
+                          <Pie
+                            data={rows}
+                            dataKey="value"
+                            nameKey="label"
+                            innerRadius={52}
+                            outerRadius={84}
+                            paddingAngle={2}
+                            cx="50%"
+                            cy="50%"
+                          >
+                            {rows.map((row) => (
+                              <Cell key={`${basin}-${row.componentId}`} fill={row.color} />
+                            ))}
+                          </Pie>
+                          <RechartsTooltip
+                            formatter={(value, label) => [
+                              `${Number(value ?? 0).toFixed(2)} mm`,
+                              String(label ?? ""),
+                            ]}
+                            contentStyle={{
+                              background: "#fff",
+                              border: "1px solid hsl(210 18% 86%)",
+                              borderRadius: "8px",
+                              boxShadow: "0 8px 16px rgba(16, 44, 92, 0.12)",
+                              fontSize: "11px",
+                            }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    <div className="snow-balance-legend">
+                      {rows.map((row) => (
+                        <div key={`${basin}-legend-${row.componentId}`} className="snow-balance-legend-row">
+                          <span className="snow-balance-legend-main">
+                            <i
+                              className="snow-balance-dot"
+                              style={{ backgroundColor: row.color }}
+                            />
+                            {row.label}
+                          </span>
+                          <strong>{row.percent.toFixed(1)}%</strong>
+                        </div>
+                      ))}
+                      <p className="snow-balance-total">
+                        Total estimado: <strong>{record.total.toFixed(2)} mm SWE</strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="snow-balance-table-wrap">
+                    <table className="snow-balance-table">
+                      <thead>
+                        <tr>
+                          <th>Componente</th>
+                          <th>Máximo (mm)</th>
+                          <th>Mínimo (mm)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((row) => (
+                          <tr key={`${basin}-row-${row.componentId}`}>
+                            <td>{row.label}</td>
+                            <td>{row.max.toFixed(2)}</td>
+                            <td>{row.min.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Panel>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

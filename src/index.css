@@ -1829,3 +1829,189 @@ body {
     font-size: 26px;
   }
 }
+
+.snow-subnav {
+  display: inline-flex;
+  width: fit-content;
+  gap: 4px;
+  border-radius: 10px;
+  background: hsl(195 30% 94%);
+  padding: 4px;
+}
+
+.snow-subnav button {
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: hsl(215 14% 50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 620;
+  white-space: nowrap;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.snow-subnav button:hover {
+  color: hsl(215 32% 15%);
+}
+
+.snow-subnav button.is-active {
+  background: #ffffff;
+  color: hsl(215 32% 15%);
+  box-shadow: 0 1px 2px rgba(15, 35, 65, 0.14);
+}
+
+.snow-balance-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.snow-balance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.snow-balance-controls {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 0;
+}
+
+.snow-balance-controls label {
+  color: hsl(215 14% 50%);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.snow-balance-controls select {
+  min-height: 32px;
+  border: 1px solid hsl(210 18% 86%);
+  border-radius: 8px;
+  background: #fff;
+  color: hsl(215 32% 15%);
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.snow-balance-chart-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px 0;
+}
+
+.snow-balance-donut {
+  border: 1px solid hsl(210 18% 90%);
+  border-radius: 10px;
+  background: linear-gradient(180deg, hsl(210 30% 99%) 0%, hsl(210 26% 98%) 100%);
+  padding: 4px 4px 0;
+}
+
+.snow-balance-legend {
+  display: grid;
+  gap: 8px;
+}
+
+.snow-balance-legend-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: #f8fbff;
+  border: 1px solid hsl(210 18% 90%);
+  color: hsl(215 18% 32%);
+  font-size: 12px;
+}
+
+.snow-balance-legend-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+}
+
+.snow-balance-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  display: inline-block;
+  box-shadow: 0 0 0 1px rgba(34, 64, 102, 0.14);
+}
+
+.snow-balance-total {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: hsl(215 14% 45%);
+}
+
+.snow-balance-total strong {
+  color: hsl(215 32% 15%);
+}
+
+.snow-balance-table-wrap {
+  padding: 12px 14px 16px;
+}
+
+.snow-balance-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  border: 1px solid hsl(210 18% 89%);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.snow-balance-table thead {
+  background: hsl(210 33% 96%);
+}
+
+.snow-balance-table th,
+.snow-balance-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid hsl(210 18% 91%);
+  text-align: right;
+}
+
+.snow-balance-table th:first-child,
+.snow-balance-table td:first-child {
+  text-align: left;
+}
+
+.snow-balance-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+@media (max-width: 1180px) {
+  .snow-balance-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .snow-subnav {
+    width: 100%;
+  }
+
+  .snow-subnav button {
+    flex: 1;
+  }
+
+  .snow-balance-chart-layout {
+    grid-template-columns: 1fr;
+  }
+}
