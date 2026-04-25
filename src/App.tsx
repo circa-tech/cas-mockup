@@ -86,6 +86,7 @@ import {
   snowBalanceLatestYear,
   SnowBalanceBasinId,
 } from "./data/snowBalanceData";
+import { downloadMockQuadrantJpeg } from "./utils/mockQuadrantExport";
 
 const monthLabels = [
   "Jan",
@@ -833,6 +834,7 @@ function EtrDownloadsTab() {
   const [selectedMonth, setSelectedMonth] = useState(1);
   const [selectedDay, setSelectedDay] = useState(1);
   const [downloadFeedback, setDownloadFeedback] = useState("");
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const years = useMemo(
     () => getEtrDownloadYears(selectedQuadrant.quadrantId, selectedVariable),
@@ -882,8 +884,10 @@ function EtrDownloadsTab() {
   const selectedMonthLabel =
     etrDownloadMonthLabels[selectedMonth - 1] ?? `Mes ${selectedMonth}`;
 
-  const handleFakeDownload = (event: FormEvent<HTMLFormElement>) => {
+  const handleFakeDownload = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setIsDownloading(true);
+
     const filename = buildEtrDownloadFilename({
       day: selectedDay,
       format: selectedFormat,
@@ -892,11 +896,25 @@ function EtrDownloadsTab() {
       variable: selectedVariable,
       year: selectedYear,
     });
-    const modeLabel =
-      selectedFormat === "JPEG"
-        ? "Exportación visual simulada"
-        : "Descarga raster simulada";
-    setDownloadFeedback(`${modeLabel}: ${filename}`);
+    try {
+      if (selectedFormat === "JPEG") {
+        await downloadMockQuadrantJpeg({
+          filename,
+          quadrantId: selectedQuadrant.quadrantId,
+        });
+        setDownloadFeedback(`Exportación visual simulada: ${filename}`);
+        return;
+      }
+
+      setDownloadFeedback(
+        `Solicitud TIFF simulada: ${filename}. Esta descarga se habilitará con un servicio raster real.`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error inesperado al exportar JPEG.";
+      setDownloadFeedback(message);
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
@@ -998,7 +1016,9 @@ function EtrDownloadsTab() {
               </select>
             </label>
 
-            <button type="submit">Descargar</button>
+            <button type="submit" disabled={isDownloading}>
+              {isDownloading ? "Procesando..." : "Descargar"}
+            </button>
           </form>
 
           <p className="etr-download-selected">
@@ -1006,14 +1026,13 @@ function EtrDownloadsTab() {
             {selectedFormat} · {selectedYear} · {selectedMonthLabel} ·{" "}
             {String(selectedDay).padStart(2, "0")}
           </p>
+          <p className="etr-download-note">
+            Nota mockup: la descarga JPEG usa un recorte satelital por cuadrante,
+            con resolución objetivo cercana a 10 m/píxel para la demo. La descarga
+            TIFF se habilitará con un servicio raster real en la app final.
+          </p>
           {downloadFeedback && (
             <p className="etr-download-feedback">{downloadFeedback}</p>
-          )}
-          {selectedFormat === "JPEG" && (
-            <p className="etr-download-format-note">
-              Nota: en la app original la descarga real es GeoTIFF; JPEG aquí es
-              una opción mock para demo.
-            </p>
           )}
         </Panel>
       </div>

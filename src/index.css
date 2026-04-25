@@ -2310,6 +2310,11 @@ body {
   box-shadow: 0 8px 18px rgba(21, 102, 186, 0.24);
 }
 
+.etr-download-form button:disabled {
+  opacity: 0.72;
+  cursor: wait;
+}
+
 .etr-download-selected,
 .etr-download-feedback {
   margin: 0;
@@ -2321,17 +2326,18 @@ body {
   color: hsl(215 14% 45%);
 }
 
+.etr-download-note {
+  margin: 0;
+  padding: 0 14px 10px;
+  color: hsl(215 14% 45%);
+  font-size: 12px;
+  line-height: 1.42;
+}
+
 .etr-download-feedback {
   color: hsl(166 55% 34%);
   font-weight: 620;
   padding-bottom: 14px;
-}
-
-.etr-download-format-note {
-  margin: 0;
-  padding: 0 14px 14px;
-  font-size: 12px;
-  color: hsl(215 14% 45%);
 }
 
 @media (max-width: 1180px) {
