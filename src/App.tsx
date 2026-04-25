@@ -315,7 +315,7 @@ function OverviewMiniLine({
   return (
     <div className="overview-mini-chart">
       <ResponsiveContainer height={196} width="100%">
-        <LineChart data={rows} margin={{ bottom: 10, left: -10, right: 4, top: 6 }}>
+        <LineChart data={rows} margin={{ bottom: 10, left: 8, right: 8, top: 6 }}>
           <CartesianGrid stroke="hsl(210 18% 91%)" strokeDasharray="3 3" vertical={false} />
           <XAxis
             angle={-28}
@@ -334,7 +334,7 @@ function OverviewMiniLine({
             axisLine={{ stroke: "hsl(210 18% 86%)" }}
             tick={{ fill: "hsl(215 14% 50%)", fontSize: 10 }}
             tickLine={false}
-            width={26}
+            width={42}
           />
           <RechartsTooltip
             animationDuration={120}
