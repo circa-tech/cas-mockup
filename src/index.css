@@ -2324,6 +2324,7 @@ body {
 
 .etr-download-selected {
   color: hsl(215 14% 45%);
+  font-weight: 700;
 }
 
 .etr-download-note {

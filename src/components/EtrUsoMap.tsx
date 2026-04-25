@@ -13,6 +13,10 @@ export type EtrUsoSelection = {
 };
 
 type EtrUsoFeature = {
+  geometry: {
+    coordinates: number[][][][] | number[][][];
+    type: "MultiPolygon" | "Polygon";
+  };
   id: number | string;
   properties: {
     cultivo: string;
@@ -41,6 +45,45 @@ const copiapoBounds: [[number, number], [number, number]] = [
 
 const etrUsoFeatures = (etrUsoGeoJson as EtrUsoFeatureCollection).features;
 
+const getFeatureBounds = (feature: EtrUsoFeature | undefined) => {
+  if (!feature) {
+    return null;
+  }
+
+  let minLat = Number.POSITIVE_INFINITY;
+  let maxLat = Number.NEGATIVE_INFINITY;
+  let minLon = Number.POSITIVE_INFINITY;
+  let maxLon = Number.NEGATIVE_INFINITY;
+
+  const rings =
+    feature.geometry.type === "Polygon"
+      ? (feature.geometry.coordinates as number[][][])
+      : (feature.geometry.coordinates as number[][][][]).flatMap((polygon) => polygon);
+
+  rings.forEach((ring) => {
+    ring.forEach(([lon, lat]) => {
+      minLat = Math.min(minLat, lat);
+      maxLat = Math.max(maxLat, lat);
+      minLon = Math.min(minLon, lon);
+      maxLon = Math.max(maxLon, lon);
+    });
+  });
+
+  if (
+    !Number.isFinite(minLat) ||
+    !Number.isFinite(maxLat) ||
+    !Number.isFinite(minLon) ||
+    !Number.isFinite(maxLon)
+  ) {
+    return null;
+  }
+
+  return [
+    [minLat, minLon],
+    [maxLat, maxLon],
+  ] as [[number, number], [number, number]];
+};
+
 const getUsoId = (feature: EtrUsoFeature | undefined) => {
   const candidate = feature?.properties.uso_id ?? feature?.id;
   const parsed = Number.parseInt(String(candidate), 10);
@@ -56,10 +99,10 @@ const buildSelection = (feature: EtrUsoFeature | undefined): EtrUsoSelection => 
 });
 
 export const defaultEtrUsoMapSelection: EtrUsoSelection = buildSelection(
-  etrUsoFeatures[0],
+  etrUsoFeatures.find((feature) => String(getUsoId(feature)) === "855") ?? etrUsoFeatures[0],
 );
 
-function InitialUsoViewport() {
+function InitialUsoViewport({ selectedUsoId }: { selectedUsoId: string }) {
   const map = useMap();
   const hasInitialized = useRef(false);
 
@@ -69,9 +112,20 @@ function InitialUsoViewport() {
     }
 
     hasInitialized.current = true;
+    const selectedFeature =
+      etrUsoFeatures.find((feature) => String(getUsoId(feature)) === selectedUsoId) ??
+      etrUsoFeatures[0];
+    const selectedBounds = getFeatureBounds(selectedFeature);
+
+    if (selectedBounds) {
+      map.fitBounds(selectedBounds, { maxZoom: 16, padding: [16, 16] });
+      map.setZoom(Math.min(16, map.getZoom() + 1));
+      return;
+    }
+
     map.fitBounds(copiapoBounds, { padding: [12, 12] });
     map.setZoom(12);
-  }, [map]);
+  }, [map, selectedUsoId]);
 
   return null;
 }
@@ -115,7 +169,7 @@ export function EtrUsoMap({
           zoomControl
         >
           <ModifierWheelZoom />
-          <InitialUsoViewport />
+          <InitialUsoViewport selectedUsoId={selectedUsoId} />
           <LayersControl position="topright">
             <LayersControl.BaseLayer name="OpenStreetMap">
               <TileLayer
