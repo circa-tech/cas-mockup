@@ -86,6 +86,13 @@ import {
   snowBalanceLatestYear,
   SnowBalanceBasinId,
 } from "./data/snowBalanceData";
+import {
+  isFirebaseConfigured,
+  signInWithGoogle,
+  signOutFromGoogle,
+  subscribeToAuthSession,
+} from "./services/firebaseAuth";
+import { fetchWeatherStationPoints } from "./services/weatherStationsApi";
 import { downloadMockQuadrantJpeg } from "./utils/mockQuadrantExport";
 
 const monthLabels = [
@@ -2033,8 +2040,8 @@ function LoginView({
         <div className="login-copy">
           <h2>Iniciar sesión</h2>
           <p>
-            Flujo simulado de OAuth 2.0 para demo. Al continuar, se activará el
-            estado de sesión local y volverás al resumen operativo.
+            Acceso con Google para consultar los snapshots horarios publicados
+            desde la plataforma CAS.
           </p>
         </div>
 
@@ -2059,10 +2066,12 @@ export default function App() {
   const [authUserName, setAuthUserName] = useState<string>(() =>
     readStoredAuthUserName(),
   );
+  const [authIdToken, setAuthIdToken] = useState<string | null>(null);
   const [selectedWellId, setSelectedWellId] = useState(wellMapPoints[0].id);
   const [selectedStationId, setSelectedStationId] = useState(meteoStationPoints[0].id);
   const [manualEntries, setManualEntries] = useState<ManualWellEntry[]>([]);
   const [wellState, setWellState] = useState(wellMapPoints);
+  const [stationState, setStationState] = useState<MeteoStationPoint[]>(meteoStationPoints);
   const [manualForm, setManualForm] = useState<ManualFormState>({
     wellId: defaultManualWellId,
     date: "2026-03-22",
@@ -2073,12 +2082,12 @@ export default function App() {
   });
 
   const dashboardNow = useMemo(() => {
-    const seed = new Date(mockNowIso).getTime();
+    const seed = authIdToken ? Date.now() : new Date(mockNowIso).getTime();
     const manualTimes = manualEntries.map((entry) =>
       new Date(`${entry.date}T${entry.time}:00-03:00`).getTime(),
     );
     return new Date(Math.max(seed, ...manualTimes));
-  }, [manualEntries]);
+  }, [authIdToken, manualEntries]);
 
   const wells = useMemo(
     () =>
@@ -2095,7 +2104,7 @@ export default function App() {
 
   const stations = useMemo(
     () =>
-      meteoStationPoints.map((station) => ({
+      stationState.map((station) => ({
         ...station,
         status: getFreshnessStatus(
           station.lastUpdate,
@@ -2103,8 +2112,46 @@ export default function App() {
           staleThresholdDaysDefault,
         ),
       })),
-    [dashboardNow],
+    [dashboardNow, stationState],
   );
+
+  useEffect(() => {
+    if (!isFirebaseConfigured) {
+      return undefined;
+    }
+
+    return subscribeToAuthSession((session) => {
+      setIsLoggedIn(session.isLoggedIn);
+      setAuthUserName(session.userName);
+      setAuthIdToken(session.idToken);
+    });
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!isLoggedIn || !authIdToken) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    fetchWeatherStationPoints(authIdToken)
+      .then((nextStations) => {
+        if (isMounted) {
+          setStationState(nextStations);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setStationState(meteoStationPoints);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authIdToken, isLoggedIn]);
 
   useEffect(() => {
     if (!wells.some((well) => well.id === selectedWellId)) {
@@ -2191,17 +2238,21 @@ export default function App() {
     setAppScreen("login");
   };
 
-  const handleFakeGoogleLogin = () => {
-    setIsLoggedIn(true);
-    setAuthUserName((previous) =>
-      previous.trim().length > 0 ? previous : defaultAuthUserName,
-    );
+  const handleGoogleLogin = async () => {
+    const session = await signInWithGoogle();
+
+    setIsLoggedIn(session.isLoggedIn);
+    setAuthIdToken(session.idToken);
+    setAuthUserName(session.userName.trim().length > 0 ? session.userName : defaultAuthUserName);
     setActiveView("overview");
     setAppScreen("dashboard");
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOutFromGoogle();
     setIsLoggedIn(false);
+    setAuthIdToken(null);
+    setStationState(meteoStationPoints);
     setAppScreen("dashboard");
   };
 
@@ -2209,7 +2260,7 @@ export default function App() {
     return (
       <LoginView
         onBack={() => setAppScreen("dashboard")}
-        onLogin={handleFakeGoogleLogin}
+        onLogin={handleGoogleLogin}
       />
     );
   }
