@@ -88,6 +88,7 @@ import {
 } from "./data/snowBalanceData";
 import {
   isFirebaseConfigured,
+  signInWithEmailPassword,
   signInWithGoogle,
   signOutFromGoogle,
   subscribeToAuthSession,
@@ -2019,11 +2020,32 @@ const readStoredAuthUserName = () => {
 
 function LoginView({
   onBack,
-  onLogin,
+  onGoogleLogin,
+  onEmailPasswordLogin,
 }: {
   onBack: () => void;
-  onLogin: () => void;
+  onGoogleLogin: () => void;
+  onEmailPasswordLogin: (email: string, password: string) => Promise<void>;
 }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleEmailPasswordSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setErrorMessage(null);
+    setIsSubmitting(true);
+
+    try {
+      await onEmailPasswordLogin(email, password);
+    } catch {
+      setErrorMessage("No fue posible iniciar sesión con email y contraseña.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="login-shell">
       <div className="login-card">
@@ -2040,12 +2062,47 @@ function LoginView({
         <div className="login-copy">
           <h2>Iniciar sesión</h2>
           <p>
-            Acceso con Google para consultar los snapshots horarios publicados
-            desde la plataforma CAS.
+            Acceso con Google o email/contraseña para consultar los snapshots horarios
+            publicados desde la plataforma CAS.
           </p>
         </div>
 
-        <button type="button" className="login-google-btn" onClick={onLogin}>
+        <form className="login-form" onSubmit={handleEmailPasswordSubmit}>
+          <label className="login-field">
+            <span>Email</span>
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="usuario@ejemplo.com"
+              autoComplete="email"
+              required
+            />
+          </label>
+          <label className="login-field">
+            <span>Contraseña</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="********"
+              autoComplete="current-password"
+              required
+            />
+          </label>
+          {errorMessage ? <p className="login-error">{errorMessage}</p> : null}
+          <button type="submit" className="login-password-btn" disabled={isSubmitting}>
+            {isSubmitting ? "Ingresando..." : "Ingresar con email"}
+          </button>
+        </form>
+
+        <div className="login-divider" aria-hidden="true">
+          <span />
+          <strong>o</strong>
+          <span />
+        </div>
+
+        <button type="button" className="login-google-btn" onClick={onGoogleLogin}>
           <span className="login-google-mark" aria-hidden="true">G</span>
           Continuar con Google
         </button>
@@ -2248,6 +2305,16 @@ export default function App() {
     setAppScreen("dashboard");
   };
 
+  const handleEmailPasswordLogin = async (email: string, password: string) => {
+    const session = await signInWithEmailPassword(email, password);
+
+    setIsLoggedIn(session.isLoggedIn);
+    setAuthIdToken(session.idToken);
+    setAuthUserName(session.userName.trim().length > 0 ? session.userName : defaultAuthUserName);
+    setActiveView("overview");
+    setAppScreen("dashboard");
+  };
+
   const handleLogout = async () => {
     await signOutFromGoogle();
     setIsLoggedIn(false);
@@ -2260,7 +2327,8 @@ export default function App() {
     return (
       <LoginView
         onBack={() => setAppScreen("dashboard")}
-        onLogin={handleGoogleLogin}
+        onGoogleLogin={handleGoogleLogin}
+        onEmailPasswordLogin={handleEmailPasswordLogin}
       />
     );
   }

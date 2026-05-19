@@ -1,0 +1,12 @@
+services:
+  app:
+    build:
+      context: .
+    container_name: cas-mockup-app
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      CHOKIDAR_USEPOLLING: "true"

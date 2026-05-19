@@ -3,6 +3,7 @@ import {
   getAuth,
   GoogleAuthProvider,
   onAuthStateChanged,
+  signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
   type Auth,
@@ -90,6 +91,30 @@ export const signInWithGoogle = async (): Promise<AuthSession> => {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
   const credentials = await signInWithPopup(auth, provider);
+
+  return {
+    idToken: await credentials.user.getIdToken(),
+    isConfigured: true,
+    isLoggedIn: true,
+    userName: credentials.user.displayName || credentials.user.email || defaultAuthUserName,
+  };
+};
+
+export const signInWithEmailPassword = async (
+  email: string,
+  password: string,
+): Promise<AuthSession> => {
+  const auth = getFirebaseAuth();
+  if (!auth) {
+    return {
+      idToken: null,
+      isConfigured: false,
+      isLoggedIn: true,
+      userName: email || defaultAuthUserName,
+    };
+  }
+
+  const credentials = await signInWithEmailAndPassword(auth, email, password);
 
   return {
     idToken: await credentials.user.getIdToken(),
