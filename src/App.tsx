@@ -33,8 +33,10 @@ import {
   type EtrQuadrantSelection,
 } from "./components/EtrQuadrantMap";
 import {
+  buildEtrUsoSelection,
   defaultEtrUsoMapSelection,
   EtrUsoMap,
+  type EtrUsoFeature,
   type EtrUsoSelection,
 } from "./components/EtrUsoMap";
 import { KpiCard } from "./components/KpiCard";
@@ -93,6 +95,23 @@ import {
   signOutFromGoogle,
   subscribeToAuthSession,
 } from "./services/firebaseAuth";
+import {
+  fetchEtrCult,
+  fetchEtrDataCuad,
+  fetchEtrDownCuad,
+  fetchEtrPoly,
+  fetchEtrQuadrantMap,
+  fetchEtrSectorMap,
+  fetchEtrSerieEt,
+  fetchEtrStdAe,
+  fetchEtrUsoMap,
+  fetchKcPoly,
+  fetchLaiPoly,
+  GeoJsonFeatureCollection,
+  toEtrBarGroups,
+  toEtrEtmaxSeries,
+  toSingleMetricSeries,
+} from "./services/etrApi";
 import { fetchWeatherStationPoints } from "./services/weatherStationsApi";
 import { downloadMockQuadrantJpeg } from "./utils/mockQuadrantExport";
 
@@ -447,6 +466,15 @@ const getSeriesDomain = (
   };
 };
 
+const getBarGroupsMaxValue = (groups: ReturnType<typeof toEtrBarGroups>, fallback: number) => {
+  const values = groups.flatMap((group) => group.series.map((series) => series.value));
+  if (values.length === 0) {
+    return fallback;
+  }
+
+  return Math.max(fallback, Math.ceil(Math.max(...values) / 5) * 5);
+};
+
 type EtrUsoRecord = {
   cultivo: string;
   etmaxValue: number;
@@ -592,21 +620,31 @@ const buildEtrUsoRecordFromSelection = (selection: EtrUsoSelection): EtrUsoRecor
   };
 };
 
-function EtrSectorTab() {
+function EtrSectorTab({ authIdToken }: { authIdToken: string | null }) {
   const [selectedSector, setSelectedSector] = useState<EtrSectorSelection>(
     defaultEtrSectorSelection,
+  );
+  const [sectorMapData, setSectorMapData] = useState<GeoJsonFeatureCollection | null>(null);
+  const [stats, setStats] = useState(etrStats);
+  const [overviewBarGroups, setOverviewBarGroups] = useState(etrOverviewBarGroups);
+  const [overviewSeasonSeries, setOverviewSeasonSeries] = useState(etrOverviewSeasonSeries);
+  const [selectedSectorBarGroups, setSelectedSectorBarGroups] = useState(
+    buildSectorBarGroups(defaultEtrSectorSelection.sectorId, etrOverviewBarGroups),
+  );
+  const [selectedSectorSeasonSeries, setSelectedSectorSeasonSeries] = useState(
+    buildSectorSeasonSeries(defaultEtrSectorSelection.sectorId, etrOverviewSeasonSeries),
   );
   const selectedRegion = useMemo(
     () => etrRegions.find((region) => region.id === selectedSector.regionId) ?? etrRegions[0],
     [selectedSector.regionId],
   );
-  const selectedSectorBarGroups = useMemo(
-    () => buildSectorBarGroups(selectedSector.sectorId, selectedRegion.barGroups),
-    [selectedRegion.barGroups, selectedSector.sectorId],
+  const overviewBarMaxValue = useMemo(
+    () => getBarGroupsMaxValue(overviewBarGroups, 25),
+    [overviewBarGroups],
   );
-  const selectedSectorSeasonSeries = useMemo(
-    () => buildSectorSeasonSeries(selectedSector.sectorId, selectedRegion.seasonSeries),
-    [selectedRegion.seasonSeries, selectedSector.sectorId],
+  const selectedBarMaxValue = useMemo(
+    () => getBarGroupsMaxValue(selectedSectorBarGroups, 35),
+    [selectedSectorBarGroups],
   );
   const selectedSeasonMax = useMemo(() => {
     const max = Math.max(
@@ -617,30 +655,122 @@ function EtrSectorTab() {
     return Math.max(1.8, Math.ceil(max * 10) / 10);
   }, [selectedSectorSeasonSeries]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!authIdToken) {
+      setSectorMapData(null);
+      setStats(etrStats);
+      setOverviewBarGroups(etrOverviewBarGroups);
+      setOverviewSeasonSeries(etrOverviewSeasonSeries);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    Promise.all([
+      fetchEtrStdAe(authIdToken),
+      fetchEtrSerieEt(authIdToken),
+      fetchEtrCult(authIdToken),
+      fetchEtrSectorMap(authIdToken),
+    ])
+      .then(([stdAe, serieEt, etCult, sectorMap]) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setStats([
+          { label: "Última fecha disponible", value: stdAe.fecha },
+          { label: "ETR media", value: `${(stdAe.etr ?? 0).toFixed(1)} mm/día` },
+          { label: "ETMAX media", value: `${(stdAe.etmax ?? 0).toFixed(1)} mm/día` },
+        ]);
+        setOverviewSeasonSeries(toEtrEtmaxSeries(serieEt));
+        setOverviewBarGroups(toEtrBarGroups(etCult));
+        setSectorMapData(sectorMap);
+      })
+      .catch(() => {
+        if (!isMounted) {
+          return;
+        }
+
+        setSectorMapData(null);
+        setStats(etrStats);
+        setOverviewBarGroups(etrOverviewBarGroups);
+        setOverviewSeasonSeries(etrOverviewSeasonSeries);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authIdToken]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fallbackBarGroups = buildSectorBarGroups(selectedSector.sectorId, selectedRegion.barGroups);
+    const fallbackSeasonSeries = buildSectorSeasonSeries(
+      selectedSector.sectorId,
+      selectedRegion.seasonSeries,
+    );
+
+    if (!authIdToken) {
+      setSelectedSectorBarGroups(fallbackBarGroups);
+      setSelectedSectorSeasonSeries(fallbackSeasonSeries);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    Promise.all([
+      fetchEtrCult(authIdToken, selectedSector.sectorId),
+      fetchEtrSerieEt(authIdToken, selectedSector.sectorId),
+    ])
+      .then(([etCult, serieEt]) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setSelectedSectorBarGroups(toEtrBarGroups(etCult));
+        setSelectedSectorSeasonSeries(toEtrEtmaxSeries(serieEt));
+      })
+      .catch(() => {
+        if (!isMounted) {
+          return;
+        }
+
+        setSelectedSectorBarGroups(fallbackBarGroups);
+        setSelectedSectorSeasonSeries(fallbackSeasonSeries);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authIdToken, selectedRegion.barGroups, selectedRegion.seasonSeries, selectedSector.sectorId]);
+
   return (
     <div className="view-stack">
       <div className="stat-grid">
         <KpiCard
           delayMs={0}
           icon={Gauge}
-          title={etrStats[0].label}
-          value={etrStats[0].value}
+          title={stats[0].label}
+          value={stats[0].value}
           note="Disponibilidad ET-LAT"
           noteTone="neutral"
         />
         <KpiCard
           delayMs={80}
           icon={Droplets}
-          title={etrStats[1].label}
-          value={etrStats[1].value}
+          title={stats[1].label}
+          value={stats[1].value}
           note="Balance hídrico base"
           noteTone="positive"
         />
         <KpiCard
           delayMs={160}
           icon={MapPinned}
-          title={etrStats[2].label}
-          value={etrStats[2].value}
+          title={stats[2].label}
+          value={stats[2].value}
           note="Potencial atmosférico"
           noteTone="neutral"
         />
@@ -652,8 +782,8 @@ function EtrSectorTab() {
         >
           <SimpleBarChart
             chartHeight={338}
-            groups={etrOverviewBarGroups}
-            maxValue={25}
+            groups={overviewBarGroups}
+            maxValue={overviewBarMaxValue}
             tickStep={5}
             unit="mm"
             xLabelAngle={-18}
@@ -667,7 +797,7 @@ function EtrSectorTab() {
             labelEvery={3}
             maxValue={1.8}
             minValue={0}
-            series={etrOverviewSeasonSeries}
+            series={overviewSeasonSeries}
             unit="mm"
             xLabelAngle={-45}
           />
@@ -680,6 +810,7 @@ function EtrSectorTab() {
           title="Mapa sectores y áreas de gestión CAS Copiapó"
         >
           <EtrMap
+            geoJson={sectorMapData ?? undefined}
             selectedSectorId={selectedSector.sectorId}
             selectedSummaryLabel={`${selectedSector.sectorName} · ${selectedSector.regionLabel}`}
             onSelect={setSelectedSector}
@@ -694,7 +825,7 @@ function EtrSectorTab() {
           <SimpleBarChart
             chartHeight="100%"
             groups={selectedSectorBarGroups}
-            maxValue={35}
+            maxValue={selectedBarMaxValue}
             tickStep={5}
             unit="mm"
             xLabelAngle={-16}
@@ -720,14 +851,17 @@ function EtrSectorTab() {
   );
 }
 
-function EtrUsageTab() {
+function EtrUsageTab({ authIdToken }: { authIdToken: string | null }) {
   const [selectedUso, setSelectedUso] = useState<EtrUsoSelection>(
     defaultEtrUsoMapSelection,
   );
-  const usageRecord = useMemo(
+  const [usoMapData, setUsoMapData] = useState<GeoJsonFeatureCollection | null>(null);
+  const [remoteUsageRecord, setRemoteUsageRecord] = useState<EtrUsoRecord | null>(null);
+  const fallbackUsageRecord = useMemo(
     () => buildEtrUsoRecordFromSelection(selectedUso),
     [selectedUso],
   );
+  const usageRecord = remoteUsageRecord ?? fallbackUsageRecord;
   const etrEtmaxDomain = useMemo(
     () =>
       getSeriesDomain(usageRecord.etrEtmaxSeries, {
@@ -756,6 +890,94 @@ function EtrUsageTab() {
     [usageRecord.laiSeries],
   );
 
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!authIdToken) {
+      setUsoMapData(null);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    fetchEtrUsoMap(authIdToken)
+      .then((geoJson) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setUsoMapData(geoJson);
+        const features = geoJson.features as EtrUsoFeature[];
+        const defaultFeature =
+          features.find((feature) => String(feature.properties?.uso_id ?? feature.id) === "855") ??
+          features[0];
+        if (defaultFeature) {
+          setSelectedUso(buildEtrUsoSelection(defaultFeature));
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setUsoMapData(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authIdToken]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!authIdToken || !selectedUso.usoId) {
+      setRemoteUsageRecord(null);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setRemoteUsageRecord(null);
+
+    Promise.all([
+      fetchEtrPoly(authIdToken, selectedUso.usoId),
+      fetchKcPoly(authIdToken, selectedUso.usoId),
+      fetchLaiPoly(authIdToken, selectedUso.usoId),
+    ])
+      .then(([etPoly, kcPoly, laiPoly]) => {
+        if (!isMounted || etPoly.length === 0) {
+          return;
+        }
+
+        const lastEtPoint = etPoly[etPoly.length - 1];
+        setRemoteUsageRecord({
+          cultivo: selectedUso.cultivo,
+          etmaxValue: lastEtPoint.etmax ?? fallbackUsageRecord.etmaxValue,
+          etrEtmaxSeries: toEtrEtmaxSeries(etPoly),
+          etrValue: lastEtPoint.etr ?? fallbackUsageRecord.etrValue,
+          kcSeries: toSingleMetricSeries(
+            kcPoly.map((point) => ({ fecha: point.fecha, value: point.kc })),
+            "Kc media",
+            chartPalette.chart5,
+          ),
+          laiSeries: toSingleMetricSeries(
+            laiPoly.map((point) => ({ fecha: point.fecha, value: point.lai })),
+            "LAI media",
+            chartPalette.chart1,
+          ),
+          lastDate: lastEtPoint.fecha,
+        });
+      })
+      .catch(() => {
+        if (isMounted) {
+          setRemoteUsageRecord(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authIdToken, fallbackUsageRecord, selectedUso.cultivo, selectedUso.usoId]);
+
   return (
     <div className="view-stack">
       <div className="etr-usage-top-grid">
@@ -764,6 +986,7 @@ function EtrUsageTab() {
           title="Mapa de uso de suelo agrícola Valle de Copiapó"
         >
           <EtrUsoMap
+            geoJson={usoMapData ?? undefined}
             selectedSummaryLabel={`${selectedUso.cultivo} · Uso ${selectedUso.usoId}`}
             selectedUsoId={selectedUso.usoId}
             onSelect={setSelectedUso}
@@ -832,7 +1055,7 @@ function EtrUsageTab() {
   );
 }
 
-function EtrDownloadsTab() {
+function EtrDownloadsTab({ authIdToken }: { authIdToken: string | null }) {
   const [selectedQuadrant, setSelectedQuadrant] = useState<EtrQuadrantSelection>(
     defaultEtrQuadrantSelection,
   );
@@ -843,30 +1066,161 @@ function EtrDownloadsTab() {
   const [selectedDay, setSelectedDay] = useState(1);
   const [downloadFeedback, setDownloadFeedback] = useState("");
   const [isDownloading, setIsDownloading] = useState(false);
+  const [quadrantMapData, setQuadrantMapData] = useState<GeoJsonFeatureCollection | null>(null);
 
-  const years = useMemo(
+  const fallbackYears = useMemo(
     () => getEtrDownloadYears(selectedQuadrant.quadrantId, selectedVariable),
     [selectedQuadrant.quadrantId, selectedVariable],
   );
-  const months = useMemo(
+  const fallbackMonths = useMemo(
     () =>
       getEtrDownloadMonths(
         selectedQuadrant.quadrantId,
         selectedVariable,
         selectedYear,
-      ),
+    ),
     [selectedQuadrant.quadrantId, selectedVariable, selectedYear],
   );
-  const days = useMemo(
+  const fallbackDays = useMemo(
     () =>
       getEtrDownloadDays(
         selectedQuadrant.quadrantId,
         selectedVariable,
         selectedYear,
         selectedMonth,
-      ),
+    ),
     [selectedQuadrant.quadrantId, selectedVariable, selectedYear, selectedMonth],
   );
+  const [years, setYears] = useState(fallbackYears);
+  const [months, setMonths] = useState(fallbackMonths);
+  const [days, setDays] = useState(fallbackDays);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!authIdToken) {
+      setQuadrantMapData(null);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    fetchEtrQuadrantMap(authIdToken)
+      .then((geoJson) => {
+        if (isMounted) {
+          setQuadrantMapData(geoJson);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setQuadrantMapData(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authIdToken]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!authIdToken) {
+      setYears(fallbackYears);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    fetchEtrDataCuad(authIdToken, {
+      quadrantId: selectedQuadrant.quadrantId,
+      variable: selectedVariable,
+    })
+      .then((data) => {
+        if (isMounted) {
+          setYears(data.anos.length > 0 ? data.anos : fallbackYears);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setYears(fallbackYears);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authIdToken, fallbackYears, selectedQuadrant.quadrantId, selectedVariable]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!authIdToken) {
+      setMonths(fallbackMonths);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    fetchEtrDataCuad(authIdToken, {
+      quadrantId: selectedQuadrant.quadrantId,
+      variable: selectedVariable,
+      year: selectedYear,
+    })
+      .then((data) => {
+        if (isMounted) {
+          setMonths(data.meses.length > 0 ? data.meses : fallbackMonths);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setMonths(fallbackMonths);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authIdToken, fallbackMonths, selectedQuadrant.quadrantId, selectedVariable, selectedYear]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!authIdToken) {
+      setDays(fallbackDays);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    fetchEtrDataCuad(authIdToken, {
+      quadrantId: selectedQuadrant.quadrantId,
+      variable: selectedVariable,
+      year: selectedYear,
+      month: selectedMonth,
+    })
+      .then((data) => {
+        if (isMounted) {
+          setDays(data.dias.length > 0 ? data.dias : fallbackDays);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setDays(fallbackDays);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    authIdToken,
+    fallbackDays,
+    selectedMonth,
+    selectedQuadrant.quadrantId,
+    selectedVariable,
+    selectedYear,
+  ]);
 
   useEffect(() => {
     if (!years.includes(selectedYear)) {
@@ -905,6 +1259,22 @@ function EtrDownloadsTab() {
       year: selectedYear,
     });
     try {
+      if (authIdToken && selectedFormat === "TIFF") {
+        const response = await fetchEtrDownCuad(authIdToken, {
+          day: selectedDay,
+          month: selectedMonth,
+          quadrantId: selectedQuadrant.quadrantId,
+          variable: selectedVariable,
+          year: selectedYear,
+        });
+        if (!response.url) {
+          throw new Error("El servicio no retornó una URL de descarga.");
+        }
+        window.location.assign(response.url);
+        setDownloadFeedback(`Descarga solicitada: ${filename}`);
+        return;
+      }
+
       if (selectedFormat === "JPEG") {
         await downloadMockQuadrantJpeg({
           filename,
@@ -930,6 +1300,7 @@ function EtrDownloadsTab() {
       <div className="etr-download-grid">
         <Panel className="panel-etr-map" title="Cuadrantes disponibles para descarga">
           <EtrQuadrantMap
+            geoJson={quadrantMapData ?? undefined}
             selectedQuadrantId={selectedQuadrant.quadrantId}
             selectedSummaryLabel={selectedQuadrant.quadrantLabel}
             onSelect={(selection) => {
@@ -1048,7 +1419,13 @@ function EtrDownloadsTab() {
   );
 }
 
-function EtrView({ isLoggedIn }: { isLoggedIn: boolean }) {
+function EtrView({
+  authIdToken,
+  isLoggedIn,
+}: {
+  authIdToken: string | null;
+  isLoggedIn: boolean;
+}) {
   const [activeEtrTab, setActiveEtrTab] = useState<EtrSubTabId>("sector");
 
   useEffect(() => {
@@ -1104,9 +1481,11 @@ function EtrView({ isLoggedIn }: { isLoggedIn: boolean }) {
         </p>
       )}
 
-      {activeEtrTab === "sector" && <EtrSectorTab />}
-      {isLoggedIn && activeEtrTab === "usage" && <EtrUsageTab />}
-      {isLoggedIn && activeEtrTab === "downloads" && <EtrDownloadsTab />}
+      {activeEtrTab === "sector" && <EtrSectorTab authIdToken={authIdToken} />}
+      {isLoggedIn && activeEtrTab === "usage" && <EtrUsageTab authIdToken={authIdToken} />}
+      {isLoggedIn && activeEtrTab === "downloads" && (
+        <EtrDownloadsTab authIdToken={authIdToken} />
+      )}
     </div>
   );
 }
@@ -2129,6 +2508,10 @@ export default function App() {
   const [manualEntries, setManualEntries] = useState<ManualWellEntry[]>([]);
   const [wellState, setWellState] = useState(wellMapPoints);
   const [stationState, setStationState] = useState<MeteoStationPoint[]>(meteoStationPoints);
+  const [etrOverviewSummary, setEtrOverviewSummary] = useState({
+    lastDate: "2025-10-09",
+    meanValue: 1.2,
+  });
   const [manualForm, setManualForm] = useState<ManualFormState>({
     wellId: defaultManualWellId,
     date: "2026-03-22",
@@ -2211,6 +2594,42 @@ export default function App() {
   }, [authIdToken, isLoggedIn]);
 
   useEffect(() => {
+    let isMounted = true;
+
+    if (!isLoggedIn || !authIdToken) {
+      setEtrOverviewSummary({
+        lastDate: "2025-10-09",
+        meanValue: 1.2,
+      });
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    fetchEtrStdAe(authIdToken)
+      .then((summary) => {
+        if (isMounted) {
+          setEtrOverviewSummary({
+            lastDate: summary.fecha,
+            meanValue: summary.etr ?? 0,
+          });
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setEtrOverviewSummary({
+            lastDate: "2025-10-09",
+            meanValue: 1.2,
+          });
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authIdToken, isLoggedIn]);
+
+  useEffect(() => {
     if (!wells.some((well) => well.id === selectedWellId)) {
       setSelectedWellId(wells[0].id);
     }
@@ -2241,16 +2660,16 @@ export default function App() {
   const overviewCards = useMemo(
     () =>
       computeOverviewCards({
-        etrLastDate: "2025-10-09",
+        etrLastDate: etrOverviewSummary.lastDate,
         etrLastUpdate: etrLastUpdateIso,
-        etrMeanValue: 1.2,
+        etrMeanValue: etrOverviewSummary.meanValue,
         now: dashboardNow,
         snowLastUpdate: snowLastUpdateIso,
         snowSeries: snowOverviewSeries,
         stations,
         wells,
       }),
-    [dashboardNow, stations, wells],
+    [dashboardNow, etrOverviewSummary, stations, wells],
   );
 
   const handleManualSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -2406,7 +2825,9 @@ export default function App() {
             wells={wells}
           />
         )}
-        {activeView === "etr" && <EtrView isLoggedIn={isLoggedIn} />}
+        {activeView === "etr" && (
+          <EtrView authIdToken={authIdToken} isLoggedIn={isLoggedIn} />
+        )}
         {activeView === "snow" && <SnowView />}
         {activeView === "wells" && (
           <WellsView

@@ -12,7 +12,7 @@ export type EtrUsoSelection = {
   usoId: string;
 };
 
-type EtrUsoFeature = {
+export type EtrUsoFeature = {
   geometry: {
     coordinates: number[][][][] | number[][][];
     type: "MultiPolygon" | "Polygon";
@@ -33,6 +33,7 @@ type EtrUsoFeatureCollection = {
 };
 
 type EtrUsoMapProps = {
+  geoJson?: { features: unknown[]; type: "FeatureCollection" };
   selectedSummaryLabel: string;
   selectedUsoId: string;
   onSelect: (selection: EtrUsoSelection) => void;
@@ -43,7 +44,7 @@ const copiapoBounds: [[number, number], [number, number]] = [
   [-26.95, -68.95],
 ];
 
-const etrUsoFeatures = (etrUsoGeoJson as EtrUsoFeatureCollection).features;
+const localEtrUsoGeoJson = etrUsoGeoJson as EtrUsoFeatureCollection;
 
 const getFeatureBounds = (feature: EtrUsoFeature | undefined) => {
   if (!feature) {
@@ -90,7 +91,7 @@ const getUsoId = (feature: EtrUsoFeature | undefined) => {
   return Number.isNaN(parsed) ? 0 : parsed;
 };
 
-const buildSelection = (feature: EtrUsoFeature | undefined): EtrUsoSelection => ({
+export const buildEtrUsoSelection = (feature: EtrUsoFeature | undefined): EtrUsoSelection => ({
   cultivo: feature?.properties.cultivo ?? "Sin dato",
   date: feature?.properties.fecha ?? "",
   etmaxRaw: feature?.properties.etmax ?? 0,
@@ -98,11 +99,18 @@ const buildSelection = (feature: EtrUsoFeature | undefined): EtrUsoSelection => 
   usoId: String(getUsoId(feature)),
 });
 
-export const defaultEtrUsoMapSelection: EtrUsoSelection = buildSelection(
-  etrUsoFeatures.find((feature) => String(getUsoId(feature)) === "855") ?? etrUsoFeatures[0],
+export const defaultEtrUsoMapSelection: EtrUsoSelection = buildEtrUsoSelection(
+  localEtrUsoGeoJson.features.find((feature) => String(getUsoId(feature)) === "855") ??
+    localEtrUsoGeoJson.features[0],
 );
 
-function InitialUsoViewport({ selectedUsoId }: { selectedUsoId: string }) {
+function InitialUsoViewport({
+  features,
+  selectedUsoId,
+}: {
+  features: EtrUsoFeature[];
+  selectedUsoId: string;
+}) {
   const map = useMap();
   const hasInitialized = useRef(false);
 
@@ -113,8 +121,8 @@ function InitialUsoViewport({ selectedUsoId }: { selectedUsoId: string }) {
 
     hasInitialized.current = true;
     const selectedFeature =
-      etrUsoFeatures.find((feature) => String(getUsoId(feature)) === selectedUsoId) ??
-      etrUsoFeatures[0];
+      features.find((feature) => String(getUsoId(feature)) === selectedUsoId) ??
+      features[0];
     const selectedBounds = getFeatureBounds(selectedFeature);
 
     if (selectedBounds) {
@@ -125,7 +133,7 @@ function InitialUsoViewport({ selectedUsoId }: { selectedUsoId: string }) {
 
     map.fitBounds(copiapoBounds, { padding: [12, 12] });
     map.setZoom(12);
-  }, [map, selectedUsoId]);
+  }, [features, map, selectedUsoId]);
 
   return null;
 }
@@ -146,17 +154,20 @@ const usoStyle = {
 } as const;
 
 export function EtrUsoMap({
+  geoJson = localEtrUsoGeoJson,
   selectedSummaryLabel,
   selectedUsoId,
   onSelect,
 }: EtrUsoMapProps) {
+  const etrUsoFeatures = geoJson.features as EtrUsoFeature[];
+
   useEffect(() => {
     if (selectedUsoId.trim().length > 0) {
       return;
     }
 
-    onSelect(defaultEtrUsoMapSelection);
-  }, [onSelect, selectedUsoId]);
+    onSelect(buildEtrUsoSelection(etrUsoFeatures[0]));
+  }, [etrUsoFeatures, onSelect, selectedUsoId]);
 
   return (
     <div className="etr-map">
@@ -169,7 +180,7 @@ export function EtrUsoMap({
           zoomControl
         >
           <ModifierWheelZoom />
-          <InitialUsoViewport selectedUsoId={selectedUsoId} />
+          <InitialUsoViewport features={etrUsoFeatures} selectedUsoId={selectedUsoId} />
           <LayersControl position="topright">
             <LayersControl.BaseLayer name="OpenStreetMap">
               <TileLayer
@@ -186,10 +197,11 @@ export function EtrUsoMap({
           </LayersControl>
 
           <GeoJSON
-            data={etrUsoGeoJson as GeoJSON.GeoJsonObject}
+            key={geoJson === localEtrUsoGeoJson ? "local-uso-map" : "remote-uso-map"}
+            data={geoJson as GeoJSON.GeoJsonObject}
             onEachFeature={(feature, layer) => {
               const usoFeature = feature as unknown as EtrUsoFeature;
-              const selection = buildSelection(usoFeature);
+              const selection = buildEtrUsoSelection(usoFeature);
               layer.bindTooltip(`${selection.cultivo} · Uso ${selection.usoId}`, {
                 opacity: 0.95,
                 sticky: true,
