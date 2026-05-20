@@ -113,6 +113,13 @@ import {
   toSingleMetricSeries,
 } from "./services/etrApi";
 import { fetchWeatherStationPoints } from "./services/weatherStationsApi";
+import {
+  fetchModisSnowBasinsGeoJson,
+  fetchModisSnowCoverageSeries,
+  fetchModisSnowLatestImage,
+  toModisSnowLineSeries,
+} from "./services/modisSnowApi";
+import type { ModisSnowBasinsGeoJson } from "./services/modisSnowApi";
 import { downloadMockQuadrantJpeg } from "./utils/mockQuadrantExport";
 
 const monthLabels = [
@@ -1492,8 +1499,17 @@ function EtrView({
 
 const snowBalanceBasins: SnowBalanceBasinId[] = ["jorquera", "pulido", "manflas"];
 
-function SnowView() {
+function SnowView({ authIdToken }: { authIdToken: string | null }) {
   const [activeSnowTab, setActiveSnowTab] = useState<"coverage" | "balance">("coverage");
+  const [latestSnowImage, setLatestSnowImage] = useState<{
+    date: string | null;
+    url: string | null;
+  }>({ date: null, url: null });
+  const [overviewSeries, setOverviewSeries] = useState(snowOverviewSeries);
+  const [jorqueraSeries, setJorqueraSeries] = useState(snowJorqueraSeries);
+  const [pulidoSeries, setPulidoSeries] = useState(snowPulidoSeries);
+  const [manflasSeries, setManflasSeries] = useState(snowManflasSeries);
+  const [basinsGeoJson, setBasinsGeoJson] = useState<ModisSnowBasinsGeoJson | null>(null);
   const availableBalanceYears = useMemo(() => {
     const [firstBasin, ...remainingBasins] = snowBalanceBasins;
     const firstYears = getSnowBalanceYears(firstBasin);
@@ -1515,6 +1531,101 @@ function SnowView() {
 
     setSelectedBalanceYear(availableBalanceYears[0] ?? snowBalanceLatestYear);
   }, [availableBalanceYears, selectedBalanceYear]);
+
+  useEffect(() => {
+    let isMounted = true;
+    let objectUrl: string | null = null;
+
+    if (!authIdToken) {
+      setLatestSnowImage((previous) => {
+        if (previous.url) {
+          URL.revokeObjectURL(previous.url);
+        }
+        return { date: null, url: null };
+      });
+      setOverviewSeries(snowOverviewSeries);
+      setJorqueraSeries(snowJorqueraSeries);
+      setPulidoSeries(snowPulidoSeries);
+      setManflasSeries(snowManflasSeries);
+      setBasinsGeoJson(null);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    fetchModisSnowCoverageSeries(authIdToken)
+      .then((coverage) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setOverviewSeries(toModisSnowLineSeries(coverage.ae ?? []));
+        setJorqueraSeries(toModisSnowLineSeries(coverage.jorquera ?? []));
+        setPulidoSeries(toModisSnowLineSeries(coverage.pulido ?? []));
+        setManflasSeries(toModisSnowLineSeries(coverage.manflas ?? []));
+      })
+      .catch(() => {
+        if (isMounted) {
+          setOverviewSeries(snowOverviewSeries);
+          setJorqueraSeries(snowJorqueraSeries);
+          setPulidoSeries(snowPulidoSeries);
+          setManflasSeries(snowManflasSeries);
+        }
+      });
+
+    fetchModisSnowLatestImage(authIdToken)
+      .then((image) => {
+        objectUrl = image.objectUrl;
+        if (!isMounted) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+
+        setLatestSnowImage((previous) => {
+          if (previous.url) {
+            URL.revokeObjectURL(previous.url);
+          }
+          return { date: image.imageDate, url: image.objectUrl };
+        });
+      })
+      .catch(() => {
+        if (isMounted) {
+          setLatestSnowImage((previous) => {
+            if (previous.url) {
+              URL.revokeObjectURL(previous.url);
+            }
+            return { date: null, url: null };
+          });
+        }
+      });
+
+    fetchModisSnowBasinsGeoJson(authIdToken)
+      .then((geojson) => {
+        if (isMounted) {
+          setBasinsGeoJson(geojson);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setBasinsGeoJson(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [authIdToken]);
+
+  const snowChartLabelEvery = Math.max(
+    1,
+    Math.ceil((overviewSeries[0]?.points.length ?? 0) / 8),
+  );
+  const latestImageSubtitle = latestSnowImage.date
+    ? `Última imagen disponible (${latestSnowImage.date})`
+    : "Última imagen disponible";
 
   return (
     <div className="view-stack">
@@ -1545,20 +1656,35 @@ function SnowView() {
 
       {activeSnowTab === "coverage" && (
         <div className="snow-grid">
-          <Panel title="Cobertura nival" subtitle="Última imagen disponible (2025-12-30)">
+          <Panel title="Cobertura nival" subtitle={latestImageSubtitle}>
             <div className="snow-copy">
               <p>
                 La imagen de cobertura nival muestra la presencia o ausencia de nieve
                 en la cuenca para una fecha dada.
               </p>
               <p>
-                El mockup muestra las áreas de estudio cargadas desde GeoJSON sobre
-                mapa satelital y mantiene las series de evolución anual por cuenca.
+                La vista usa la imagen MODIS publicada y las series de evolución anual
+                por cuenca disponibles en el servicio.
               </p>
             </div>
 
             <div className="snow-image-card">
-              <SnowCoverageMap />
+              {latestSnowImage.url ? (
+                <div className="snow-latest-image-shell">
+                  <img
+                    alt="Cobertura nival MODIS"
+                    className="snow-latest-image"
+                    src={latestSnowImage.url}
+                  />
+                  {latestSnowImage.date && (
+                    <span className="snow-latest-image-date">
+                      {latestSnowImage.date}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <SnowCoverageMap featureCollection={basinsGeoJson} />
+              )}
             </div>
           </Panel>
 
@@ -1575,37 +1701,45 @@ function SnowView() {
 
             <Panel title="Evolución diaria de la cobertura de nieve en el área de estudio (%)">
               <SimpleLineChart
+                labelEvery={snowChartLabelEvery}
                 maxValue={100}
                 minValue={0}
-                series={snowOverviewSeries}
+                series={overviewSeries}
                 unit="Cobertura (%)"
+                xLabelAngle={-32}
               />
             </Panel>
 
             <Panel title="Evolución diaria de FSCA de la cuenca de Jorquera">
               <SimpleLineChart
+                labelEvery={snowChartLabelEvery}
                 maxValue={100}
                 minValue={0}
-                series={snowJorqueraSeries}
+                series={jorqueraSeries}
                 unit="Cobertura (%)"
+                xLabelAngle={-32}
               />
             </Panel>
 
             <Panel title="Evolución diaria de FSCA de la cuenca de Pulido">
               <SimpleLineChart
+                labelEvery={snowChartLabelEvery}
                 maxValue={100}
                 minValue={0}
-                series={snowPulidoSeries}
+                series={pulidoSeries}
                 unit="Cobertura (%)"
+                xLabelAngle={-32}
               />
             </Panel>
 
             <Panel title="Evolución diaria de FSCA de la cuenca de Manflas">
               <SimpleLineChart
+                labelEvery={snowChartLabelEvery}
                 maxValue={100}
                 minValue={0}
-                series={snowManflasSeries}
+                series={manflasSeries}
                 unit="Cobertura (%)"
+                xLabelAngle={-32}
               />
             </Panel>
           </div>
@@ -2828,7 +2962,7 @@ export default function App() {
         {activeView === "etr" && (
           <EtrView authIdToken={authIdToken} isLoggedIn={isLoggedIn} />
         )}
-        {activeView === "snow" && <SnowView />}
+        {activeView === "snow" && <SnowView authIdToken={authIdToken} />}
         {activeView === "wells" && (
           <WellsView
             manualEntries={manualEntries}

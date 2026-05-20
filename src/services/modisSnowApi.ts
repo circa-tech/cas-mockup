@@ -1,0 +1,95 @@
+import type { LineSeries } from "../components/SimpleLineChart";
+import { chartPalette } from "../data/mockupData";
+
+export type ModisSnowBasinId = "ae" | "jorquera" | "pulido" | "manflas";
+
+export type ModisSnowCoveragePoint = {
+  anopar: number | null;
+  esteano: number | null;
+  fecha: string;
+};
+
+export type ModisSnowCoverageSeries = Record<ModisSnowBasinId, ModisSnowCoveragePoint[]>;
+
+export type ModisSnowLatestImage = {
+  imageDate: string | null;
+  objectUrl: string;
+};
+
+export type ModisSnowBasinsGeoJson = {
+  type: "FeatureCollection";
+  features: any[];
+  crs?: unknown;
+};
+
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+const SNOW_CURRENT_COLOR = chartPalette.chart1;
+const SNOW_PREVIOUS_COLOR = chartPalette.chart3;
+
+const requestModisSnow = async (
+  path: string,
+  idToken: string,
+): Promise<Response> => {
+  if (!apiBaseUrl) {
+    throw new Error("Missing VITE_API_BASE_URL");
+  }
+
+  const response = await fetch(`${apiBaseUrl}/api/v1/modis-snow/${path}`, {
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`MODIS Snow ${path} request failed: ${response.status}`);
+  }
+
+  return response;
+};
+
+export const fetchModisSnowCoverageSeries = async (
+  idToken: string,
+): Promise<ModisSnowCoverageSeries> => {
+  const response = await requestModisSnow("coverage-series", idToken);
+  return response.json() as Promise<ModisSnowCoverageSeries>;
+};
+
+export const fetchModisSnowLatestImage = async (
+  idToken: string,
+): Promise<ModisSnowLatestImage> => {
+  const response = await requestModisSnow("latest-image", idToken);
+  const blob = await response.blob();
+
+  return {
+    imageDate: response.headers.get("X-Image-Date"),
+    objectUrl: URL.createObjectURL(blob),
+  };
+};
+
+export const fetchModisSnowBasinsGeoJson = async (
+  idToken: string,
+): Promise<ModisSnowBasinsGeoJson> => {
+  const response = await requestModisSnow("basins-geojson", idToken);
+  return response.json() as Promise<ModisSnowBasinsGeoJson>;
+};
+
+export const toModisSnowLineSeries = (
+  points: ModisSnowCoveragePoint[],
+): LineSeries[] => [
+  {
+    label: "Este ano",
+    color: SNOW_CURRENT_COLOR,
+    points: points.map((point) => ({
+      label: point.fecha,
+      value: point.esteano ?? 0,
+    })),
+  },
+  {
+    label: "Ano anterior",
+    color: SNOW_PREVIOUS_COLOR,
+    points: points.map((point) => ({
+      label: point.fecha,
+      value: point.anopar ?? 0,
+    })),
+  },
+];
