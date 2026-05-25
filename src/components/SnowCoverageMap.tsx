@@ -1,5 +1,5 @@
 import L from "leaflet";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import {
   LayersControl,
   MapContainer,
@@ -37,8 +37,6 @@ type SnowPolygonItem = {
   name: string;
   positions: [number, number][][] | [number, number][][][];
 };
-
-const snowGeoJsonUrl = "http://200.89.72.25/vista/ccas_est.geojson";
 
 const fallbackBounds: [[number, number], [number, number]] = [
   [-28.75, -71.05],
@@ -78,51 +76,13 @@ function FitSnowBounds({ bounds }: { bounds: L.LatLngBounds | null }) {
   return null;
 }
 
-export function SnowCoverageMap() {
-  const fallbackFeatureCollection = snowCoverageGeoJson as SnowFeatureCollection;
-  const [featureCollection, setFeatureCollection] = useState<SnowFeatureCollection | null>(
-    fallbackFeatureCollection,
-  );
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    const load = async () => {
-      try {
-        const response = await fetch(snowGeoJsonUrl, { signal: controller.signal });
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
-        const payload = (await response.json()) as SnowFeatureCollection;
-        if (!payload || payload.type !== "FeatureCollection" || !Array.isArray(payload.features)) {
-          throw new Error("Formato GeoJSON invalido");
-        }
-
-        setFeatureCollection(payload);
-      } catch (caught) {
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        const message = caught instanceof Error ? caught.message : "Error desconocido";
-        // Keep silent fallback to local data for mockup UX.
-        if (fallbackFeatureCollection?.type !== "FeatureCollection" || !fallbackFeatureCollection.features?.length) {
-          // eslint-disable-next-line no-console
-          console.warn("Snow GeoJSON unavailable and no local fallback:", message);
-          setFeatureCollection(null);
-        } else {
-          // eslint-disable-next-line no-console
-          console.warn("Snow GeoJSON remote unavailable, using local fallback:", message);
-          setFeatureCollection(fallbackFeatureCollection);
-        }
-      }
-    };
-
-    load();
-
-    return () => controller.abort();
-  }, []);
+export function SnowCoverageMap({
+  featureCollection: remoteFeatureCollection,
+}: {
+  featureCollection?: SnowFeatureCollection | null;
+}) {
+  const featureCollection =
+    remoteFeatureCollection ?? (snowCoverageGeoJson as SnowFeatureCollection);
 
   const polygons = useMemo<SnowPolygonItem[]>(() => {
     if (!featureCollection) {

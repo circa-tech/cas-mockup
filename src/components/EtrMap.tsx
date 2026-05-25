@@ -12,6 +12,7 @@ export type EtrSectorSelection = {
 };
 
 type EtrMapProps = {
+  geoJson?: { features: unknown[]; type: "FeatureCollection" };
   selectedSectorId: string;
   selectedSummaryLabel: string;
   onSelect: (selection: EtrSectorSelection) => void;
@@ -40,8 +41,6 @@ type EtrSectorFeatureCollection = {
   features: EtrSectorFeature[];
   type: "FeatureCollection";
 };
-
-const etrFeatures = (etrSectorsGeoJson as EtrSectorFeatureCollection).features;
 
 const sectorGroupById: Record<number, string> = {
   1: "acuifer-1-4",
@@ -119,10 +118,13 @@ const sectorStyle = {
 } as const;
 
 export function EtrMap({
+  geoJson = etrSectorsGeoJson as EtrSectorFeatureCollection,
   selectedSectorId,
   selectedSummaryLabel,
   onSelect,
 }: EtrMapProps) {
+  const etrFeatures = geoJson.features as EtrSectorFeature[];
+
   return (
     <div className="etr-map">
       <div className="etr-region-map-shell">

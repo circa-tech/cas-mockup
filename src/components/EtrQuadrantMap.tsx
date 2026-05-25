@@ -22,6 +22,7 @@ type EtrQuadrantFeatureCollection = {
 };
 
 type EtrQuadrantMapProps = {
+  geoJson?: { features: unknown[]; type: "FeatureCollection" };
   selectedQuadrantId: string;
   selectedSummaryLabel: string;
   onSelect: (selection: EtrQuadrantSelection) => void;
@@ -32,7 +33,7 @@ const copiapoBounds: [[number, number], [number, number]] = [
   [-26.95, -68.95],
 ];
 
-const etrQuadrantFeatures = (etrQuadrantsGeoJson as EtrQuadrantFeatureCollection).features;
+const localEtrQuadrantsGeoJson = etrQuadrantsGeoJson as EtrQuadrantFeatureCollection;
 
 const getQuadrantId = (feature: EtrQuadrantFeature | undefined) => {
   const value = feature?.properties.id ?? feature?.id;
@@ -48,12 +49,12 @@ const buildSelection = (feature: EtrQuadrantFeature | undefined): EtrQuadrantSel
   };
 };
 
-const preferredDefaultQuadrant = etrQuadrantFeatures.find(
+const preferredDefaultQuadrant = localEtrQuadrantsGeoJson.features.find(
   (feature) => getQuadrantId(feature) === 273,
 );
 
 export const defaultEtrQuadrantSelection: EtrQuadrantSelection = buildSelection(
-  preferredDefaultQuadrant ?? etrQuadrantFeatures[0],
+  preferredDefaultQuadrant ?? localEtrQuadrantsGeoJson.features[0],
 );
 
 function InitialQuadrantViewport() {
@@ -91,17 +92,20 @@ const quadrantStyle = {
 } as const;
 
 export function EtrQuadrantMap({
+  geoJson = localEtrQuadrantsGeoJson,
   selectedQuadrantId,
   selectedSummaryLabel,
   onSelect,
 }: EtrQuadrantMapProps) {
+  const etrQuadrantFeatures = geoJson.features as EtrQuadrantFeature[];
+
   useEffect(() => {
     if (selectedQuadrantId.trim().length > 0) {
       return;
     }
 
-    onSelect(defaultEtrQuadrantSelection);
-  }, [onSelect, selectedQuadrantId]);
+    onSelect(buildSelection(etrQuadrantFeatures[0]));
+  }, [etrQuadrantFeatures, onSelect, selectedQuadrantId]);
 
   return (
     <div className="etr-map etr-quadrant-map">
@@ -130,7 +134,8 @@ export function EtrQuadrantMap({
             </LayersControl.BaseLayer>
             <LayersControl.Overlay checked name="Cuadrantes">
               <GeoJSON
-                data={etrQuadrantsGeoJson as GeoJSON.GeoJsonObject}
+                key={geoJson === localEtrQuadrantsGeoJson ? "local-quadrants" : "remote-quadrants"}
+                data={geoJson as GeoJSON.GeoJsonObject}
                 onEachFeature={(feature, layer) => {
                   const quadrantFeature = feature as unknown as EtrQuadrantFeature;
                   const selection = buildSelection(quadrantFeature);
