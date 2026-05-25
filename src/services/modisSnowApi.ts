@@ -77,7 +77,7 @@ export const toModisSnowLineSeries = (
   points: ModisSnowCoveragePoint[],
 ): LineSeries[] => [
   {
-    label: "Este ano",
+    label: "Este año",
     color: SNOW_CURRENT_COLOR,
     points: points.map((point) => ({
       label: point.fecha,
@@ -85,7 +85,7 @@ export const toModisSnowLineSeries = (
     })),
   },
   {
-    label: "Ano anterior",
+    label: "Año anterior",
     color: SNOW_PREVIOUS_COLOR,
     points: points.map((point) => ({
       label: point.fecha,
