@@ -1,9 +1,11 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   CloudRain,
   CloudSun,
   Droplets,
   Gauge,
+  LoaderCircle,
   LogIn,
   LogOut,
   MapPinned,
@@ -145,6 +147,20 @@ const navIconMap = {
   meteo: Thermometer,
 } as const;
 
+type RemoteLoadStatus = "idle" | "loading" | "ready" | "error";
+
+const etrLoadingStats = [
+  { label: "Última fecha disponible", value: "Cargando..." },
+  { label: "ETR media", value: "Cargando..." },
+  { label: "ETMAX media", value: "Cargando..." },
+];
+
+const etrUnavailableStats = [
+  { label: "Última fecha disponible", value: "Sin datos" },
+  { label: "ETR media", value: "Sin datos" },
+  { label: "ETMAX media", value: "Sin datos" },
+];
+
 const authStorageKey = "cas_mockup_is_logged_in";
 const authUserStorageKey = "cas_mockup_user_name";
 const defaultAuthUserName = "Camila Rojas";
@@ -238,6 +254,34 @@ function Panel({
       </header>
       <div className="panel-content">{children}</div>
     </section>
+  );
+}
+
+function RemoteDataState({
+  className,
+  message,
+  title,
+  tone = "loading",
+}: {
+  className?: string;
+  message: string;
+  title: string;
+  tone?: "loading" | "error";
+}) {
+  const Icon = tone === "loading" ? LoaderCircle : AlertTriangle;
+
+  return (
+    <div
+      className={`data-state is-${tone} ${className ?? ""}`.trim()}
+      role={tone === "error" ? "alert" : "status"}
+      aria-live="polite"
+    >
+      <span className="data-state-icon" aria-hidden="true">
+        <Icon size={18} />
+      </span>
+      <strong>{title}</strong>
+      <p>{message}</p>
+    </div>
   );
 }
 
@@ -627,10 +671,19 @@ const buildEtrUsoRecordFromSelection = (selection: EtrUsoSelection): EtrUsoRecor
   };
 };
 
-function EtrSectorTab({ authIdToken }: { authIdToken: string | null }) {
+function EtrSectorTab({
+  authIdToken,
+  isLoggedIn,
+}: {
+  authIdToken: string | null;
+  isLoggedIn: boolean;
+}) {
   const [selectedSector, setSelectedSector] = useState<EtrSectorSelection>(
     defaultEtrSectorSelection,
   );
+  const [overviewStatus, setOverviewStatus] = useState<RemoteLoadStatus>("idle");
+  const [selectedSectorStatus, setSelectedSectorStatus] =
+    useState<RemoteLoadStatus>("idle");
   const [sectorMapData, setSectorMapData] = useState<GeoJsonFeatureCollection | null>(null);
   const [stats, setStats] = useState(etrStats);
   const [overviewBarGroups, setOverviewBarGroups] = useState(etrOverviewBarGroups);
@@ -665,11 +718,21 @@ function EtrSectorTab({ authIdToken }: { authIdToken: string | null }) {
   useEffect(() => {
     let isMounted = true;
 
-    if (!authIdToken) {
+    if (!isLoggedIn) {
+      setOverviewStatus("idle");
       setSectorMapData(null);
       setStats(etrStats);
       setOverviewBarGroups(etrOverviewBarGroups);
       setOverviewSeasonSeries(etrOverviewSeasonSeries);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setOverviewStatus("loading");
+    setSectorMapData(null);
+
+    if (!authIdToken) {
       return () => {
         isMounted = false;
       };
@@ -694,6 +757,7 @@ function EtrSectorTab({ authIdToken }: { authIdToken: string | null }) {
         setOverviewSeasonSeries(toEtrEtmaxSeries(serieEt));
         setOverviewBarGroups(toEtrBarGroups(etCult));
         setSectorMapData(sectorMap);
+        setOverviewStatus("ready");
       })
       .catch(() => {
         if (!isMounted) {
@@ -701,15 +765,13 @@ function EtrSectorTab({ authIdToken }: { authIdToken: string | null }) {
         }
 
         setSectorMapData(null);
-        setStats(etrStats);
-        setOverviewBarGroups(etrOverviewBarGroups);
-        setOverviewSeasonSeries(etrOverviewSeasonSeries);
+        setOverviewStatus("error");
       });
 
     return () => {
       isMounted = false;
     };
-  }, [authIdToken]);
+  }, [authIdToken, isLoggedIn]);
 
   useEffect(() => {
     let isMounted = true;
@@ -720,9 +782,18 @@ function EtrSectorTab({ authIdToken }: { authIdToken: string | null }) {
       selectedRegion.seasonSeries,
     );
 
-    if (!authIdToken) {
+    if (!isLoggedIn) {
+      setSelectedSectorStatus("idle");
       setSelectedSectorBarGroups(fallbackBarGroups);
       setSelectedSectorSeasonSeries(fallbackSeasonSeries);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setSelectedSectorStatus("loading");
+
+    if (!authIdToken) {
       return () => {
         isMounted = false;
       };
@@ -739,20 +810,38 @@ function EtrSectorTab({ authIdToken }: { authIdToken: string | null }) {
 
         setSelectedSectorBarGroups(toEtrBarGroups(etCult));
         setSelectedSectorSeasonSeries(toEtrEtmaxSeries(serieEt));
+        setSelectedSectorStatus("ready");
       })
       .catch(() => {
         if (!isMounted) {
           return;
         }
 
-        setSelectedSectorBarGroups(fallbackBarGroups);
-        setSelectedSectorSeasonSeries(fallbackSeasonSeries);
+        setSelectedSectorStatus("error");
       });
 
     return () => {
       isMounted = false;
     };
-  }, [authIdToken, selectedRegion.barGroups, selectedRegion.seasonSeries, selectedSector.sectorId]);
+  }, [
+    authIdToken,
+    isLoggedIn,
+    selectedRegion.barGroups,
+    selectedRegion.seasonSeries,
+    selectedSector.sectorId,
+  ]);
+
+  const statsForCards = isLoggedIn
+    ? overviewStatus === "ready"
+      ? stats
+      : overviewStatus === "error"
+        ? etrUnavailableStats
+        : etrLoadingStats
+    : stats;
+  const showOverviewData = !isLoggedIn || overviewStatus === "ready";
+  const showSelectedSectorData = !isLoggedIn || selectedSectorStatus === "ready";
+  const overviewStateTone = overviewStatus === "error" ? "error" : "loading";
+  const selectedStateTone = selectedSectorStatus === "error" ? "error" : "loading";
 
   return (
     <div className="view-stack">
@@ -760,24 +849,24 @@ function EtrSectorTab({ authIdToken }: { authIdToken: string | null }) {
         <KpiCard
           delayMs={0}
           icon={Gauge}
-          title={stats[0].label}
-          value={stats[0].value}
+          title={statsForCards[0].label}
+          value={statsForCards[0].value}
           note="Disponibilidad ET-LAT"
           noteTone="neutral"
         />
         <KpiCard
           delayMs={80}
           icon={Droplets}
-          title={stats[1].label}
-          value={stats[1].value}
+          title={statsForCards[1].label}
+          value={statsForCards[1].value}
           note="Balance hídrico base"
           noteTone="positive"
         />
         <KpiCard
           delayMs={160}
           icon={MapPinned}
-          title={stats[2].label}
-          value={stats[2].value}
+          title={statsForCards[2].label}
+          value={statsForCards[2].value}
           note="Potencial atmosférico"
           noteTone="neutral"
         />
@@ -787,27 +876,53 @@ function EtrSectorTab({ authIdToken }: { authIdToken: string | null }) {
         <Panel
           title="Distribución de ETR (mm) por clase de cultivo en la última fecha disponible"
         >
-          <SimpleBarChart
-            chartHeight={338}
-            groups={overviewBarGroups}
-            maxValue={overviewBarMaxValue}
-            tickStep={5}
-            unit="mm"
-            xLabelAngle={-18}
-          />
+          {showOverviewData ? (
+            <SimpleBarChart
+              chartHeight={338}
+              groups={overviewBarGroups}
+              maxValue={overviewBarMaxValue}
+              tickStep={5}
+              unit="mm"
+              xLabelAngle={-18}
+            />
+          ) : (
+            <RemoteDataState
+              className="is-chart"
+              title={overviewStateTone === "error" ? "No se pudo cargar ET-LAT" : "Cargando ET-LAT"}
+              message={
+                overviewStateTone === "error"
+                  ? "El servicio no respondió con datos reales para el resumen por sector."
+                  : "Consultando el servicio en GCP para evitar mostrar datos de mockup."
+              }
+              tone={overviewStateTone}
+            />
+          )}
         </Panel>
 
         <Panel
           title="Comportamiento de ETR y ETmax en la temporada (mm)"
         >
-          <SimpleLineChart
-            labelEvery={3}
-            maxValue={1.8}
-            minValue={0}
-            series={overviewSeasonSeries}
-            unit="mm"
-            xLabelAngle={-45}
-          />
+          {showOverviewData ? (
+            <SimpleLineChart
+              labelEvery={3}
+              maxValue={1.8}
+              minValue={0}
+              series={overviewSeasonSeries}
+              unit="mm"
+              xLabelAngle={-45}
+            />
+          ) : (
+            <RemoteDataState
+              className="is-chart"
+              title={overviewStateTone === "error" ? "No se pudo cargar ET-LAT" : "Cargando ET-LAT"}
+              message={
+                overviewStateTone === "error"
+                  ? "El servicio no respondió con la serie real de temporada."
+                  : "Esperando la serie real de ETR y ETmax desde GCP."
+              }
+              tone={overviewStateTone}
+            />
+          )}
         </Panel>
       </div>
 
@@ -816,12 +931,25 @@ function EtrSectorTab({ authIdToken }: { authIdToken: string | null }) {
           className="panel-etr-map"
           title="Mapa sectores y áreas de gestión CAS Copiapó"
         >
-          <EtrMap
-            geoJson={sectorMapData ?? undefined}
-            selectedSectorId={selectedSector.sectorId}
-            selectedSummaryLabel={`${selectedSector.sectorName} · ${selectedSector.regionLabel}`}
-            onSelect={setSelectedSector}
-          />
+          {showOverviewData ? (
+            <EtrMap
+              geoJson={isLoggedIn ? sectorMapData ?? undefined : undefined}
+              selectedSectorId={selectedSector.sectorId}
+              selectedSummaryLabel={`${selectedSector.sectorName} · ${selectedSector.regionLabel}`}
+              onSelect={setSelectedSector}
+            />
+          ) : (
+            <RemoteDataState
+              className="is-map"
+              title={overviewStateTone === "error" ? "Mapa no disponible" : "Cargando mapa ET-LAT"}
+              message={
+                overviewStateTone === "error"
+                  ? "No se pudo obtener la geometría real de sectores desde GCP."
+                  : "Esperando la geometría real de sectores."
+              }
+              tone={overviewStateTone}
+            />
+          )}
         </Panel>
 
         <Panel
@@ -829,14 +957,31 @@ function EtrSectorTab({ authIdToken }: { authIdToken: string | null }) {
           title="Distribución de ETR (mm) por clase de cultivo en la última fecha disponible"
           subtitle={`${selectedSector.sectorName} · ${selectedRegion.label}`}
         >
-          <SimpleBarChart
-            chartHeight="100%"
-            groups={selectedSectorBarGroups}
-            maxValue={selectedBarMaxValue}
-            tickStep={5}
-            unit="mm"
-            xLabelAngle={-16}
-          />
+          {showSelectedSectorData ? (
+            <SimpleBarChart
+              chartHeight="100%"
+              groups={selectedSectorBarGroups}
+              maxValue={selectedBarMaxValue}
+              tickStep={5}
+              unit="mm"
+              xLabelAngle={-16}
+            />
+          ) : (
+            <RemoteDataState
+              className="is-chart"
+              title={
+                selectedStateTone === "error"
+                  ? "No se pudo cargar el sector"
+                  : "Cargando sector"
+              }
+              message={
+                selectedStateTone === "error"
+                  ? "El servicio no respondió con datos reales para el sector seleccionado."
+                  : "Consultando datos reales para el sector seleccionado."
+              }
+              tone={selectedStateTone}
+            />
+          )}
         </Panel>
       </div>
 
@@ -845,23 +990,48 @@ function EtrSectorTab({ authIdToken }: { authIdToken: string | null }) {
         subtitle={`${selectedSector.sectorName} · ${selectedRegion.label}`}
         className="panel-accent-blue"
       >
-        <SimpleLineChart
-          labelEvery={2}
-          maxValue={selectedSeasonMax}
-          minValue={0}
-          series={selectedSectorSeasonSeries}
-          unit="mm"
-          xLabelAngle={-45}
-        />
+        {showSelectedSectorData ? (
+          <SimpleLineChart
+            labelEvery={2}
+            maxValue={selectedSeasonMax}
+            minValue={0}
+            series={selectedSectorSeasonSeries}
+            unit="mm"
+            xLabelAngle={-45}
+          />
+        ) : (
+          <RemoteDataState
+            className="is-chart"
+            title={
+              selectedStateTone === "error"
+                ? "No se pudo cargar la serie"
+                : "Cargando serie del sector"
+            }
+            message={
+              selectedStateTone === "error"
+                ? "El servicio no respondió con la serie real para el sector seleccionado."
+                : "Esperando la serie real de ETR y ETmax."
+            }
+            tone={selectedStateTone}
+          />
+        )}
       </Panel>
     </div>
   );
 }
 
-function EtrUsageTab({ authIdToken }: { authIdToken: string | null }) {
+function EtrUsageTab({
+  authIdToken,
+  isLoggedIn,
+}: {
+  authIdToken: string | null;
+  isLoggedIn: boolean;
+}) {
   const [selectedUso, setSelectedUso] = useState<EtrUsoSelection>(
     defaultEtrUsoMapSelection,
   );
+  const [mapStatus, setMapStatus] = useState<RemoteLoadStatus>("idle");
+  const [usageStatus, setUsageStatus] = useState<RemoteLoadStatus>("idle");
   const [usoMapData, setUsoMapData] = useState<GeoJsonFeatureCollection | null>(null);
   const [remoteUsageRecord, setRemoteUsageRecord] = useState<EtrUsoRecord | null>(null);
   const fallbackUsageRecord = useMemo(
@@ -900,8 +1070,19 @@ function EtrUsageTab({ authIdToken }: { authIdToken: string | null }) {
   useEffect(() => {
     let isMounted = true;
 
-    if (!authIdToken) {
+    if (!isLoggedIn) {
+      setMapStatus("idle");
       setUsoMapData(null);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setMapStatus("loading");
+    setUsoMapData(null);
+    setRemoteUsageRecord(null);
+
+    if (!authIdToken) {
       return () => {
         isMounted = false;
       };
@@ -921,28 +1102,40 @@ function EtrUsageTab({ authIdToken }: { authIdToken: string | null }) {
         if (defaultFeature) {
           setSelectedUso(buildEtrUsoSelection(defaultFeature));
         }
+        setMapStatus("ready");
       })
       .catch(() => {
         if (isMounted) {
           setUsoMapData(null);
+          setMapStatus("error");
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [authIdToken]);
+  }, [authIdToken, isLoggedIn]);
 
   useEffect(() => {
     let isMounted = true;
 
-    if (!authIdToken || !selectedUso.usoId) {
+    if (!isLoggedIn) {
+      setUsageStatus("idle");
       setRemoteUsageRecord(null);
       return () => {
         isMounted = false;
       };
     }
 
+    if (!authIdToken || mapStatus !== "ready" || !selectedUso.usoId) {
+      setUsageStatus(mapStatus === "error" ? "error" : "loading");
+      setRemoteUsageRecord(null);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setUsageStatus("loading");
     setRemoteUsageRecord(null);
 
     Promise.all([
@@ -951,7 +1144,12 @@ function EtrUsageTab({ authIdToken }: { authIdToken: string | null }) {
       fetchLaiPoly(authIdToken, selectedUso.usoId),
     ])
       .then(([etPoly, kcPoly, laiPoly]) => {
-        if (!isMounted || etPoly.length === 0) {
+        if (!isMounted) {
+          return;
+        }
+
+        if (etPoly.length === 0) {
+          setUsageStatus("error");
           return;
         }
 
@@ -973,17 +1171,31 @@ function EtrUsageTab({ authIdToken }: { authIdToken: string | null }) {
           ),
           lastDate: lastEtPoint.fecha,
         });
+        setUsageStatus("ready");
       })
       .catch(() => {
         if (isMounted) {
           setRemoteUsageRecord(null);
+          setUsageStatus("error");
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [authIdToken, fallbackUsageRecord, selectedUso.cultivo, selectedUso.usoId]);
+  }, [
+    authIdToken,
+    fallbackUsageRecord,
+    isLoggedIn,
+    mapStatus,
+    selectedUso.cultivo,
+    selectedUso.usoId,
+  ]);
+
+  const showMapData = !isLoggedIn || mapStatus === "ready";
+  const showUsageData = !isLoggedIn || usageStatus === "ready";
+  const mapStateTone = mapStatus === "error" ? "error" : "loading";
+  const usageStateTone = usageStatus === "error" ? "error" : "loading";
 
   return (
     <div className="view-stack">
@@ -992,32 +1204,66 @@ function EtrUsageTab({ authIdToken }: { authIdToken: string | null }) {
           className="panel-etr-map"
           title="Mapa de uso de suelo agrícola Valle de Copiapó"
         >
-          <EtrUsoMap
-            geoJson={usoMapData ?? undefined}
-            selectedSummaryLabel={`${selectedUso.cultivo} · Uso ${selectedUso.usoId}`}
-            selectedUsoId={selectedUso.usoId}
-            onSelect={setSelectedUso}
-          />
+          {showMapData ? (
+            <EtrUsoMap
+              geoJson={isLoggedIn ? usoMapData ?? undefined : undefined}
+              selectedSummaryLabel={`${selectedUso.cultivo} · Uso ${selectedUso.usoId}`}
+              selectedUsoId={selectedUso.usoId}
+              onSelect={setSelectedUso}
+            />
+          ) : (
+            <RemoteDataState
+              className="is-map"
+              title={
+                mapStateTone === "error"
+                  ? "Mapa de usos no disponible"
+                  : "Cargando mapa de usos"
+              }
+              message={
+                mapStateTone === "error"
+                  ? "No se pudo obtener la geometría real de usos agrícolas desde GCP."
+                  : "Esperando la geometría real de usos agrícolas."
+              }
+              tone={mapStateTone}
+            />
+          )}
         </Panel>
 
         <Panel
           title="Variables para el polígono seleccionado"
           subtitle={`Uso ${selectedUso.usoId} · ${usageRecord.cultivo}`}
         >
-          <div className="etr-usage-cards">
-            <article className="etr-usage-card">
-              <span>Cultivo</span>
-              <strong>{usageRecord.cultivo}</strong>
-            </article>
-            <article className="etr-usage-card">
-              <span>ETR para {usageRecord.lastDate}</span>
-              <strong>{usageRecord.etrValue.toFixed(1)} mm/día</strong>
-            </article>
-            <article className="etr-usage-card">
-              <span>ETMAX para {usageRecord.lastDate}</span>
-              <strong>{usageRecord.etmaxValue.toFixed(1)} mm/día</strong>
-            </article>
-          </div>
+          {showUsageData ? (
+            <div className="etr-usage-cards">
+              <article className="etr-usage-card">
+                <span>Cultivo</span>
+                <strong>{usageRecord.cultivo}</strong>
+              </article>
+              <article className="etr-usage-card">
+                <span>ETR para {usageRecord.lastDate}</span>
+                <strong>{usageRecord.etrValue.toFixed(1)} mm/día</strong>
+              </article>
+              <article className="etr-usage-card">
+                <span>ETMAX para {usageRecord.lastDate}</span>
+                <strong>{usageRecord.etmaxValue.toFixed(1)} mm/día</strong>
+              </article>
+            </div>
+          ) : (
+            <RemoteDataState
+              className="is-compact"
+              title={
+                usageStateTone === "error"
+                  ? "Polígono no disponible"
+                  : "Cargando polígono"
+              }
+              message={
+                usageStateTone === "error"
+                  ? "No se pudo obtener la serie real para el uso seleccionado."
+                  : "Consultando variables reales para el uso seleccionado."
+              }
+              tone={usageStateTone}
+            />
+          )}
         </Panel>
       </div>
 
@@ -1026,43 +1272,96 @@ function EtrUsageTab({ authIdToken }: { authIdToken: string | null }) {
         subtitle={`Uso ${selectedUso.usoId} · ${usageRecord.cultivo}`}
         className="panel-accent-blue"
       >
-        <SimpleLineChart
-          labelEvery={3}
-          maxValue={etrEtmaxDomain.max}
-          minValue={etrEtmaxDomain.min}
-          series={usageRecord.etrEtmaxSeries}
-          unit="mm"
-          xLabelAngle={-45}
-        />
+        {showUsageData ? (
+          <SimpleLineChart
+            labelEvery={3}
+            maxValue={etrEtmaxDomain.max}
+            minValue={etrEtmaxDomain.min}
+            series={usageRecord.etrEtmaxSeries}
+            unit="mm"
+            xLabelAngle={-45}
+          />
+        ) : (
+          <RemoteDataState
+            className="is-chart"
+            title={
+              usageStateTone === "error"
+                ? "Serie ETR no disponible"
+                : "Cargando serie ETR"
+            }
+            message={
+              usageStateTone === "error"
+                ? "El servicio no respondió con la serie real de ETR y ETmax."
+                : "Esperando datos reales de ETR y ETmax."
+            }
+            tone={usageStateTone}
+          />
+        )}
       </Panel>
 
       <div className="etr-usage-chart-grid">
         <Panel title="Variación temporal del Kc">
-          <SimpleLineChart
-            labelEvery={3}
-            maxValue={kcDomain.max}
-            minValue={kcDomain.min}
-            series={usageRecord.kcSeries}
-            unit="Kc"
-            xLabelAngle={-45}
-          />
+          {showUsageData ? (
+            <SimpleLineChart
+              labelEvery={3}
+              maxValue={kcDomain.max}
+              minValue={kcDomain.min}
+              series={usageRecord.kcSeries}
+              unit="Kc"
+              xLabelAngle={-45}
+            />
+          ) : (
+            <RemoteDataState
+              className="is-chart"
+              title={
+                usageStateTone === "error" ? "Serie Kc no disponible" : "Cargando serie Kc"
+              }
+              message={
+                usageStateTone === "error"
+                  ? "El servicio no respondió con la serie real de Kc."
+                  : "Esperando datos reales de Kc."
+              }
+              tone={usageStateTone}
+            />
+          )}
         </Panel>
         <Panel title="Variación temporal del LAI">
-          <SimpleLineChart
-            labelEvery={3}
-            maxValue={laiDomain.max}
-            minValue={laiDomain.min}
-            series={usageRecord.laiSeries}
-            unit="LAI"
-            xLabelAngle={-45}
-          />
+          {showUsageData ? (
+            <SimpleLineChart
+              labelEvery={3}
+              maxValue={laiDomain.max}
+              minValue={laiDomain.min}
+              series={usageRecord.laiSeries}
+              unit="LAI"
+              xLabelAngle={-45}
+            />
+          ) : (
+            <RemoteDataState
+              className="is-chart"
+              title={
+                usageStateTone === "error" ? "Serie LAI no disponible" : "Cargando serie LAI"
+              }
+              message={
+                usageStateTone === "error"
+                  ? "El servicio no respondió con la serie real de LAI."
+                  : "Esperando datos reales de LAI."
+              }
+              tone={usageStateTone}
+            />
+          )}
         </Panel>
       </div>
     </div>
   );
 }
 
-function EtrDownloadsTab({ authIdToken }: { authIdToken: string | null }) {
+function EtrDownloadsTab({
+  authIdToken,
+  isLoggedIn,
+}: {
+  authIdToken: string | null;
+  isLoggedIn: boolean;
+}) {
   const [selectedQuadrant, setSelectedQuadrant] = useState<EtrQuadrantSelection>(
     defaultEtrQuadrantSelection,
   );
@@ -1074,6 +1373,11 @@ function EtrDownloadsTab({ authIdToken }: { authIdToken: string | null }) {
   const [downloadFeedback, setDownloadFeedback] = useState("");
   const [isDownloading, setIsDownloading] = useState(false);
   const [quadrantMapData, setQuadrantMapData] = useState<GeoJsonFeatureCollection | null>(null);
+  const [quadrantMapStatus, setQuadrantMapStatus] =
+    useState<RemoteLoadStatus>("idle");
+  const [yearsStatus, setYearsStatus] = useState<RemoteLoadStatus>("idle");
+  const [monthsStatus, setMonthsStatus] = useState<RemoteLoadStatus>("idle");
+  const [daysStatus, setDaysStatus] = useState<RemoteLoadStatus>("idle");
 
   const fallbackYears = useMemo(
     () => getEtrDownloadYears(selectedQuadrant.quadrantId, selectedVariable),
@@ -1105,8 +1409,18 @@ function EtrDownloadsTab({ authIdToken }: { authIdToken: string | null }) {
   useEffect(() => {
     let isMounted = true;
 
-    if (!authIdToken) {
+    if (!isLoggedIn) {
+      setQuadrantMapStatus("idle");
       setQuadrantMapData(null);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setQuadrantMapStatus("loading");
+    setQuadrantMapData(null);
+
+    if (!authIdToken) {
       return () => {
         isMounted = false;
       };
@@ -1116,24 +1430,35 @@ function EtrDownloadsTab({ authIdToken }: { authIdToken: string | null }) {
       .then((geoJson) => {
         if (isMounted) {
           setQuadrantMapData(geoJson);
+          setQuadrantMapStatus("ready");
         }
       })
       .catch(() => {
         if (isMounted) {
           setQuadrantMapData(null);
+          setQuadrantMapStatus("error");
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [authIdToken]);
+  }, [authIdToken, isLoggedIn]);
 
   useEffect(() => {
     let isMounted = true;
 
-    if (!authIdToken) {
+    if (!isLoggedIn) {
+      setYearsStatus("idle");
       setYears(fallbackYears);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setYearsStatus("loading");
+
+    if (!authIdToken) {
       return () => {
         isMounted = false;
       };
@@ -1145,25 +1470,41 @@ function EtrDownloadsTab({ authIdToken }: { authIdToken: string | null }) {
     })
       .then((data) => {
         if (isMounted) {
-          setYears(data.anos.length > 0 ? data.anos : fallbackYears);
+          setYears(data.anos);
+          setYearsStatus(data.anos.length > 0 ? "ready" : "error");
         }
       })
       .catch(() => {
         if (isMounted) {
-          setYears(fallbackYears);
+          setYearsStatus("error");
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [authIdToken, fallbackYears, selectedQuadrant.quadrantId, selectedVariable]);
+  }, [
+    authIdToken,
+    fallbackYears,
+    isLoggedIn,
+    selectedQuadrant.quadrantId,
+    selectedVariable,
+  ]);
 
   useEffect(() => {
     let isMounted = true;
 
-    if (!authIdToken) {
+    if (!isLoggedIn) {
+      setMonthsStatus("idle");
       setMonths(fallbackMonths);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setMonthsStatus("loading");
+
+    if (!authIdToken) {
       return () => {
         isMounted = false;
       };
@@ -1176,25 +1517,42 @@ function EtrDownloadsTab({ authIdToken }: { authIdToken: string | null }) {
     })
       .then((data) => {
         if (isMounted) {
-          setMonths(data.meses.length > 0 ? data.meses : fallbackMonths);
+          setMonths(data.meses);
+          setMonthsStatus(data.meses.length > 0 ? "ready" : "error");
         }
       })
       .catch(() => {
         if (isMounted) {
-          setMonths(fallbackMonths);
+          setMonthsStatus("error");
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [authIdToken, fallbackMonths, selectedQuadrant.quadrantId, selectedVariable, selectedYear]);
+  }, [
+    authIdToken,
+    fallbackMonths,
+    isLoggedIn,
+    selectedQuadrant.quadrantId,
+    selectedVariable,
+    selectedYear,
+  ]);
 
   useEffect(() => {
     let isMounted = true;
 
-    if (!authIdToken) {
+    if (!isLoggedIn) {
+      setDaysStatus("idle");
       setDays(fallbackDays);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setDaysStatus("loading");
+
+    if (!authIdToken) {
       return () => {
         isMounted = false;
       };
@@ -1208,12 +1566,13 @@ function EtrDownloadsTab({ authIdToken }: { authIdToken: string | null }) {
     })
       .then((data) => {
         if (isMounted) {
-          setDays(data.dias.length > 0 ? data.dias : fallbackDays);
+          setDays(data.dias);
+          setDaysStatus(data.dias.length > 0 ? "ready" : "error");
         }
       })
       .catch(() => {
         if (isMounted) {
-          setDays(fallbackDays);
+          setDaysStatus("error");
         }
       });
 
@@ -1223,6 +1582,7 @@ function EtrDownloadsTab({ authIdToken }: { authIdToken: string | null }) {
   }, [
     authIdToken,
     fallbackDays,
+    isLoggedIn,
     selectedMonth,
     selectedQuadrant.quadrantId,
     selectedVariable,
@@ -1252,6 +1612,15 @@ function EtrDownloadsTab({ authIdToken }: { authIdToken: string | null }) {
 
   const selectedMonthLabel =
     etrDownloadMonthLabels[selectedMonth - 1] ?? `Mes ${selectedMonth}`;
+  const showQuadrantMapData = !isLoggedIn || quadrantMapStatus === "ready";
+  const dateStatuses = [yearsStatus, monthsStatus, daysStatus];
+  const datesHaveError =
+    isLoggedIn && dateStatuses.some((status) => status === "error");
+  const datesAreLoading =
+    isLoggedIn &&
+    !datesHaveError &&
+    (!authIdToken || dateStatuses.some((status) => status !== "ready"));
+  const quadrantMapTone = quadrantMapStatus === "error" ? "error" : "loading";
 
   const handleFakeDownload = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1306,119 +1675,153 @@ function EtrDownloadsTab({ authIdToken }: { authIdToken: string | null }) {
     <div className="view-stack">
       <div className="etr-download-grid">
         <Panel className="panel-etr-map" title="Cuadrantes disponibles para descarga">
-          <EtrQuadrantMap
-            geoJson={quadrantMapData ?? undefined}
-            selectedQuadrantId={selectedQuadrant.quadrantId}
-            selectedSummaryLabel={selectedQuadrant.quadrantLabel}
-            onSelect={(selection) => {
-              setSelectedQuadrant(selection);
-              setDownloadFeedback("");
-            }}
-          />
+          {showQuadrantMapData ? (
+            <EtrQuadrantMap
+              geoJson={isLoggedIn ? quadrantMapData ?? undefined : undefined}
+              selectedQuadrantId={selectedQuadrant.quadrantId}
+              selectedSummaryLabel={selectedQuadrant.quadrantLabel}
+              onSelect={(selection) => {
+                setSelectedQuadrant(selection);
+                setDownloadFeedback("");
+              }}
+            />
+          ) : (
+            <RemoteDataState
+              className="is-map"
+              title={
+                quadrantMapTone === "error"
+                  ? "Cuadrantes no disponibles"
+                  : "Cargando cuadrantes"
+              }
+              message={
+                quadrantMapTone === "error"
+                  ? "No se pudo obtener la grilla real de cuadrantes desde GCP."
+                  : "Esperando la grilla real de cuadrantes."
+              }
+              tone={quadrantMapTone}
+            />
+          )}
         </Panel>
 
         <Panel
           title="Descarga de imágenes"
           subtitle={selectedQuadrant.quadrantLabel}
         >
-          <div className="etr-download-copy">
-            <p>
-              En la plataforma original los cuadrados corresponden a cuadrantes de
-              descarga sobre base satelital. Aquí simulamos descarga raster por
-              cuadrante, variable, fecha y formato.
-            </p>
-          </div>
+          {datesAreLoading || datesHaveError ? (
+            <RemoteDataState
+              className="is-compact"
+              title={datesHaveError ? "Fechas no disponibles" : "Cargando fechas"}
+              message={
+                datesHaveError
+                  ? "No se pudo obtener la disponibilidad real para la descarga."
+                  : "Consultando años, meses y días disponibles en GCP."
+              }
+              tone={datesHaveError ? "error" : "loading"}
+            />
+          ) : (
+            <>
+              <div className="etr-download-copy">
+                <p>
+                  En la plataforma original los cuadrados corresponden a cuadrantes de
+                  descarga sobre base satelital. Aquí simulamos descarga raster por
+                  cuadrante, variable, fecha y formato.
+                </p>
+              </div>
 
-          <form className="etr-download-form" onSubmit={handleFakeDownload}>
-            <label>
-              <span>Variable</span>
-              <select
-                value={selectedVariable}
-                onChange={(event) => setSelectedVariable(event.target.value as EtrDownloadVariable)}
-              >
-                {etrDownloadVariables.map((variable) => (
-                  <option key={variable.value} value={variable.value}>
-                    {variable.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <form className="etr-download-form" onSubmit={handleFakeDownload}>
+                <label>
+                  <span>Variable</span>
+                  <select
+                    value={selectedVariable}
+                    onChange={(event) =>
+                      setSelectedVariable(event.target.value as EtrDownloadVariable)
+                    }
+                  >
+                    {etrDownloadVariables.map((variable) => (
+                      <option key={variable.value} value={variable.value}>
+                        {variable.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-            <label>
-              <span>Formato</span>
-              <select
-                value={selectedFormat}
-                onChange={(event) =>
-                  setSelectedFormat(event.target.value as EtrDownloadFormat)
-                }
-              >
-                {etrDownloadFormats.map((format) => (
-                  <option key={format.value} value={format.value}>
-                    {format.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <label>
+                  <span>Formato</span>
+                  <select
+                    value={selectedFormat}
+                    onChange={(event) =>
+                      setSelectedFormat(event.target.value as EtrDownloadFormat)
+                    }
+                  >
+                    {etrDownloadFormats.map((format) => (
+                      <option key={format.value} value={format.value}>
+                        {format.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-            <label>
-              <span>Año</span>
-              <select
-                value={selectedYear}
-                onChange={(event) => setSelectedYear(Number(event.target.value))}
-              >
-                {years.map((year) => (
-                  <option key={year} value={year}>
-                    {year}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <label>
+                  <span>Año</span>
+                  <select
+                    value={selectedYear}
+                    onChange={(event) => setSelectedYear(Number(event.target.value))}
+                  >
+                    {years.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-            <label>
-              <span>Mes</span>
-              <select
-                value={selectedMonth}
-                onChange={(event) => setSelectedMonth(Number(event.target.value))}
-              >
-                {months.map((month) => (
-                  <option key={month} value={month}>
-                    {etrDownloadMonthLabels[month - 1] ?? `Mes ${month}`}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <label>
+                  <span>Mes</span>
+                  <select
+                    value={selectedMonth}
+                    onChange={(event) => setSelectedMonth(Number(event.target.value))}
+                  >
+                    {months.map((month) => (
+                      <option key={month} value={month}>
+                        {etrDownloadMonthLabels[month - 1] ?? `Mes ${month}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-            <label>
-              <span>Día</span>
-              <select
-                value={selectedDay}
-                onChange={(event) => setSelectedDay(Number(event.target.value))}
-              >
-                {days.map((day) => (
-                  <option key={day} value={day}>
-                    {String(day).padStart(2, "0")}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <label>
+                  <span>Día</span>
+                  <select
+                    value={selectedDay}
+                    onChange={(event) => setSelectedDay(Number(event.target.value))}
+                  >
+                    {days.map((day) => (
+                      <option key={day} value={day}>
+                        {String(day).padStart(2, "0")}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-            <button type="submit" disabled={isDownloading}>
-              {isDownloading ? "Procesando..." : "Descargar"}
-            </button>
-          </form>
+                <button type="submit" disabled={isDownloading}>
+                  {isDownloading ? "Procesando..." : "Descargar"}
+                </button>
+              </form>
 
-          <p className="etr-download-selected">
-            Selección actual: {selectedQuadrant.quadrantLabel} · {selectedVariable} ·{" "}
-            {selectedFormat} · {selectedYear} · {selectedMonthLabel} ·{" "}
-            {String(selectedDay).padStart(2, "0")}
-          </p>
-          <p className="etr-download-note">
-            Nota mockup: la descarga JPEG usa un recorte satelital por cuadrante,
-            con resolución objetivo cercana a 10 m/píxel para la demo. La descarga
-            TIFF se habilitará con un servicio raster real en la app final.
-          </p>
-          {downloadFeedback && (
-            <p className="etr-download-feedback">{downloadFeedback}</p>
+              <p className="etr-download-selected">
+                Selección actual: {selectedQuadrant.quadrantLabel} · {selectedVariable} ·{" "}
+                {selectedFormat} · {selectedYear} · {selectedMonthLabel} ·{" "}
+                {String(selectedDay).padStart(2, "0")}
+              </p>
+              <p className="etr-download-note">
+                Nota mockup: la descarga JPEG usa un recorte satelital por cuadrante,
+                con resolución objetivo cercana a 10 m/píxel para la demo. La descarga
+                TIFF se habilitará con un servicio raster real en la app final.
+              </p>
+              {downloadFeedback && (
+                <p className="etr-download-feedback">{downloadFeedback}</p>
+              )}
+            </>
           )}
         </Panel>
       </div>
@@ -1488,10 +1891,14 @@ function EtrView({
         </p>
       )}
 
-      {activeEtrTab === "sector" && <EtrSectorTab authIdToken={authIdToken} />}
-      {isLoggedIn && activeEtrTab === "usage" && <EtrUsageTab authIdToken={authIdToken} />}
+      {activeEtrTab === "sector" && (
+        <EtrSectorTab authIdToken={authIdToken} isLoggedIn={isLoggedIn} />
+      )}
+      {isLoggedIn && activeEtrTab === "usage" && (
+        <EtrUsageTab authIdToken={authIdToken} isLoggedIn={isLoggedIn} />
+      )}
       {isLoggedIn && activeEtrTab === "downloads" && (
-        <EtrDownloadsTab authIdToken={authIdToken} />
+        <EtrDownloadsTab authIdToken={authIdToken} isLoggedIn={isLoggedIn} />
       )}
     </div>
   );
@@ -1499,8 +1906,17 @@ function EtrView({
 
 const snowBalanceBasins: SnowBalanceBasinId[] = ["jorquera", "pulido", "manflas"];
 
-function SnowView({ authIdToken }: { authIdToken: string | null }) {
+function SnowView({
+  authIdToken,
+  isLoggedIn,
+}: {
+  authIdToken: string | null;
+  isLoggedIn: boolean;
+}) {
   const [activeSnowTab, setActiveSnowTab] = useState<"coverage" | "balance">("coverage");
+  const [coverageStatus, setCoverageStatus] = useState<RemoteLoadStatus>("idle");
+  const [imageStatus, setImageStatus] = useState<RemoteLoadStatus>("idle");
+  const [basinsStatus, setBasinsStatus] = useState<RemoteLoadStatus>("idle");
   const [latestSnowImage, setLatestSnowImage] = useState<{
     date: string | null;
     url: string | null;
@@ -1536,7 +1952,10 @@ function SnowView({ authIdToken }: { authIdToken: string | null }) {
     let isMounted = true;
     let objectUrl: string | null = null;
 
-    if (!authIdToken) {
+    if (!isLoggedIn) {
+      setCoverageStatus("idle");
+      setImageStatus("idle");
+      setBasinsStatus("idle");
       setLatestSnowImage((previous) => {
         if (previous.url) {
           URL.revokeObjectURL(previous.url);
@@ -1553,6 +1972,23 @@ function SnowView({ authIdToken }: { authIdToken: string | null }) {
       };
     }
 
+    setCoverageStatus("loading");
+    setImageStatus("loading");
+    setBasinsStatus("loading");
+    setLatestSnowImage((previous) => {
+      if (previous.url) {
+        URL.revokeObjectURL(previous.url);
+      }
+      return { date: null, url: null };
+    });
+    setBasinsGeoJson(null);
+
+    if (!authIdToken) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
     fetchModisSnowCoverageSeries(authIdToken)
       .then((coverage) => {
         if (!isMounted) {
@@ -1563,13 +1999,11 @@ function SnowView({ authIdToken }: { authIdToken: string | null }) {
         setJorqueraSeries(toModisSnowLineSeries(coverage.jorquera ?? []));
         setPulidoSeries(toModisSnowLineSeries(coverage.pulido ?? []));
         setManflasSeries(toModisSnowLineSeries(coverage.manflas ?? []));
+        setCoverageStatus("ready");
       })
       .catch(() => {
         if (isMounted) {
-          setOverviewSeries(snowOverviewSeries);
-          setJorqueraSeries(snowJorqueraSeries);
-          setPulidoSeries(snowPulidoSeries);
-          setManflasSeries(snowManflasSeries);
+          setCoverageStatus("error");
         }
       });
 
@@ -1587,6 +2021,7 @@ function SnowView({ authIdToken }: { authIdToken: string | null }) {
           }
           return { date: image.imageDate, url: image.objectUrl };
         });
+        setImageStatus("ready");
       })
       .catch(() => {
         if (isMounted) {
@@ -1596,6 +2031,7 @@ function SnowView({ authIdToken }: { authIdToken: string | null }) {
             }
             return { date: null, url: null };
           });
+          setImageStatus("error");
         }
       });
 
@@ -1603,11 +2039,13 @@ function SnowView({ authIdToken }: { authIdToken: string | null }) {
       .then((geojson) => {
         if (isMounted) {
           setBasinsGeoJson(geojson);
+          setBasinsStatus("ready");
         }
       })
       .catch(() => {
         if (isMounted) {
           setBasinsGeoJson(null);
+          setBasinsStatus("error");
         }
       });
 
@@ -1617,7 +2055,7 @@ function SnowView({ authIdToken }: { authIdToken: string | null }) {
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [authIdToken]);
+  }, [authIdToken, isLoggedIn]);
 
   const snowChartLabelEvery = Math.max(
     1,
@@ -1626,6 +2064,10 @@ function SnowView({ authIdToken }: { authIdToken: string | null }) {
   const latestImageSubtitle = latestSnowImage.date
     ? `Última imagen disponible (${latestSnowImage.date})`
     : "Última imagen disponible";
+  const showSnowCharts = !isLoggedIn || coverageStatus === "ready";
+  const snowChartsTone = coverageStatus === "error" ? "error" : "loading";
+  const imageTone = imageStatus === "error" ? "error" : "loading";
+  const basinsTone = basinsStatus === "error" ? "error" : "loading";
 
   return (
     <div className="view-stack">
@@ -1682,8 +2124,25 @@ function SnowView({ authIdToken }: { authIdToken: string | null }) {
                     </span>
                   )}
                 </div>
+              ) : isLoggedIn && imageStatus !== "ready" && basinsStatus !== "ready" ? (
+                <RemoteDataState
+                  className="is-snow-image"
+                  title={
+                    imageTone === "error" || basinsTone === "error"
+                      ? "Imagen MODIS no disponible"
+                      : "Cargando imagen MODIS"
+                  }
+                  message={
+                    imageTone === "error" || basinsTone === "error"
+                      ? "No se pudo obtener la imagen o la geometría real desde GCP."
+                      : "Esperando la imagen real publicada por el servicio."
+                  }
+                  tone={imageTone === "error" || basinsTone === "error" ? "error" : "loading"}
+                />
               ) : (
-                <SnowCoverageMap featureCollection={basinsGeoJson} />
+                <SnowCoverageMap
+                  featureCollection={isLoggedIn ? basinsGeoJson : undefined}
+                />
               )}
             </div>
           </Panel>
@@ -1700,47 +2159,115 @@ function SnowView({ authIdToken }: { authIdToken: string | null }) {
             </div>
 
             <Panel title="Evolución diaria de la cobertura de nieve en el área de estudio (%)">
-              <SimpleLineChart
-                labelEvery={snowChartLabelEvery}
-                maxValue={100}
-                minValue={0}
-                series={overviewSeries}
-                unit="Cobertura (%)"
-                xLabelAngle={-32}
-              />
+              {showSnowCharts ? (
+                <SimpleLineChart
+                  labelEvery={snowChartLabelEvery}
+                  maxValue={100}
+                  minValue={0}
+                  series={overviewSeries}
+                  unit="Cobertura (%)"
+                  xLabelAngle={-32}
+                />
+              ) : (
+                <RemoteDataState
+                  className="is-chart"
+                  title={
+                    snowChartsTone === "error"
+                      ? "Cobertura no disponible"
+                      : "Cargando cobertura"
+                  }
+                  message={
+                    snowChartsTone === "error"
+                      ? "El servicio no respondió con la serie real de cobertura."
+                      : "Consultando serie real de cobertura MODIS."
+                  }
+                  tone={snowChartsTone}
+                />
+              )}
             </Panel>
 
             <Panel title="Evolución diaria de FSCA de la cuenca de Jorquera">
-              <SimpleLineChart
-                labelEvery={snowChartLabelEvery}
-                maxValue={100}
-                minValue={0}
-                series={jorqueraSeries}
-                unit="Cobertura (%)"
-                xLabelAngle={-32}
-              />
+              {showSnowCharts ? (
+                <SimpleLineChart
+                  labelEvery={snowChartLabelEvery}
+                  maxValue={100}
+                  minValue={0}
+                  series={jorqueraSeries}
+                  unit="Cobertura (%)"
+                  xLabelAngle={-32}
+                />
+              ) : (
+                <RemoteDataState
+                  className="is-chart"
+                  title={
+                    snowChartsTone === "error"
+                      ? "Jorquera no disponible"
+                      : "Cargando Jorquera"
+                  }
+                  message={
+                    snowChartsTone === "error"
+                      ? "El servicio no respondió con la serie real de Jorquera."
+                      : "Esperando datos reales de FSCA para Jorquera."
+                  }
+                  tone={snowChartsTone}
+                />
+              )}
             </Panel>
 
             <Panel title="Evolución diaria de FSCA de la cuenca de Pulido">
-              <SimpleLineChart
-                labelEvery={snowChartLabelEvery}
-                maxValue={100}
-                minValue={0}
-                series={pulidoSeries}
-                unit="Cobertura (%)"
-                xLabelAngle={-32}
-              />
+              {showSnowCharts ? (
+                <SimpleLineChart
+                  labelEvery={snowChartLabelEvery}
+                  maxValue={100}
+                  minValue={0}
+                  series={pulidoSeries}
+                  unit="Cobertura (%)"
+                  xLabelAngle={-32}
+                />
+              ) : (
+                <RemoteDataState
+                  className="is-chart"
+                  title={
+                    snowChartsTone === "error"
+                      ? "Pulido no disponible"
+                      : "Cargando Pulido"
+                  }
+                  message={
+                    snowChartsTone === "error"
+                      ? "El servicio no respondió con la serie real de Pulido."
+                      : "Esperando datos reales de FSCA para Pulido."
+                  }
+                  tone={snowChartsTone}
+                />
+              )}
             </Panel>
 
             <Panel title="Evolución diaria de FSCA de la cuenca de Manflas">
-              <SimpleLineChart
-                labelEvery={snowChartLabelEvery}
-                maxValue={100}
-                minValue={0}
-                series={manflasSeries}
-                unit="Cobertura (%)"
-                xLabelAngle={-32}
-              />
+              {showSnowCharts ? (
+                <SimpleLineChart
+                  labelEvery={snowChartLabelEvery}
+                  maxValue={100}
+                  minValue={0}
+                  series={manflasSeries}
+                  unit="Cobertura (%)"
+                  xLabelAngle={-32}
+                />
+              ) : (
+                <RemoteDataState
+                  className="is-chart"
+                  title={
+                    snowChartsTone === "error"
+                      ? "Manflas no disponible"
+                      : "Cargando Manflas"
+                  }
+                  message={
+                    snowChartsTone === "error"
+                      ? "El servicio no respondió con la serie real de Manflas."
+                      : "Esperando datos reales de FSCA para Manflas."
+                  }
+                  tone={snowChartsTone}
+                />
+              )}
             </Panel>
           </div>
         </div>
@@ -2962,7 +3489,9 @@ export default function App() {
         {activeView === "etr" && (
           <EtrView authIdToken={authIdToken} isLoggedIn={isLoggedIn} />
         )}
-        {activeView === "snow" && <SnowView authIdToken={authIdToken} />}
+        {activeView === "snow" && (
+          <SnowView authIdToken={authIdToken} isLoggedIn={isLoggedIn} />
+        )}
         {activeView === "wells" && (
           <WellsView
             manualEntries={manualEntries}
