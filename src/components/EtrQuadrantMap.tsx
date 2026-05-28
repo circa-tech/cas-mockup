@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo } from "react";
 import { GeoJSON, LayersControl, MapContainer, TileLayer, useMap } from "react-leaflet";
 import etrQuadrantsGeoJson from "../data/etrQuadrantsGeoJson.json";
 import { chartPalette } from "../data/mockupData";
@@ -10,6 +10,10 @@ export type EtrQuadrantSelection = {
 };
 
 type EtrQuadrantFeature = {
+  geometry: {
+    coordinates: number[][][] | number[][][][];
+    type: "MultiPolygon" | "Polygon";
+  };
   id: number | string;
   properties: {
     id: number;
@@ -57,19 +61,44 @@ export const defaultEtrQuadrantSelection: EtrQuadrantSelection = buildSelection(
   preferredDefaultQuadrant ?? localEtrQuadrantsGeoJson.features[0],
 );
 
-function InitialQuadrantViewport() {
+const toGeometryRings = (feature: EtrQuadrantFeature | undefined): number[][][] => {
+  if (!feature) {
+    return [];
+  }
+
+  if (feature.geometry.type === "Polygon") {
+    return feature.geometry.coordinates as number[][][];
+  }
+
+  return (feature.geometry.coordinates as number[][][][]).flatMap((polygon) => polygon);
+};
+
+const getFeatureBounds = (
+  feature: EtrQuadrantFeature | undefined,
+): [[number, number], [number, number]] | null => {
+  const points = toGeometryRings(feature).flat();
+  if (points.length === 0) {
+    return null;
+  }
+
+  const longitudes = points.map(([lon]) => lon);
+  const latitudes = points.map(([, lat]) => lat);
+  return [
+    [Math.min(...latitudes), Math.min(...longitudes)],
+    [Math.max(...latitudes), Math.max(...longitudes)],
+  ];
+};
+
+function QuadrantViewport({
+  bounds,
+}: {
+  bounds: [[number, number], [number, number]];
+}) {
   const map = useMap();
-  const hasInitialized = useRef(false);
 
   useEffect(() => {
-    if (hasInitialized.current) {
-      return;
-    }
-
-    hasInitialized.current = true;
-    map.fitBounds(copiapoBounds, { padding: [12, 12] });
-    map.setZoom(10);
-  }, [map]);
+    map.fitBounds(bounds, { maxZoom: 12, padding: [36, 36] });
+  }, [bounds, map]);
 
   return null;
 }
@@ -98,6 +127,14 @@ export function EtrQuadrantMap({
   onSelect,
 }: EtrQuadrantMapProps) {
   const etrQuadrantFeatures = geoJson.features as EtrQuadrantFeature[];
+  const selectedFeature =
+    etrQuadrantFeatures.find(
+      (feature) => selectedQuadrantId === String(getQuadrantId(feature)),
+    ) ?? etrQuadrantFeatures[0];
+  const selectedBounds = useMemo(
+    () => getFeatureBounds(selectedFeature) ?? copiapoBounds,
+    [selectedFeature],
+  );
 
   useEffect(() => {
     if (selectedQuadrantId.trim().length > 0) {
@@ -118,7 +155,7 @@ export function EtrQuadrantMap({
           zoomControl
         >
           <ModifierWheelZoom />
-          <InitialQuadrantViewport />
+          <QuadrantViewport bounds={selectedBounds} />
           <LayersControl position="topright">
             <LayersControl.BaseLayer name="OpenStreetMap">
               <TileLayer

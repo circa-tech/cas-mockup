@@ -1366,7 +1366,7 @@ function EtrDownloadsTab({
     defaultEtrQuadrantSelection,
   );
   const [selectedVariable, setSelectedVariable] = useState<EtrDownloadVariable>("ETR");
-  const [selectedFormat, setSelectedFormat] = useState<EtrDownloadFormat>("TIFF");
+  const [selectedFormat, setSelectedFormat] = useState<EtrDownloadFormat>("JPEG");
   const [selectedYear, setSelectedYear] = useState(2025);
   const [selectedMonth, setSelectedMonth] = useState(1);
   const [selectedDay, setSelectedDay] = useState(1);
@@ -1590,23 +1590,23 @@ function EtrDownloadsTab({
   ]);
 
   useEffect(() => {
-    if (!years.includes(selectedYear)) {
-      const fallbackYear = years[years.length - 1] ?? 2025;
-      setSelectedYear(fallbackYear);
+    const latestYear = years.length > 0 ? Math.max(...years) : 2025;
+    if (selectedYear !== latestYear) {
+      setSelectedYear(latestYear);
     }
   }, [selectedYear, years]);
 
   useEffect(() => {
-    if (!months.includes(selectedMonth)) {
-      const fallbackMonth = months[0] ?? 1;
-      setSelectedMonth(fallbackMonth);
+    const latestMonth = months.length > 0 ? Math.max(...months) : 1;
+    if (selectedMonth !== latestMonth) {
+      setSelectedMonth(latestMonth);
     }
   }, [months, selectedMonth]);
 
   useEffect(() => {
-    if (!days.includes(selectedDay)) {
-      const fallbackDay = days[0] ?? 1;
-      setSelectedDay(fallbackDay);
+    const latestDay = days.length > 0 ? Math.max(...days) : 1;
+    if (selectedDay !== latestDay) {
+      setSelectedDay(latestDay);
     }
   }, [days, selectedDay]);
 
