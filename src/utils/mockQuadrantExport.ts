@@ -16,7 +16,7 @@ const targetGroundResolutionMeters = 10;
 const minRequestDimensionPx = 320;
 const maxRequestDimensionPx = 900;
 const maxOutputDimensionPx = 900;
-const jpegExportQuality = 0.86;
+const overlayOpacity = 0.72;
 
 type QuadrantGeometry = {
   coordinates: number[][][][] | number[][][];
@@ -267,11 +267,13 @@ const downloadBlob = (blob: Blob, filename: string) => {
   URL.revokeObjectURL(url);
 };
 
-export async function downloadMockQuadrantJpeg({
+export async function downloadMockQuadrantPng({
   filename,
+  overlayUrl,
   quadrantId,
 }: {
   filename: string;
+  overlayUrl?: string;
   quadrantId: string;
 }) {
   const numericId = Number.parseInt(quadrantId, 10);
@@ -286,6 +288,7 @@ export async function downloadMockQuadrantJpeg({
   const dynamicExportUrl = buildEsriExportImageUrl(paddedBounds);
 
   let image: HTMLImageElement;
+  let overlayImage: HTMLImageElement | null = null;
   let pixelProjectionBounds = paddedBounds;
 
   try {
@@ -293,6 +296,10 @@ export async function downloadMockQuadrantJpeg({
   } catch {
     image = await loadImageCached(staticSatelliteImagePath);
     pixelProjectionBounds = valleyBounds;
+  }
+
+  if (overlayUrl) {
+    overlayImage = await loadImageCached(overlayUrl);
   }
 
   const sourceWidth = image.naturalWidth || image.width;
@@ -335,6 +342,18 @@ export async function downloadMockQuadrantJpeg({
   traceRings(context, pixelRings);
   context.clip("evenodd");
   context.drawImage(image, 0, 0, sourceWidth, sourceHeight);
+
+  if (overlayImage) {
+    context.globalAlpha = overlayOpacity;
+    context.drawImage(
+      overlayImage,
+      minX,
+      minY,
+      Math.max(1, maxX - minX),
+      Math.max(1, maxY - minY),
+    );
+    context.globalAlpha = 1;
+  }
   context.restore();
 
   context.save();
@@ -346,6 +365,6 @@ export async function downloadMockQuadrantJpeg({
   context.stroke();
   context.restore();
 
-  const blob = await toBlob(canvas, "image/jpeg", jpegExportQuality);
+  const blob = await toBlob(canvas, "image/png");
   downloadBlob(blob, filename);
 }
