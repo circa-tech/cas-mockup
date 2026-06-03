@@ -2159,6 +2159,16 @@ body {
   white-space: nowrap;
 }
 
+.auth-role-dot {
+  border-radius: 999px;
+  background: hsl(152 45% 91%);
+  color: hsl(151 48% 26%);
+  font-size: 10px;
+  font-weight: 760;
+  padding: 2px 6px;
+  text-transform: uppercase;
+}
+
 .auth-action-btn {
   border: 1px solid hsl(210 18% 86%);
   border-radius: 999px;
@@ -2187,6 +2197,184 @@ body {
   color: hsl(205 62% 34%);
   border-color: hsl(205 42% 76%);
   background: hsl(205 80% 97%);
+}
+
+.admin-view {
+  gap: 16px;
+}
+
+.admin-summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.admin-summary {
+  min-width: 150px;
+  border: 1px solid hsl(210 18% 86%);
+  border-radius: 8px;
+  background: #fff;
+  padding: 12px 14px;
+  box-shadow: 0 6px 14px rgba(16, 44, 92, 0.08);
+}
+
+.admin-summary span {
+  display: block;
+  color: hsl(215 14% 48%);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.admin-summary strong {
+  display: block;
+  margin-top: 4px;
+  color: hsl(216 32% 22%);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.admin-inline-error {
+  border: 1px solid hsl(5 72% 82%);
+  border-radius: 8px;
+  background: hsl(5 80% 97%);
+  color: hsl(5 62% 34%);
+  font-size: 13px;
+  font-weight: 650;
+  padding: 10px 12px;
+}
+
+.admin-users-table-wrap {
+  overflow-x: auto;
+}
+
+.admin-users-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 620px;
+}
+
+.admin-users-table thead {
+  background: hsl(210 30% 97%);
+}
+
+.admin-users-table th,
+.admin-users-table td {
+  border-bottom: 1px solid hsl(210 18% 90%);
+  padding: 12px 14px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.admin-users-table th {
+  color: hsl(215 18% 40%);
+  font-size: 11px;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.admin-users-table tr.is-current-user {
+  background: hsl(205 80% 98%);
+}
+
+.admin-user-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 210px;
+}
+
+.admin-user-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: hsl(205 70% 94%);
+  color: hsl(205 64% 34%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.admin-user-icon svg {
+  display: block;
+}
+
+.admin-user-cell strong,
+.admin-user-cell span {
+  display: block;
+}
+
+.admin-user-cell strong {
+  color: hsl(216 28% 22%);
+  font-size: 13px;
+}
+
+.admin-user-cell span {
+  color: hsl(215 14% 49%);
+  font-size: 12px;
+}
+
+.admin-role-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-role-control select {
+  min-width: 116px;
+  border: 1px solid hsl(210 18% 83%);
+  border-radius: 8px;
+  background: #fff;
+  color: hsl(216 28% 24%);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  padding: 7px 9px;
+}
+
+.admin-saving {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: hsl(205 62% 34%);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.admin-current-user {
+  border-radius: 999px;
+  background: hsl(205 70% 94%);
+  color: hsl(205 62% 30%);
+  font-size: 11px;
+  font-weight: 760;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.admin-permission-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-permission-list span,
+.admin-empty-permissions {
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
+.admin-permission-list span {
+  background: hsl(152 45% 91%);
+  color: hsl(151 48% 26%);
+}
+
+.admin-empty-permissions {
+  background: hsl(210 20% 94%);
+  color: hsl(215 13% 46%);
 }
 
 .login-shell {
