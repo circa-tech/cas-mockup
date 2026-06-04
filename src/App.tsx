@@ -101,6 +101,7 @@ import {
   fetchEtrCult,
   fetchEtrDataCuad,
   fetchEtrDownCuad,
+  fetchEtrDownCuadImageBlob,
   fetchEtrPoly,
   fetchEtrQuadrantMap,
   fetchEtrSectorMap,
@@ -122,7 +123,7 @@ import {
   toModisSnowLineSeries,
 } from "./services/modisSnowApi";
 import type { ModisSnowBasinsGeoJson } from "./services/modisSnowApi";
-import { downloadMockQuadrantJpeg } from "./utils/mockQuadrantExport";
+import { downloadMockQuadrantPng } from "./utils/mockQuadrantExport";
 
 const monthLabels = [
   "Jan",
@@ -1366,7 +1367,7 @@ function EtrDownloadsTab({
     defaultEtrQuadrantSelection,
   );
   const [selectedVariable, setSelectedVariable] = useState<EtrDownloadVariable>("ETR");
-  const [selectedFormat, setSelectedFormat] = useState<EtrDownloadFormat>("JPEG");
+  const [selectedFormat, setSelectedFormat] = useState<EtrDownloadFormat>("PNG");
   const [selectedYear, setSelectedYear] = useState(2025);
   const [selectedMonth, setSelectedMonth] = useState(1);
   const [selectedDay, setSelectedDay] = useState(1);
@@ -1591,21 +1592,21 @@ function EtrDownloadsTab({
 
   useEffect(() => {
     const latestYear = years.length > 0 ? Math.max(...years) : 2025;
-    if (selectedYear !== latestYear) {
+    if (!years.includes(selectedYear)) {
       setSelectedYear(latestYear);
     }
   }, [selectedYear, years]);
 
   useEffect(() => {
     const latestMonth = months.length > 0 ? Math.max(...months) : 1;
-    if (selectedMonth !== latestMonth) {
+    if (!months.includes(selectedMonth)) {
       setSelectedMonth(latestMonth);
     }
   }, [months, selectedMonth]);
 
   useEffect(() => {
     const latestDay = days.length > 0 ? Math.max(...days) : 1;
-    if (selectedDay !== latestDay) {
+    if (!days.includes(selectedDay)) {
       setSelectedDay(latestDay);
     }
   }, [days, selectedDay]);
@@ -1635,9 +1636,39 @@ function EtrDownloadsTab({
       year: selectedYear,
     });
     try {
-      if (authIdToken && selectedFormat === "TIFF") {
+      if (selectedFormat === "PNG") {
+        let overlayUrl: string | undefined;
+        if (authIdToken) {
+          const overlayBlob = await fetchEtrDownCuadImageBlob(authIdToken, {
+            day: selectedDay,
+            format: selectedFormat,
+            month: selectedMonth,
+            quadrantId: selectedQuadrant.quadrantId,
+            variable: selectedVariable,
+            year: selectedYear,
+          });
+          overlayUrl = URL.createObjectURL(overlayBlob);
+        }
+
+        try {
+          await downloadMockQuadrantPng({
+            filename,
+            overlayUrl,
+            quadrantId: selectedQuadrant.quadrantId,
+          });
+        } finally {
+          if (overlayUrl) {
+            URL.revokeObjectURL(overlayUrl);
+          }
+        }
+        setDownloadFeedback(`Exportacion visual solicitada: ${filename}`);
+        return;
+      }
+
+      if (authIdToken) {
         const response = await fetchEtrDownCuad(authIdToken, {
           day: selectedDay,
+          format: selectedFormat,
           month: selectedMonth,
           quadrantId: selectedQuadrant.quadrantId,
           variable: selectedVariable,
@@ -1651,20 +1682,11 @@ function EtrDownloadsTab({
         return;
       }
 
-      if (selectedFormat === "JPEG") {
-        await downloadMockQuadrantJpeg({
-          filename,
-          quadrantId: selectedQuadrant.quadrantId,
-        });
-        setDownloadFeedback(`Exportación visual simulada: ${filename}`);
-        return;
-      }
-
       setDownloadFeedback(
         `Solicitud TIFF simulada: ${filename}. Esta descarga se habilitará con un servicio raster real.`,
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Error inesperado al exportar JPEG.";
+      const message = error instanceof Error ? error.message : "Error inesperado al exportar PNG.";
       setDownloadFeedback(message);
     } finally {
       setIsDownloading(false);
@@ -1814,9 +1836,8 @@ function EtrDownloadsTab({
                 {String(selectedDay).padStart(2, "0")}
               </p>
               <p className="etr-download-note">
-                Nota mockup: la descarga JPEG usa un recorte satelital por cuadrante,
-                con resolución objetivo cercana a 10 m/píxel para la demo. La descarga
-                TIFF se habilitará con un servicio raster real en la app final.
+                Nota mockup: la descarga PNG compone un recorte satelital por cuadrante
+                con la capa raster disponible. TIFF usa el servicio raster real.
               </p>
               {downloadFeedback && (
                 <p className="etr-download-feedback">{downloadFeedback}</p>
@@ -3181,7 +3202,6 @@ export default function App() {
     operator: "Operador CAS",
     note: "",
   });
-
   const dashboardNow = useMemo(() => {
     const seed = authIdToken ? Date.now() : new Date(mockNowIso).getTime();
     const manualTimes = manualEntries.map((entry) =>

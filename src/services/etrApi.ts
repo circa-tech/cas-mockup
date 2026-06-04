@@ -1,6 +1,6 @@
 import { BarGroup } from "../components/SimpleBarChart";
 import { LineSeries } from "../components/SimpleLineChart";
-import { chartPalette, EtrDownloadVariable } from "../data/mockupData";
+import { chartPalette, EtrDownloadFormat, EtrDownloadVariable } from "../data/mockupData";
 
 export type GeoJsonFeatureCollection = {
   type: "FeatureCollection";
@@ -146,9 +146,11 @@ export const fetchEtrDownCuad = (
     month,
     quadrantId,
     variable,
+    format,
     year,
   }: {
     day: number;
+    format: EtrDownloadFormat;
     month: number;
     quadrantId: string;
     variable: EtrDownloadVariable;
@@ -161,7 +163,51 @@ export const fetchEtrDownCuad = (
     ano: year,
     mes: month,
     dia: day,
+    format,
   });
+
+export const fetchEtrDownCuadImageBlob = async (
+  idToken: string,
+  {
+    day,
+    month,
+    quadrantId,
+    variable,
+    format,
+    year,
+  }: {
+    day: number;
+    format: EtrDownloadFormat;
+    month: number;
+    quadrantId: string;
+    variable: EtrDownloadVariable;
+    year: number;
+  },
+) => {
+  if (!apiBaseUrl) {
+    throw new Error("Missing VITE_API_BASE_URL");
+  }
+
+  const url = new URL(`${apiBaseUrl}/api/v1/et-lat/down-cuad-image`, window.location.origin);
+  url.searchParams.set("cuadrante_id", String(Number(quadrantId)));
+  url.searchParams.set("variable", variable);
+  url.searchParams.set("ano", String(year));
+  url.searchParams.set("mes", String(month));
+  url.searchParams.set("dia", String(day));
+  url.searchParams.set("format", format);
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`ET-LAT down-cuad-image request failed: ${response.status}`);
+  }
+
+  return response.blob();
+};
 
 export const toEtrBarGroups = (points: EtrCultPoint[]): BarGroup[] =>
   points.map((point) => ({
