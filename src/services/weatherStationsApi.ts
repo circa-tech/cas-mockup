@@ -1,4 +1,4 @@
-import { MeteoStationPoint, meteoStationPoints } from "../data/mockupData";
+import { MeteoStationPoint } from "../data/mockupData";
 
 type WeatherStationSnapshot = {
   etag?: string | null;
@@ -9,7 +9,7 @@ type WeatherStationSnapshot = {
 type WeatherStationApiPoint = {
   humidityValue?: number | null;
   id: string;
-  lastUpdate: string;
+  lastUpdate?: string | null;
   lat: number;
   lng: number;
   name: string;
@@ -18,6 +18,14 @@ type WeatherStationApiPoint = {
   status?: "fresh" | "warning" | "stale";
   temperatureValue?: number | null;
   windValue?: number | null;
+};
+
+type CompleteWeatherStationApiPoint = WeatherStationApiPoint & {
+  humidityValue: number;
+  lastUpdate: string;
+  pressureValue: number;
+  temperatureValue: number;
+  windValue: number;
 };
 
 const snapshotCacheKey = "cas_weather_stations_snapshot";
@@ -64,9 +72,37 @@ export const fetchWeatherStationPoints = async (
   return mapSnapshotToStations(snapshot);
 };
 
+const requireNumber = (
+  value: number | null | undefined,
+  fieldName: string,
+  stationId: string,
+) => {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    throw new Error(`Weather station ${stationId} is missing ${fieldName}`);
+  }
+
+  return value;
+};
+
+const hasCompleteStationData = (
+  station: WeatherStationApiPoint,
+): station is CompleteWeatherStationApiPoint =>
+  typeof station.lastUpdate === "string" &&
+  station.lastUpdate.trim().length > 0 &&
+  typeof station.temperatureValue === "number" &&
+  !Number.isNaN(station.temperatureValue) &&
+  typeof station.humidityValue === "number" &&
+  !Number.isNaN(station.humidityValue) &&
+  typeof station.windValue === "number" &&
+  !Number.isNaN(station.windValue) &&
+  typeof station.pressureValue === "number" &&
+  !Number.isNaN(station.pressureValue);
+
 const mapSnapshotToStations = (snapshot: WeatherStationSnapshot): MeteoStationPoint[] =>
-  snapshot.stations.map((station, index) => {
-    const fallback = meteoStationPoints[index] ?? meteoStationPoints[0];
+  snapshot.stations.flatMap((station) => {
+    if (!hasCompleteStationData(station)) {
+      return [];
+    }
 
     return {
       id: station.id,
@@ -76,10 +112,10 @@ const mapSnapshotToStations = (snapshot: WeatherStationSnapshot): MeteoStationPo
       lastUpdate: station.lastUpdate,
       sourceType: "telemetry",
       status: station.status ?? "stale",
-      temperatureValue: station.temperatureValue ?? fallback.temperatureValue,
-      humidityValue: station.humidityValue ?? fallback.humidityValue,
-      windValue: station.windValue ?? fallback.windValue,
-      pressureValue: station.pressureValue ?? fallback.pressureValue,
+      temperatureValue: requireNumber(station.temperatureValue, "temperatureValue", station.id),
+      humidityValue: requireNumber(station.humidityValue, "humidityValue", station.id),
+      windValue: requireNumber(station.windValue, "windValue", station.id),
+      pressureValue: requireNumber(station.pressureValue, "pressureValue", station.id),
     };
   });
 

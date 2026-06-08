@@ -743,6 +743,7 @@ export type ComputeOverviewCardsInput = {
   etrLastDate: string;
   etrLastUpdate: string;
   etrMeanValue: number;
+  meteoStatus?: "idle" | "loading" | "ready" | "error";
   now: Date;
   snowLastUpdate: string;
   snowSeries: LineSeries[];
@@ -781,6 +782,10 @@ export const getFreshnessStatus = (
 };
 
 const getNetworkStatus = (items: { status: GeoPointStatus }[]): GeoPointStatus => {
+  if (items.length === 0) {
+    return "stale";
+  }
+
   if (items.some((item) => item.status === "stale")) {
     return "stale";
   }
@@ -807,6 +812,7 @@ export const computeOverviewCards = ({
   etrLastDate,
   etrLastUpdate,
   etrMeanValue,
+  meteoStatus,
   now,
   snowLastUpdate,
   snowSeries,
@@ -814,17 +820,26 @@ export const computeOverviewCards = ({
   staleThresholdDays = staleThresholdDaysDefault,
   wells,
 }: ComputeOverviewCardsInput): OverviewCard[] => {
-  const snowCurrent = snowSeries[0]?.points[snowSeries[0].points.length - 1]?.value ?? 0;
-  const snowPrevious = snowSeries[1]?.points[snowSeries[1].points.length - 1]?.value ?? 0;
+  const snowCurrentPoint = snowSeries[0]?.points[snowSeries[0].points.length - 1];
+  const snowPreviousPoint = snowSeries[1]?.points[snowSeries[1].points.length - 1];
+  const hasSnowData =
+    snowCurrentPoint?.value !== undefined && snowPreviousPoint?.value !== undefined;
+  const snowCurrent = snowCurrentPoint?.value ?? 0;
+  const snowPrevious = snowPreviousPoint?.value ?? 0;
   const snowDelta = snowCurrent - snowPrevious;
-  const stationsMeanTemp =
-    stations.length > 0
-      ? stations.reduce((total, station) => total + station.temperatureValue, 0) / stations.length
-      : 0;
+  const hasMeteoData = stations.length > 0;
+  const meteoIsLoading = meteoStatus === "loading";
+  const stationsMeanTemp = hasMeteoData
+    ? stations.reduce((total, station) => total + station.temperatureValue, 0) / stations.length
+    : 0;
   const wellsOnTime = wells.filter((well) => well.status !== "stale").length;
   const wellsStale = wells.filter((well) => well.status === "stale").length;
   const stationsOnTime = stations.filter((station) => station.status !== "stale").length;
-  const stationsStale = stations.filter((station) => station.status === "stale").length;
+  const stationsStale = hasMeteoData
+    ? stations.filter((station) => station.status === "stale").length
+    : meteoIsLoading
+      ? 0
+      : 0;
 
   return [
     {
@@ -840,8 +855,10 @@ export const computeOverviewCards = ({
       id: "overview-snow",
       title: "Snow",
       targetView: "snow",
-      primaryKpi: `FSCA área ${snowCurrent.toFixed(0)}%`,
-      secondaryKpi: `Vs año pasado ${snowDelta >= 0 ? "+" : ""}${snowDelta.toFixed(0)} pp`,
+      primaryKpi: hasSnowData ? `FSCA área ${snowCurrent.toFixed(0)}%` : "FSCA área Sin datos",
+      secondaryKpi: hasSnowData
+        ? `Vs año pasado ${snowDelta >= 0 ? "+" : ""}${snowDelta.toFixed(0)} pp`
+        : "Sin datos disponibles",
       status: getFreshnessStatus(snowLastUpdate, now, staleThresholdDays),
       lastUpdate: snowLastUpdate,
     },
@@ -860,8 +877,8 @@ export const computeOverviewCards = ({
       targetView: "meteo",
       primaryKpi: `Temp media red ${stationsMeanTemp.toFixed(1)} °C`,
       secondaryKpi: `${stationsStale} sin reporte > 48 h`,
-      status: getNetworkStatus(stations),
-      lastUpdate: getLatestUpdate(stations),
+      status: hasMeteoData ? getNetworkStatus(stations) : "stale",
+      lastUpdate: hasMeteoData ? getLatestUpdate(stations) : "Sin datos",
     },
   ];
 };

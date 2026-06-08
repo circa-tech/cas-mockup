@@ -293,6 +293,14 @@ const toChartDateLabel = (date: string) => {
   return `${month} ${day}`;
 };
 
+const toSummaryUpdateIso = (date: string, fallback: string) => {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return `${date}T00:00:00-03:00`;
+  }
+
+  return fallback;
+};
+
 const formatDateTime = (value: string) => {
   const parsed = new Date(value);
 
@@ -2417,30 +2425,36 @@ function SnowView({
 
 function OverviewView({
   cards,
+  etrSeries,
+  meteoStatus,
   onOpenView,
+  snowSeries,
   stations,
   wells,
 }: {
   cards: ReturnType<typeof computeOverviewCards>;
+  etrSeries: LineSeries[];
+  meteoStatus: RemoteLoadStatus;
   onOpenView: (viewId: Exclude<ViewId, "overview">) => void;
+  snowSeries: LineSeries[];
   stations: MeteoStationPoint[];
   wells: WellMapPoint[];
 }) {
-  const etrMiniLines = etrOverviewSeasonSeries.map((line) => ({
+  const etrMiniLines = etrSeries.map((line) => ({
     color: line.color,
     label: line.label,
     values: line.points.slice(-12).map((point) => point.value),
   }));
-  const etrMiniLabels = etrOverviewSeasonSeries[0]?.points
+  const etrMiniLabels = etrSeries[0]?.points
     .slice(-12)
     .map((point) => point.label) ?? [];
 
-  const snowMiniLines = snowOverviewSeries.map((line) => ({
+  const snowMiniLines = snowSeries.map((line) => ({
     color: line.color,
     label: line.label,
     values: line.points.map((point) => point.value),
   }));
-  const snowMiniLabels = snowOverviewSeries[0]?.points.map((point) => point.label) ?? [];
+  const snowMiniLabels = snowSeries[0]?.points.map((point) => point.label) ?? [];
 
   const recentWells = [...wells]
     .sort((a, b) => new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime())
@@ -2473,6 +2487,8 @@ function OverviewView({
       <div className="overview-grid">
         {cards.map((card) => {
           const isNetworkCard = card.targetView === "wells" || card.targetView === "meteo";
+          const meteoHasNoData = card.targetView === "meteo" && stations.length === 0;
+          const meteoIsLoading = meteoHasNoData && meteoStatus === "loading";
           const cardStatusLabel = isNetworkCard
             ? card.status === "stale"
               ? "Red con alertas"
@@ -2485,9 +2501,18 @@ function OverviewView({
             card.targetView === "wells"
               ? `${wells.length} pozos monitoreados`
               : card.targetView === "meteo"
-                ? `${stations.length} estaciones monitoreadas`
+                ? meteoIsLoading
+                  ? "Cargando datos reales"
+                  : meteoHasNoData
+                    ? "Sin datos disponibles"
+                    : `${stations.length} estaciones monitoreadas`
                 : card.secondaryKpi;
-
+          const cardPrimaryKpi =
+            card.targetView === "meteo" && meteoHasNoData
+              ? meteoIsLoading
+                ? "Temp media red Cargando..."
+                : "Temp media red Sin datos"
+              : card.primaryKpi;
           return (
             <button
               key={card.id}
@@ -2501,7 +2526,7 @@ function OverviewView({
                   {cardStatusLabel}
                 </span>
               </div>
-              <strong>{card.primaryKpi}</strong>
+              <strong>{cardPrimaryKpi}</strong>
               <p>{cardSecondaryKpi}</p>
               {card.targetView === "etr" && (
                 <OverviewMiniLine labels={etrMiniLabels} lines={etrMiniLines} unit="mm" />
@@ -2532,7 +2557,7 @@ function OverviewView({
                   ))}
                 </div>
               )}
-              {card.targetView === "meteo" && (
+              {card.targetView === "meteo" && !meteoHasNoData && (
                 <div className="overview-mini-table">
                   <div className="overview-mini-table-head">
                     <span>Estación</span>
@@ -2898,16 +2923,48 @@ function WellsView({
 }
 
 function MeteoView({
+  isLoggedIn,
   now,
   onSelectStation,
   selectedStationId,
   stations,
+  status,
 }: {
+  isLoggedIn: boolean;
   now: Date;
   onSelectStation: (stationId: string) => void;
   selectedStationId: string;
   stations: typeof meteoStationPoints;
+  status: RemoteLoadStatus;
 }) {
+  if (isLoggedIn && (status === "loading" || status === "error" || stations.length === 0)) {
+    const isLoading = status === "loading";
+
+    return (
+      <div className="view-stack">
+        <div className="view-intro">
+          <h2>Estaciones meteorolÃ³gicas</h2>
+          <p>Tres estaciones con datos individuales y estado de actualizaciÃ³n por punto.</p>
+        </div>
+
+        <Panel
+          title={isLoading ? "Cargando estaciones" : "Meteo sin datos"}
+          subtitle="Lectura del snapshot meteorologico"
+        >
+          <RemoteDataState
+            message={
+              isLoading
+                ? "Consultando datos reales de estaciones meteorologicas."
+                : "La API no entrego estaciones meteorologicas disponibles."
+            }
+            title={isLoading ? "Cargando datos reales" : "Sin datos disponibles"}
+            tone={isLoading ? "loading" : "error"}
+          />
+        </Panel>
+      </div>
+    );
+  }
+
   const selectedStation = stations.find((station) => station.id === selectedStationId) ?? stations[0];
 
   return (
@@ -3190,10 +3247,15 @@ export default function App() {
   const [manualEntries, setManualEntries] = useState<ManualWellEntry[]>([]);
   const [wellState, setWellState] = useState(wellMapPoints);
   const [stationState, setStationState] = useState<MeteoStationPoint[]>(meteoStationPoints);
+  const [meteoStatus, setMeteoStatus] = useState<RemoteLoadStatus>("idle");
   const [etrOverviewSummary, setEtrOverviewSummary] = useState({
     lastDate: "2025-10-09",
     meanValue: 1.2,
   });
+  const [etrOverviewSeries, setEtrOverviewSeries] =
+    useState<LineSeries[]>(etrOverviewSeasonSeries);
+  const [snowOverviewSeriesForSummary, setSnowOverviewSeriesForSummary] =
+    useState<LineSeries[]>(snowOverviewSeries);
   const [manualForm, setManualForm] = useState<ManualFormState>({
     wellId: defaultManualWellId,
     date: "2026-03-22",
@@ -3209,6 +3271,7 @@ export default function App() {
     );
     return new Date(Math.max(seed, ...manualTimes));
   }, [authIdToken, manualEntries]);
+  const hasAuthenticatedApiSession = isLoggedIn && Boolean(authIdToken);
 
   const wells = useMemo(
     () =>
@@ -3251,64 +3314,132 @@ export default function App() {
   useEffect(() => {
     let isMounted = true;
 
-    if (!isLoggedIn || !authIdToken) {
+    if (!hasAuthenticatedApiSession) {
+      setMeteoStatus("idle");
+      setStationState(meteoStationPoints);
       return () => {
         isMounted = false;
       };
     }
 
-    fetchWeatherStationPoints(authIdToken)
+    const idToken = authIdToken;
+    if (!idToken) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setMeteoStatus("loading");
+    setStationState([]);
+
+    fetchWeatherStationPoints(idToken)
       .then((nextStations) => {
         if (isMounted) {
           setStationState(nextStations);
+          setMeteoStatus(nextStations.length > 0 ? "ready" : "error");
         }
       })
       .catch(() => {
         if (isMounted) {
-          setStationState(meteoStationPoints);
+          setStationState([]);
+          setMeteoStatus("error");
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [authIdToken, isLoggedIn]);
+  }, [authIdToken, hasAuthenticatedApiSession]);
 
   useEffect(() => {
     let isMounted = true;
 
-    if (!isLoggedIn || !authIdToken) {
+    if (!hasAuthenticatedApiSession) {
       setEtrOverviewSummary({
         lastDate: "2025-10-09",
         meanValue: 1.2,
       });
+      setEtrOverviewSeries(etrOverviewSeasonSeries);
       return () => {
         isMounted = false;
       };
     }
 
-    fetchEtrStdAe(authIdToken)
-      .then((summary) => {
+    const idToken = authIdToken;
+    if (!idToken) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    Promise.allSettled([fetchEtrStdAe(idToken), fetchEtrSerieEt(idToken)])
+      .then(([summaryResult, serieResult]) => {
         if (isMounted) {
-          setEtrOverviewSummary({
-            lastDate: summary.fecha,
-            meanValue: summary.etr ?? 0,
-          });
+          if (summaryResult.status === "fulfilled") {
+            setEtrOverviewSummary({
+              lastDate: summaryResult.value.fecha,
+              meanValue: summaryResult.value.etr ?? 0,
+            });
+          } else {
+            setEtrOverviewSummary({
+              lastDate: "Sin datos",
+              meanValue: 0,
+            });
+          }
+
+          setEtrOverviewSeries(
+            serieResult.status === "fulfilled" ? toEtrEtmaxSeries(serieResult.value) : [],
+          );
         }
       })
       .catch(() => {
         if (isMounted) {
           setEtrOverviewSummary({
-            lastDate: "2025-10-09",
-            meanValue: 1.2,
+            lastDate: "Sin datos",
+            meanValue: 0,
           });
+          setEtrOverviewSeries([]);
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [authIdToken, isLoggedIn]);
+  }, [authIdToken, hasAuthenticatedApiSession]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!hasAuthenticatedApiSession) {
+      setSnowOverviewSeriesForSummary(snowOverviewSeries);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const idToken = authIdToken;
+    if (!idToken) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    fetchModisSnowCoverageSeries(idToken)
+      .then((coverage) => {
+        if (isMounted) {
+          setSnowOverviewSeriesForSummary(toModisSnowLineSeries(coverage.ae ?? []));
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setSnowOverviewSeriesForSummary([]);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authIdToken, hasAuthenticatedApiSession]);
 
   useEffect(() => {
     if (!wells.some((well) => well.id === selectedWellId)) {
@@ -3317,6 +3448,10 @@ export default function App() {
   }, [selectedWellId, wells]);
 
   useEffect(() => {
+    if (stations.length === 0) {
+      return;
+    }
+
     if (!stations.some((station) => station.id === selectedStationId)) {
       setSelectedStationId(stations[0].id);
     }
@@ -3339,18 +3474,35 @@ export default function App() {
   }, [authUserName]);
 
   const overviewCards = useMemo(
-    () =>
-      computeOverviewCards({
+    () => {
+      const latestSnowDate = snowOverviewSeriesForSummary[0]?.points.at(-1)?.label;
+
+      return computeOverviewCards({
         etrLastDate: etrOverviewSummary.lastDate,
-        etrLastUpdate: etrLastUpdateIso,
+        etrLastUpdate: hasAuthenticatedApiSession
+          ? toSummaryUpdateIso(etrOverviewSummary.lastDate, etrLastUpdateIso)
+          : etrLastUpdateIso,
         etrMeanValue: etrOverviewSummary.meanValue,
+        meteoStatus,
         now: dashboardNow,
-        snowLastUpdate: snowLastUpdateIso,
-        snowSeries: snowOverviewSeries,
+        snowLastUpdate:
+          hasAuthenticatedApiSession && latestSnowDate
+            ? toSummaryUpdateIso(latestSnowDate, snowLastUpdateIso)
+            : snowLastUpdateIso,
+        snowSeries: snowOverviewSeriesForSummary,
         stations,
         wells,
-      }),
-    [dashboardNow, etrOverviewSummary, stations, wells],
+      });
+    },
+    [
+      dashboardNow,
+      etrOverviewSummary,
+      hasAuthenticatedApiSession,
+      meteoStatus,
+      snowOverviewSeriesForSummary,
+      stations,
+      wells,
+    ],
   );
 
   const handleManualSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -3420,6 +3572,7 @@ export default function App() {
     setIsLoggedIn(false);
     setAuthIdToken(null);
     setStationState(meteoStationPoints);
+    setMeteoStatus("idle");
     setAppScreen("dashboard");
   };
 
@@ -3501,16 +3654,19 @@ export default function App() {
         {activeView === "overview" && (
           <OverviewView
             cards={overviewCards}
+            etrSeries={etrOverviewSeries}
+            meteoStatus={meteoStatus}
             onOpenView={(viewId) => setActiveView(viewId)}
+            snowSeries={snowOverviewSeriesForSummary}
             stations={stations}
             wells={wells}
           />
         )}
         {activeView === "etr" && (
-          <EtrView authIdToken={authIdToken} isLoggedIn={isLoggedIn} />
+          <EtrView authIdToken={authIdToken} isLoggedIn={hasAuthenticatedApiSession} />
         )}
         {activeView === "snow" && (
-          <SnowView authIdToken={authIdToken} isLoggedIn={isLoggedIn} />
+          <SnowView authIdToken={authIdToken} isLoggedIn={hasAuthenticatedApiSession} />
         )}
         {activeView === "wells" && (
           <WellsView
@@ -3526,10 +3682,12 @@ export default function App() {
         )}
         {activeView === "meteo" && (
           <MeteoView
+            isLoggedIn={hasAuthenticatedApiSession}
             now={dashboardNow}
             onSelectStation={setSelectedStationId}
             selectedStationId={selectedStationId}
             stations={stations}
+            status={meteoStatus}
           />
         )}
       </main>
