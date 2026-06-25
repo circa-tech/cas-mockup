@@ -10,6 +10,8 @@ import {
   LogOut,
   MapPinned,
   Radio,
+  Save,
+  ShieldCheck,
   Snowflake,
   Sun,
   Thermometer,
@@ -98,6 +100,13 @@ import {
   subscribeToAuthSession,
 } from "./services/firebaseAuth";
 import {
+  fetchAdminRoles,
+  fetchAdminUsers,
+  updateAdminUserRole,
+  type AdminRole,
+  type AdminUser,
+} from "./services/adminApi";
+import {
   fetchEtrCult,
   fetchEtrDataCuad,
   fetchEtrDownCuad,
@@ -156,6 +165,7 @@ const navIconMap = {
   snow: Snowflake,
   wells: Waves,
   meteo: Thermometer,
+  admin: ShieldCheck,
 } as const;
 
 type RemoteLoadStatus = "idle" | "loading" | "ready" | "error";
@@ -3808,6 +3818,199 @@ function MeteoView({
   );
 }
 
+function AdminView({
+  authIdToken,
+  currentUserUid,
+}: {
+  authIdToken: string | null;
+  currentUserUid: string | null;
+}) {
+  const [roles, setRoles] = useState<AdminRole[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [loadStatus, setLoadStatus] = useState<RemoteLoadStatus>("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [savingUid, setSavingUid] = useState<string | null>(null);
+
+  const loadAdminData = async () => {
+    if (!authIdToken) {
+      setLoadStatus("error");
+      setErrorMessage("No hay token de sesion disponible.");
+      return;
+    }
+
+    setLoadStatus("loading");
+    setErrorMessage(null);
+
+    try {
+      const [nextRoles, nextUsers] = await Promise.all([
+        fetchAdminRoles(authIdToken),
+        fetchAdminUsers(authIdToken),
+      ]);
+      setRoles(nextRoles);
+      setUsers(nextUsers);
+      setLoadStatus("ready");
+    } catch {
+      setLoadStatus("error");
+      setErrorMessage("No fue posible cargar usuarios y roles.");
+    }
+  };
+
+  useEffect(() => {
+    void loadAdminData();
+  }, [authIdToken]);
+
+  const handleRoleChange = async (uid: string, role: AdminRole["id"]) => {
+    if (!authIdToken) {
+      return;
+    }
+    if (uid === currentUserUid && role !== "general_admin") {
+      setErrorMessage("No puedes quitarte el rol General Admin a ti mismo.");
+      return;
+    }
+
+    setSavingUid(uid);
+    setErrorMessage(null);
+
+    try {
+      const updated = await updateAdminUserRole(authIdToken, uid, role);
+      setUsers((previous) =>
+        previous.map((user) =>
+          user.uid === uid
+            ? { ...user, role: updated.role, permissions: updated.permissions }
+            : user,
+        ),
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "No fue posible actualizar el rol del usuario.",
+      );
+    } finally {
+      setSavingUid(null);
+    }
+  };
+
+  return (
+    <div className="view-stack admin-view">
+      <div className="view-intro">
+        <h2>Administracion de usuarios</h2>
+        <p>Roles de acceso para la plataforma.</p>
+      </div>
+
+      {loadStatus === "loading" && (
+        <RemoteDataState
+          title="Cargando usuarios"
+          message="Consultando Firebase Auth."
+        />
+      )}
+
+      {loadStatus === "error" && (
+        <RemoteDataState
+          title="No fue posible cargar administracion"
+          message={errorMessage ?? "Revisa permisos o conexion con la API."}
+          tone="error"
+        />
+      )}
+
+      {loadStatus === "ready" && (
+        <>
+          <div className="admin-summary-row">
+            <article className="admin-summary">
+              <span>Usuarios</span>
+              <strong>{users.length}</strong>
+            </article>
+            <article className="admin-summary">
+              <span>Admins</span>
+              <strong>
+                {users.filter((user) => user.permissions.includes("users:manage")).length}
+              </strong>
+            </article>
+          </div>
+
+          {errorMessage ? (
+            <div className="admin-inline-error" role="alert">
+              {errorMessage}
+            </div>
+          ) : null}
+
+          <Panel title="Usuarios Firebase" subtitle="Cambio directo de rol por usuario">
+            <div className="admin-users-table-wrap">
+              <table className="admin-users-table">
+                <thead>
+                  <tr>
+                    <th>Usuario</th>
+                    <th>Rol</th>
+                    <th>Permisos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((user) => (
+                    <tr key={user.uid} className={user.uid === currentUserUid ? "is-current-user" : ""}>
+                      <td>
+                        <div className="admin-user-cell">
+                          <span className="admin-user-icon">
+                            <UserRound size={16} />
+                          </span>
+                          <div>
+                            <strong>{user.displayName || user.email || "Sin nombre"}</strong>
+                            <span>{user.email ?? "Sin email"}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="admin-role-control">
+                          <select
+                            aria-label={`Rol de ${user.email ?? user.uid}`}
+                            value={user.role}
+                            disabled={savingUid === user.uid || user.uid === currentUserUid}
+                            onChange={(event) =>
+                              void handleRoleChange(
+                                user.uid,
+                                event.target.value as AdminRole["id"],
+                              )
+                            }
+                          >
+                            {roles.map((role) => (
+                              <option key={role.id} value={role.id}>
+                                {role.label}
+                              </option>
+                            ))}
+                          </select>
+                          {savingUid === user.uid ? (
+                            <span className="admin-saving">
+                              <Save size={13} />
+                              Guardando
+                            </span>
+                          ) : null}
+                          {user.uid === currentUserUid ? (
+                            <span className="admin-current-user">Tu cuenta</span>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td>
+                        {user.permissions.length > 0 ? (
+                          <div className="admin-permission-list">
+                            {user.permissions.map((permission) => (
+                              <span key={permission}>{permission}</span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="admin-empty-permissions">Sin permisos admin</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        </>
+      )}
+    </div>
+  );
+}
+
 const readStoredAuthFlag = () => {
   if (typeof window === "undefined") {
     return true;
@@ -3846,7 +4049,7 @@ function LoginView({
   onEmailPasswordLogin,
 }: {
   onBack: () => void;
-  onGoogleLogin: () => void;
+  onGoogleLogin: () => Promise<void>;
   onEmailPasswordLogin: (email: string, password: string) => Promise<void>;
 }) {
   const [email, setEmail] = useState("");
@@ -3863,6 +4066,27 @@ function LoginView({
       await onEmailPasswordLogin(email, password);
     } catch {
       setErrorMessage("No fue posible iniciar sesión con email y contraseña.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleGoogleSubmit = async () => {
+    setErrorMessage(null);
+    setIsSubmitting(true);
+
+    try {
+      await onGoogleLogin();
+    } catch (error) {
+      const code =
+        typeof error === "object" && error !== null && "code" in error
+          ? String((error as { code?: unknown }).code)
+          : null;
+      setErrorMessage(
+        code
+          ? `No fue posible iniciar sesion con Google (${code}).`
+          : "No fue posible iniciar sesion con Google.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -3924,7 +4148,12 @@ function LoginView({
           <span />
         </div>
 
-        <button type="button" className="login-google-btn" onClick={onGoogleLogin}>
+        <button
+          type="button"
+          className="login-google-btn"
+          onClick={handleGoogleSubmit}
+          disabled={isSubmitting}
+        >
           <span className="login-google-mark" aria-hidden="true">G</span>
           Continuar con Google
         </button>
@@ -3946,6 +4175,9 @@ export default function App() {
     readStoredAuthUserName(),
   );
   const [authIdToken, setAuthIdToken] = useState<string | null>(null);
+  const [authPermissions, setAuthPermissions] = useState<string[]>([]);
+  const [authRole, setAuthRole] = useState("public_user");
+  const [authUid, setAuthUid] = useState<string | null>(null);
   const [selectedWellId, setSelectedWellId] = useState(wellMapPoints[0].id);
   const [selectedStationId, setSelectedStationId] = useState(meteoStationPoints[0].id);
   const [manualEntries, setManualEntries] = useState<ManualWellEntry[]>([]);
@@ -4000,6 +4232,12 @@ export default function App() {
     userRut: "",
     waterTableDepth: "",
   });
+  const canManageUsers = authPermissions.includes("users:manage");
+  const availableViews = useMemo(
+    () => views.filter((view) => view.id !== "admin" || canManageUsers),
+    [canManageUsers],
+  );
+
   const dashboardNow = useMemo(() => {
     const seed = authIdToken ? Date.now() : new Date(mockNowIso).getTime();
     const manualTimes = manualEntries.map((entry) =>
@@ -4044,8 +4282,17 @@ export default function App() {
       setIsLoggedIn(session.isLoggedIn);
       setAuthUserName(session.userName);
       setAuthIdToken(session.idToken);
+      setAuthPermissions(session.permissions);
+      setAuthRole(session.role);
+      setAuthUid(session.uid);
     });
   }, []);
+
+  useEffect(() => {
+    if (activeView === "admin" && !canManageUsers) {
+      setActiveView("overview");
+    }
+  }, [activeView, canManageUsers]);
 
   useEffect(() => {
     let isMounted = true;
@@ -4573,6 +4820,9 @@ export default function App() {
 
     setIsLoggedIn(session.isLoggedIn);
     setAuthIdToken(session.idToken);
+    setAuthPermissions(session.permissions);
+    setAuthRole(session.role);
+    setAuthUid(session.uid);
     setAuthUserName(session.userName.trim().length > 0 ? session.userName : defaultAuthUserName);
     setActiveView("overview");
     setAppScreen("dashboard");
@@ -4583,6 +4833,9 @@ export default function App() {
 
     setIsLoggedIn(session.isLoggedIn);
     setAuthIdToken(session.idToken);
+    setAuthPermissions(session.permissions);
+    setAuthRole(session.role);
+    setAuthUid(session.uid);
     setAuthUserName(session.userName.trim().length > 0 ? session.userName : defaultAuthUserName);
     setActiveView("overview");
     setAppScreen("dashboard");
@@ -4601,6 +4854,9 @@ export default function App() {
     setWellMeasurementStatus("idle");
     setWellMeasurementMessage(null);
     setWellMeasurementCsvMessage(null);
+    setAuthPermissions([]);
+    setAuthRole("public_user");
+    setAuthUid(null);
     setStationState(meteoStationPoints);
     setMeteoStatus("idle");
     setAppScreen("dashboard");
@@ -4634,7 +4890,7 @@ export default function App() {
 
         <div className="site-header-actions">
           <nav className="top-nav" aria-label="Views">
-            {views.map((view) => {
+            {availableViews.map((view) => {
               const Icon = navIconMap[view.id];
               return (
                 <button
@@ -4656,6 +4912,9 @@ export default function App() {
                 <span className="auth-user-chip">
                   <UserRound size={13} />
                   {authUserName}
+                  {authRole === "general_admin" ? (
+                    <span className="auth-role-dot">Admin</span>
+                  ) : null}
                 </span>
                 <button
                   type="button"
@@ -4744,6 +5003,9 @@ export default function App() {
             status={meteoStatus}
             errorMessage={meteoErrorMessage}
           />
+        )}
+        {activeView === "admin" && canManageUsers && (
+          <AdminView authIdToken={authIdToken} currentUserUid={authUid} />
         )}
       </main>
     </div>

@@ -1,7 +1,7 @@
 import { BarGroup } from "../components/SimpleBarChart";
 import { LinePoint, LineSeries } from "../components/SimpleLineChart";
 
-export type ViewId = "overview" | "etr" | "snow" | "wells" | "meteo";
+export type ViewId = "overview" | "etr" | "snow" | "wells" | "meteo" | "admin";
 
 export const views: { id: ViewId; label: string }[] = [
   { id: "overview", label: "Resumen" },
@@ -9,6 +9,7 @@ export const views: { id: ViewId; label: string }[] = [
   { id: "snow", label: "MODIS Snow" },
   { id: "wells", label: "Pozos" },
   { id: "meteo", label: "Meteo" },
+  { id: "admin", label: "Admin" },
 ];
 
 export const etrStats = [
