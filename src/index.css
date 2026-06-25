@@ -1144,6 +1144,53 @@ select:focus-visible {
   line-height: 1.2;
 }
 
+.registry-row > button {
+  min-height: 34px;
+  border: 1px solid #f0a3a3;
+  border-radius: 8px;
+  background: #fff5f5;
+  color: #b42318;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.registry-row > button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.well-access-admin {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding: 14px;
+}
+
+.well-access-admin h4 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.well-access-admin > label {
+  display: grid;
+  gap: 6px;
+}
+
+.well-access-admin > label span {
+  color: #4e5460;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.well-access-admin > label select {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 11px;
+}
+
 .registry-map-preview {
   border-top: 1px solid var(--border);
   padding: 14px;

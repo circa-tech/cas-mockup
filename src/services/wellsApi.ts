@@ -52,6 +52,14 @@ export type GrantWellAccessPayload = {
   permission: "read" | "write" | "admin";
 };
 
+export type WellAccessEntry = {
+  active: boolean;
+  firebaseUid: string;
+  id: number;
+  permission: "read" | "write" | "admin";
+  wellId: string;
+};
+
 export type IngestWellMeasurementPayload = {
   codigoObra: string;
   companyRut: string;
@@ -134,6 +142,43 @@ export const grantWellAccess = async (
     body: JSON.stringify(payload),
     method: "POST",
   });
+};
+
+export const fetchWellAccessEntries = async (
+  idToken: string,
+  wellId: string,
+): Promise<WellAccessEntry[]> => {
+  const response = await requestWells(`registry/${wellId}/access`, idToken);
+  return response.json() as Promise<WellAccessEntry[]>;
+};
+
+export const setWellAccess = async (
+  idToken: string,
+  wellId: string,
+  firebaseUid: string,
+  permission: WellAccessEntry["permission"],
+): Promise<WellAccessEntry> => {
+  const response = await requestWells(
+    `registry/${wellId}/access/${encodeURIComponent(firebaseUid)}`,
+    idToken,
+    {
+      body: JSON.stringify({ permission }),
+      method: "PUT",
+    },
+  );
+  return response.json() as Promise<WellAccessEntry>;
+};
+
+export const revokeWellAccess = async (
+  idToken: string,
+  wellId: string,
+  firebaseUid: string,
+): Promise<void> => {
+  await requestWells(
+    `registry/${wellId}/access/${encodeURIComponent(firebaseUid)}`,
+    idToken,
+    { method: "DELETE" },
+  );
 };
 
 export const ingestWellMeasurement = async (

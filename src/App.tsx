@@ -134,12 +134,16 @@ import {
 import type { ModisSnowBasinsGeoJson } from "./services/modisSnowApi";
 import {
   createWellRegistryEntry,
+  fetchWellAccessEntries,
   fetchMyWellRegistryEntries,
   fetchWellMapPoints,
   fetchWellRegistryEntries,
   fetchWellsAdminStatus,
   ingestWellMeasurement,
+  revokeWellAccess,
+  setWellAccess,
   type IngestWellMeasurementPayload,
+  type WellAccessEntry,
   type WellsCapabilities,
   type WellRegistryEntry,
 } from "./services/wellsApi";
@@ -358,6 +362,9 @@ type WellMeasurementFormState = {
 };
 
 function WellRegistryAdminPanel({
+  authIdToken,
+  canManageAccess,
+  currentUserUid,
   entries,
   form,
   message,
@@ -365,6 +372,9 @@ function WellRegistryAdminPanel({
   onSubmit,
   status,
 }: {
+  authIdToken: string | null;
+  canManageAccess: boolean;
+  currentUserUid: string | null;
   entries: WellRegistryEntry[];
   form: WellRegistryFormState;
   message: string | null;
@@ -372,9 +382,105 @@ function WellRegistryAdminPanel({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   status: RemoteLoadStatus;
 }) {
+  const [selectedAccessWellId, setSelectedAccessWellId] = useState("");
+  const [accessEntries, setAccessEntries] = useState<WellAccessEntry[]>([]);
+  const [accessStatus, setAccessStatus] = useState<RemoteLoadStatus>("idle");
+  const [accessMessage, setAccessMessage] = useState<string | null>(null);
+  const [accessFirebaseUid, setAccessFirebaseUid] = useState("");
+  const [accessPermission, setAccessPermission] =
+    useState<WellAccessEntry["permission"]>("write");
   const previewLat = Number.parseFloat(form.lat);
   const previewLng = Number.parseFloat(form.lng);
   const hasPreviewLocation = Number.isFinite(previewLat) && Number.isFinite(previewLng);
+  const selectedAccessWell = entries.find((entry) => entry.id === selectedAccessWellId);
+
+  useEffect(() => {
+    if (!selectedAccessWellId && entries.length > 0) {
+      setSelectedAccessWellId(entries[0].id);
+    }
+  }, [entries, selectedAccessWellId]);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!canManageAccess || !authIdToken || !selectedAccessWellId) {
+      setAccessEntries([]);
+      setAccessStatus("idle");
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setAccessStatus("loading");
+    setAccessMessage(null);
+    fetchWellAccessEntries(authIdToken, selectedAccessWellId)
+      .then((nextEntries) => {
+        if (isMounted) {
+          setAccessEntries(nextEntries);
+          setAccessStatus("ready");
+        }
+      })
+      .catch((error) => {
+        if (isMounted) {
+          setAccessEntries([]);
+          setAccessStatus("error");
+          setAccessMessage(
+            toRemoteErrorMessage(error, "No fue posible cargar los accesos del pozo."),
+          );
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authIdToken, canManageAccess, selectedAccessWellId]);
+
+  const refreshAccessEntries = async () => {
+    if (!authIdToken || !selectedAccessWellId) {
+      return;
+    }
+    setAccessEntries(await fetchWellAccessEntries(authIdToken, selectedAccessWellId));
+  };
+
+  const handleAccessSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!authIdToken || !selectedAccessWellId || !accessFirebaseUid.trim()) {
+      return;
+    }
+    setAccessStatus("loading");
+    setAccessMessage(null);
+    try {
+      await setWellAccess(
+        authIdToken,
+        selectedAccessWellId,
+        accessFirebaseUid.trim(),
+        accessPermission,
+      );
+      await refreshAccessEntries();
+      setAccessFirebaseUid("");
+      setAccessStatus("ready");
+      setAccessMessage("Acceso actualizado.");
+    } catch (error) {
+      setAccessStatus("error");
+      setAccessMessage(toRemoteErrorMessage(error, "No fue posible actualizar el acceso."));
+    }
+  };
+
+  const handleAccessRevoke = async (firebaseUid: string) => {
+    if (!authIdToken || !selectedAccessWellId) {
+      return;
+    }
+    setAccessStatus("loading");
+    setAccessMessage(null);
+    try {
+      await revokeWellAccess(authIdToken, selectedAccessWellId, firebaseUid);
+      await refreshAccessEntries();
+      setAccessStatus("ready");
+      setAccessMessage("Acceso revocado.");
+    } catch (error) {
+      setAccessStatus("error");
+      setAccessMessage(toRemoteErrorMessage(error, "No fue posible revocar el acceso."));
+    }
+  };
 
   return (
     <Panel
@@ -506,6 +612,80 @@ function WellRegistryAdminPanel({
               <span>{entry.provider ?? "Sin provider"}</span>
             </div>
           ))}
+        </div>
+      )}
+
+      {canManageAccess && entries.length > 0 && (
+        <div className="well-access-admin">
+          <h4>Accesos por pozo</h4>
+          <label>
+            <span>Pozo</span>
+            <select
+              value={selectedAccessWellId}
+              onChange={(event) => setSelectedAccessWellId(event.target.value)}
+            >
+              {entries.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.name} - {entry.codigoObra}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <form className="manual-entry-form" onSubmit={handleAccessSubmit}>
+            <div className="manual-two-col">
+              <label>
+                <span>Firebase UID</span>
+                <input
+                  type="text"
+                  value={accessFirebaseUid}
+                  placeholder="UID del usuario"
+                  onChange={(event) => setAccessFirebaseUid(event.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                <span>Permiso</span>
+                <select
+                  value={accessPermission}
+                  onChange={(event) =>
+                    setAccessPermission(event.target.value as WellAccessEntry["permission"])}
+                >
+                  <option value="read">Lectura</option>
+                  <option value="write">Lectura y mediciones</option>
+                  <option value="admin">Administrar acceso</option>
+                </select>
+              </label>
+            </div>
+            <button type="submit" disabled={accessStatus === "loading"}>
+              {accessStatus === "loading" ? "Guardando..." : "Asignar acceso"}
+            </button>
+          </form>
+
+          {accessMessage && <p className="login-error">{accessMessage}</p>}
+          <div className="registry-list">
+            {accessEntries.map((entry) => (
+              <div className="registry-row" key={entry.id}>
+                <div>
+                  <strong>{entry.firebaseUid}</strong>
+                  <span>
+                    {entry.firebaseUid === currentUserUid ? "Tu usuario · " : ""}
+                    {entry.permission}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  disabled={accessStatus === "loading"}
+                  onClick={() => handleAccessRevoke(entry.firebaseUid)}
+                >
+                  Revocar
+                </button>
+              </div>
+            ))}
+            {accessStatus === "ready" && accessEntries.length === 0 && (
+              <p>Sin usuarios asignados a {selectedAccessWell?.name ?? "este pozo"}.</p>
+            )}
+          </div>
         </div>
       )}
     </Panel>
@@ -3119,8 +3299,11 @@ function OverviewView({
 }
 
 function WellsView({
+  authIdToken,
   canAddMeasurements,
   canCreateWells,
+  canManageAccess,
+  currentUserUid,
   errorMessage,
   isLoggedIn,
   manualEntries,
@@ -3146,8 +3329,11 @@ function WellsView({
   wellRegistryStatus,
   wells,
 }: {
+  authIdToken: string | null;
   canAddMeasurements: boolean;
   canCreateWells: boolean;
+  canManageAccess: boolean;
+  currentUserUid: string | null;
   errorMessage: string | null;
   isLoggedIn: boolean;
   manualEntries: ManualWellEntry[];
@@ -3240,6 +3426,9 @@ function WellsView({
         {wellsSubnav}
 
         <WellRegistryAdminPanel
+          authIdToken={authIdToken}
+          canManageAccess={canManageAccess}
+          currentUserUid={currentUserUid}
           entries={wellRegistryEntries}
           form={wellRegistryForm}
           message={wellRegistryMessage}
@@ -4390,7 +4579,7 @@ export default function App() {
         }
 
         setWellsCapabilities(capabilities);
-        if (!capabilities.canManageAccess) {
+        if (!capabilities.isAdmin) {
           fetchMyWellRegistryEntries(authIdToken)
             .then((entries) => {
               if (isMounted) {
@@ -4752,7 +4941,9 @@ export default function App() {
         centroControlRut: wellRegistryForm.centroControlRut || null,
         aquiferSector: wellRegistryForm.aquiferSector || null,
       });
-      const entries = await fetchWellRegistryEntries(authIdToken);
+      const entries = wellsCapabilities.isAdmin
+        ? await fetchWellRegistryEntries(authIdToken)
+        : await fetchMyWellRegistryEntries(authIdToken);
       setWellRegistryEntries(entries);
       setWellRegistryForm({
         codigoObra: "",
@@ -4767,7 +4958,9 @@ export default function App() {
       setWellRegistryMessage("Pozo creado en registry.");
     } catch {
       setWellRegistryStatus("error");
-    setWellRegistryMessage("No fue posible crear el pozo. Revisa codigo_obra unico y formato OB.");
+      setWellRegistryMessage(
+        "No fue posible crear el pozo. Revisa codigo_obra unico y formato OB.",
+      );
     }
   };
 
@@ -5005,8 +5198,11 @@ export default function App() {
         )}
         {activeView === "wells" && (
           <WellsView
+            authIdToken={authIdToken}
             canAddMeasurements={wellsCapabilities.canAddMeasurements}
             canCreateWells={wellsCapabilities.canCreateWells}
+            canManageAccess={wellsCapabilities.canManageAccess}
+            currentUserUid={authUid}
             isLoggedIn={hasAuthenticatedApiSession}
             manualEntries={manualEntries}
             manualForm={manualForm}
