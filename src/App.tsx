@@ -135,6 +135,7 @@ import type { ModisSnowBasinsGeoJson } from "./services/modisSnowApi";
 import {
   createWellRegistryEntry,
   fetchWellAccessEntries,
+  fetchWellAccessUsers,
   fetchMyWellRegistryEntries,
   fetchWellMapPoints,
   fetchWellRegistryEntries,
@@ -144,6 +145,7 @@ import {
   setWellAccess,
   type IngestWellMeasurementPayload,
   type WellAccessEntry,
+  type WellAccessUser,
   type WellsCapabilities,
   type WellRegistryEntry,
 } from "./services/wellsApi";
@@ -386,6 +388,7 @@ function WellRegistryAdminPanel({
     useState<"registry" | "access">("registry");
   const [selectedAccessWellId, setSelectedAccessWellId] = useState("");
   const [accessEntries, setAccessEntries] = useState<WellAccessEntry[]>([]);
+  const [accessUsers, setAccessUsers] = useState<WellAccessUser[]>([]);
   const [accessStatus, setAccessStatus] = useState<RemoteLoadStatus>("idle");
   const [accessMessage, setAccessMessage] = useState<string | null>(null);
   const [accessFirebaseUid, setAccessFirebaseUid] = useState("");
@@ -395,6 +398,10 @@ function WellRegistryAdminPanel({
   const previewLng = Number.parseFloat(form.lng);
   const hasPreviewLocation = Number.isFinite(previewLat) && Number.isFinite(previewLng);
   const selectedAccessWell = entries.find((entry) => entry.id === selectedAccessWellId);
+  const usersByUid = useMemo(
+    () => new Map(accessUsers.map((user) => [user.uid, user])),
+    [accessUsers],
+  );
 
   useEffect(() => {
     if (!selectedAccessWellId && entries.length > 0) {
@@ -436,6 +443,35 @@ function WellRegistryAdminPanel({
     };
   }, [authIdToken, canManageAccess, selectedAccessWellId]);
 
+  useEffect(() => {
+    let isMounted = true;
+    if (!canManageAccess || !authIdToken || activeAdminView !== "access") {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    fetchWellAccessUsers(authIdToken)
+      .then((users) => {
+        if (isMounted) {
+          setAccessUsers(users);
+          setAccessFirebaseUid((current) => current || users[0]?.uid || "");
+        }
+      })
+      .catch((error) => {
+        if (isMounted) {
+          setAccessUsers([]);
+          setAccessMessage(
+            toRemoteErrorMessage(error, "No fue posible cargar los usuarios."),
+          );
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeAdminView, authIdToken, canManageAccess]);
+
   const refreshAccessEntries = async () => {
     if (!authIdToken || !selectedAccessWellId) {
       return;
@@ -458,7 +494,7 @@ function WellRegistryAdminPanel({
         accessPermission,
       );
       await refreshAccessEntries();
-      setAccessFirebaseUid("");
+      setAccessFirebaseUid(accessUsers[0]?.uid ?? "");
       setAccessStatus("ready");
       setAccessMessage("Acceso actualizado.");
     } catch (error) {
@@ -667,14 +703,24 @@ function WellRegistryAdminPanel({
           <form className="manual-entry-form" onSubmit={handleAccessSubmit}>
             <div className="manual-two-col">
               <label>
-                <span>Firebase UID</span>
-                <input
-                  type="text"
+                <span>Usuario</span>
+                <select
                   value={accessFirebaseUid}
-                  placeholder="UID del usuario"
                   onChange={(event) => setAccessFirebaseUid(event.target.value)}
                   required
-                />
+                  disabled={accessUsers.length === 0}
+                >
+                  {accessUsers.length === 0 && (
+                    <option value="">Sin usuarios disponibles</option>
+                  )}
+                  {accessUsers.map((user) => (
+                    <option key={user.uid} value={user.uid}>
+                      {user.displayName || user.email || "Usuario sin nombre"}
+                      {user.email && user.displayName ? ` · ${user.email}` : ""}
+                      {` · ${user.role}`}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label>
                 <span>Permiso</span>
@@ -689,7 +735,10 @@ function WellRegistryAdminPanel({
                 </select>
               </label>
             </div>
-            <button type="submit" disabled={accessStatus === "loading"}>
+            <button
+              type="submit"
+              disabled={accessStatus === "loading" || accessUsers.length === 0}
+            >
               {accessStatus === "loading" ? "Guardando..." : "Asignar acceso"}
             </button>
           </form>
@@ -699,9 +748,16 @@ function WellRegistryAdminPanel({
             {accessEntries.map((entry) => (
               <div className="registry-row" key={entry.id}>
                 <div>
-                  <strong>{entry.firebaseUid}</strong>
+                  <strong>
+                    {usersByUid.get(entry.firebaseUid)?.displayName ||
+                      usersByUid.get(entry.firebaseUid)?.email ||
+                      "Usuario no encontrado"}
+                  </strong>
                   <span>
                     {entry.firebaseUid === currentUserUid ? "Tu usuario · " : ""}
+                    {usersByUid.get(entry.firebaseUid)?.email
+                      ? `${usersByUid.get(entry.firebaseUid)?.email} · `
+                      : ""}
                     {entry.permission}
                   </span>
                 </div>

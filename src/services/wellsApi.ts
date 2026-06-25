@@ -60,6 +60,13 @@ export type WellAccessEntry = {
   wellId: string;
 };
 
+export type WellAccessUser = {
+  displayName: string | null;
+  email: string | null;
+  role: string;
+  uid: string;
+};
+
 export type IngestWellMeasurementPayload = {
   codigoObra: string;
   companyRut: string;
@@ -150,6 +157,13 @@ export const fetchWellAccessEntries = async (
 ): Promise<WellAccessEntry[]> => {
   const response = await requestWells(`registry/${wellId}/access`, idToken);
   return response.json() as Promise<WellAccessEntry[]>;
+};
+
+export const fetchWellAccessUsers = async (
+  idToken: string,
+): Promise<WellAccessUser[]> => {
+  const response = await requestWells("users", idToken);
+  return response.json() as Promise<WellAccessUser[]>;
 };
 
 export const setWellAccess = async (
