@@ -1,6 +1,7 @@
 import { BarGroup } from "../components/SimpleBarChart";
 import { LineSeries } from "../components/SimpleLineChart";
 import { chartPalette, EtrDownloadFormat, EtrDownloadVariable } from "../data/mockupData";
+import { throwApiError } from "./apiError";
 
 export type GeoJsonFeatureCollection = {
   type: "FeatureCollection";
@@ -75,7 +76,7 @@ const requestEtr = async <T>(
   });
 
   if (!response.ok) {
-    throw new Error(`ET-LAT ${path} request failed: ${response.status}`);
+    await throwApiError(response, `ET-LAT ${path}`);
   }
 
   return response.json() as Promise<T>;

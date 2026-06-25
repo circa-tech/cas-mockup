@@ -753,6 +753,8 @@ export type ComputeOverviewCardsInput = {
 };
 
 export const staleThresholdDaysDefault = 2;
+const etrStaleThresholdDays = 8;
+const snowStaleThresholdDays = 2;
 export const mockNowIso = "2026-03-22T12:00:00-03:00";
 
 export const getFreshnessStatus = (
@@ -848,7 +850,7 @@ export const computeOverviewCards = ({
       targetView: "etr",
       primaryKpi: `ETR media ${etrMeanValue.toFixed(1)} mm/día`,
       secondaryKpi: `Última fecha ${etrLastDate}`,
-      status: getFreshnessStatus(etrLastUpdate, now, staleThresholdDays),
+      status: getFreshnessStatus(etrLastUpdate, now, etrStaleThresholdDays),
       lastUpdate: etrLastUpdate,
     },
     {
@@ -859,7 +861,7 @@ export const computeOverviewCards = ({
       secondaryKpi: hasSnowData
         ? `Vs año pasado ${snowDelta >= 0 ? "+" : ""}${snowDelta.toFixed(0)} pp`
         : "Sin datos disponibles",
-      status: getFreshnessStatus(snowLastUpdate, now, staleThresholdDays),
+      status: getFreshnessStatus(snowLastUpdate, now, snowStaleThresholdDays),
       lastUpdate: snowLastUpdate,
     },
     {

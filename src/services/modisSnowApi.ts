@@ -1,5 +1,6 @@
 import type { LineSeries } from "../components/SimpleLineChart";
 import { chartPalette } from "../data/mockupData";
+import { throwApiError } from "./apiError";
 
 export type ModisSnowBasinId = "ae" | "jorquera" | "pulido" | "manflas";
 
@@ -41,7 +42,7 @@ const requestModisSnow = async (
   });
 
   if (!response.ok) {
-    throw new Error(`MODIS Snow ${path} request failed: ${response.status}`);
+    await throwApiError(response, `MODIS Snow ${path}`);
   }
 
   return response;

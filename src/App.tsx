@@ -123,6 +123,16 @@ import {
   toModisSnowLineSeries,
 } from "./services/modisSnowApi";
 import type { ModisSnowBasinsGeoJson } from "./services/modisSnowApi";
+import {
+  createWellRegistryEntry,
+  fetchMyWellRegistryEntries,
+  fetchWellMapPoints,
+  fetchWellRegistryEntries,
+  fetchWellsAdminStatus,
+  ingestWellMeasurement,
+  type IngestWellMeasurementPayload,
+  type WellRegistryEntry,
+} from "./services/wellsApi";
 import { downloadMockQuadrantPng } from "./utils/mockQuadrantExport";
 
 const monthLabels = [
@@ -182,6 +192,18 @@ const freshnessCompactLabelMap = {
   fresh: "OK",
   warning: "Seguim.",
   stale: "Alerta",
+} as const;
+
+const productFreshnessLabelMap = {
+  fresh: "Actualizado",
+  warning: "Actualizacion pendiente",
+  stale: "Sin actualizacion reciente",
+} as const;
+
+const etrFreshnessLabelMap = {
+  fresh: "Actualizado",
+  warning: "En ventana de actualizacion",
+  stale: "Sin actualizacion reciente",
 } as const;
 
 const qualityClassMap: Record<WaterQualityStatus, string> = {
@@ -260,25 +282,35 @@ function Panel({
 
 function RemoteDataState({
   className,
+  icon,
   message,
   title,
   tone = "loading",
 }: {
   className?: string;
+  icon?: ReactNode;
   message: string;
   title: string;
   tone?: "loading" | "error";
 }) {
   const Icon = tone === "loading" ? LoaderCircle : AlertTriangle;
+  const stateClassName = [
+    "data-state",
+    `is-${tone}`,
+    icon ? "has-custom-icon" : "",
+    className ?? "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div
-      className={`data-state is-${tone} ${className ?? ""}`.trim()}
+      className={stateClassName}
       role={tone === "error" ? "alert" : "status"}
       aria-live="polite"
     >
       <span className="data-state-icon" aria-hidden="true">
-        <Icon size={18} />
+        {icon ?? <Icon size={18} />}
       </span>
       <strong>{title}</strong>
       <p>{message}</p>
@@ -292,6 +324,341 @@ const toChartDateLabel = (date: string) => {
   const day = String(parsed.getDate()).padStart(2, "0");
   return `${month} ${day}`;
 };
+
+type WellRegistryFormState = {
+  aquiferSector: string;
+  centroControlRut: string;
+  codigoObra: string;
+  lat: string;
+  lng: string;
+  name: string;
+  provider: string;
+};
+
+type WellMeasurementFormState = {
+  codigoObra: string;
+  companyRut: string;
+  flowRate: string;
+  measurementDate: string;
+  measurementTime: string;
+  totalizer: string;
+  userRut: string;
+  waterTableDepth: string;
+};
+
+function WellRegistryAdminPanel({
+  entries,
+  form,
+  message,
+  onChange,
+  onSubmit,
+  status,
+}: {
+  entries: WellRegistryEntry[];
+  form: WellRegistryFormState;
+  message: string | null;
+  onChange: (next: Partial<WellRegistryFormState>) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  status: RemoteLoadStatus;
+}) {
+  const previewLat = Number.parseFloat(form.lat);
+  const previewLng = Number.parseFloat(form.lng);
+  const hasPreviewLocation = Number.isFinite(previewLat) && Number.isFinite(previewLng);
+
+  return (
+    <Panel
+      title="Administracion de pozos"
+      subtitle={`${entries.length} pozos en registry`}
+    >
+      <form className="manual-entry-form" onSubmit={onSubmit}>
+        <div className="manual-two-col">
+          <label>
+            <span>Codigo obra</span>
+            <input
+              type="text"
+              value={form.codigoObra}
+              placeholder="OB-0101-114"
+              onChange={(event) => onChange({ codigoObra: event.target.value })}
+              required
+            />
+          </label>
+          <label>
+            <span>Nombre</span>
+            <input
+              type="text"
+              value={form.name}
+              placeholder="Pozo Norte"
+              onChange={(event) => onChange({ name: event.target.value })}
+              required
+            />
+          </label>
+        </div>
+
+        <div className="manual-two-col">
+          <label>
+            <span>Latitud</span>
+            <input
+              type="number"
+              step="0.000001"
+              value={form.lat}
+              placeholder="-27.360000"
+              onChange={(event) => onChange({ lat: event.target.value })}
+              required
+            />
+          </label>
+          <label>
+            <span>Longitud</span>
+            <input
+              type="number"
+              step="0.000001"
+              value={form.lng}
+              placeholder="-70.330000"
+              onChange={(event) => onChange({ lng: event.target.value })}
+              required
+            />
+          </label>
+        </div>
+
+        <div className="manual-two-col">
+          <label>
+            <span>Provider</span>
+            <input
+              type="text"
+              value={form.provider}
+              placeholder="Proveedor Norte"
+              onChange={(event) => onChange({ provider: event.target.value })}
+            />
+          </label>
+          <label>
+            <span>Centro control RUT</span>
+            <input
+              type="text"
+              value={form.centroControlRut}
+              placeholder="77555666-7"
+              onChange={(event) => onChange({ centroControlRut: event.target.value })}
+            />
+          </label>
+        </div>
+
+        <label>
+          <span>Sector acuifero</span>
+          <input
+            type="text"
+            value={form.aquiferSector}
+            placeholder="Acuifero 1"
+            onChange={(event) => onChange({ aquiferSector: event.target.value })}
+          />
+        </label>
+
+        {message && <p className="login-error">{message}</p>}
+        <button type="submit" disabled={status === "loading"}>
+          {status === "loading" ? "Guardando..." : "Crear pozo"}
+        </button>
+      </form>
+
+      <div className="registry-map-preview">
+        {hasPreviewLocation ? (
+          <StatusLeafletMap
+            className="is-registry-preview"
+            points={[
+              {
+                id: "new-well-preview",
+                lat: previewLat,
+                lastUpdate: new Date().toISOString(),
+                lng: previewLng,
+                name: form.name || form.codigoObra || "Nuevo pozo",
+                sourceType: "manual",
+                status: "fresh",
+              },
+            ]}
+            selectedPointId="new-well-preview"
+          />
+        ) : (
+          <RemoteDataState
+            className="is-compact"
+            icon={<MapPinned size={18} />}
+            message="Ingresa latitud y longitud para previsualizar el punto."
+            title="Sin ubicacion"
+            tone="loading"
+          />
+        )}
+      </div>
+
+      {entries.length > 0 && (
+        <div className="registry-list">
+          {entries.slice(0, 6).map((entry) => (
+            <div className="registry-row" key={entry.id}>
+              <div>
+                <strong>{entry.name}</strong>
+                <span>{entry.codigoObra}</span>
+              </div>
+              <span>{entry.provider ?? "Sin provider"}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+function WellMeasurementIngestPanel({
+  csvMessage,
+  entries,
+  form,
+  message,
+  onChange,
+  onCsvUpload,
+  onSubmit,
+  status,
+}: {
+  csvMessage: string | null;
+  entries: WellRegistryEntry[];
+  form: WellMeasurementFormState;
+  message: string | null;
+  onChange: (next: Partial<WellMeasurementFormState>) => void;
+  onCsvUpload: (file: File) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  status: RemoteLoadStatus;
+}) {
+  const hasRegistryEntries = entries.length > 0;
+
+  return (
+    <div className="measurement-upload-grid">
+      <Panel
+        title="Agregar medicion"
+        subtitle="Carga directa desde el mockup"
+      >
+        <form className="manual-entry-form" onSubmit={onSubmit}>
+          <label>
+            <span>Pozo</span>
+            <select
+              value={form.codigoObra}
+              onChange={(event) => onChange({ codigoObra: event.target.value })}
+              required
+              disabled={!hasRegistryEntries}
+            >
+              <option value="">Selecciona un pozo</option>
+              {entries.map((entry) => (
+                <option key={entry.id} value={entry.codigoObra}>
+                  {entry.name} - {entry.codigoObra}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="manual-two-col">
+            <label>
+              <span>RUT empresa</span>
+              <input
+                type="text"
+                value={form.companyRut}
+                placeholder="77555666-7"
+                onChange={(event) => onChange({ companyRut: event.target.value })}
+                required
+              />
+            </label>
+            <label>
+              <span>RUT usuario</span>
+              <input
+                type="text"
+                value={form.userRut}
+                placeholder="20999888-7"
+                onChange={(event) => onChange({ userRut: event.target.value })}
+                required
+              />
+            </label>
+          </div>
+
+          <div className="manual-two-col">
+            <label>
+              <span>Fecha medicion</span>
+              <input
+                type="date"
+                value={form.measurementDate}
+                onChange={(event) => onChange({ measurementDate: event.target.value })}
+                required
+              />
+            </label>
+            <label>
+              <span>Hora medicion</span>
+              <input
+                type="time"
+                value={form.measurementTime}
+                onChange={(event) => onChange({ measurementTime: event.target.value })}
+                required
+              />
+            </label>
+          </div>
+
+          <div className="manual-two-col">
+            <label>
+              <span>Caudal</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.flowRate}
+                placeholder="1.00"
+                onChange={(event) => onChange({ flowRate: event.target.value })}
+                required
+              />
+            </label>
+            <label>
+              <span>Nivel freatico</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.waterTableDepth}
+                placeholder="9.85"
+                onChange={(event) => onChange({ waterTableDepth: event.target.value })}
+              />
+            </label>
+          </div>
+
+          <label>
+            <span>Totalizador</span>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={form.totalizer}
+              placeholder="1010"
+              onChange={(event) => onChange({ totalizer: event.target.value })}
+              required
+            />
+          </label>
+
+          {message && <p className="login-error">{message}</p>}
+          <button type="submit" disabled={status === "loading" || !hasRegistryEntries}>
+            {status === "loading" ? "Guardando..." : "Guardar medicion"}
+          </button>
+        </form>
+      </Panel>
+
+      <Panel title="Carga CSV" subtitle="Carga una o varias mediciones">
+        <div className="csv-upload-box">
+          <input
+            accept=".csv,text/csv"
+            type="file"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) {
+                onCsvUpload(file);
+              }
+              event.currentTarget.value = "";
+            }}
+          />
+          <p>
+            Encabezados esperados: codigoObra, companyRut, userRut, flowRate,
+            measurementDate, measurementTime, waterTableDepth, totalizer.
+          </p>
+          {csvMessage && <p className="login-error">{csvMessage}</p>}
+        </div>
+      </Panel>
+    </div>
+  );
+}
 
 const toSummaryUpdateIso = (date: string, fallback: string) => {
   if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -333,6 +700,130 @@ const formatRelativeAge = (lastUpdate: string, now: Date) => {
   return `Hace ${Math.round(diffMs / day)} días`;
 };
 
+const technicalRemoteErrorPatterns = [
+  /credentials? invalid/i,
+  /firestore unavailable/i,
+  /getting metadata from plugin failed/i,
+  /reauthentication is needed/i,
+  /gcloud auth application-default login/i,
+];
+
+const toRemoteErrorMessage = (error: unknown, fallback: string) => {
+  if (!(error instanceof Error)) {
+    return fallback;
+  }
+
+  const message = error.message.trim();
+  if (message.length === 0) {
+    return fallback;
+  }
+
+  if (technicalRemoteErrorPatterns.some((pattern) => pattern.test(message))) {
+    return fallback;
+  }
+
+  return message;
+};
+
+const parseCsv = (input: string): string[][] => {
+  const rows: string[][] = [];
+  let current = "";
+  let row: string[] = [];
+  let isQuoted = false;
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+    const nextChar = input[index + 1];
+
+    if (char === '"' && isQuoted && nextChar === '"') {
+      current += '"';
+      index += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      isQuoted = !isQuoted;
+      continue;
+    }
+
+    if (char === "," && !isQuoted) {
+      row.push(current.trim());
+      current = "";
+      continue;
+    }
+
+    if ((char === "\n" || char === "\r") && !isQuoted) {
+      if (char === "\r" && nextChar === "\n") {
+        index += 1;
+      }
+      row.push(current.trim());
+      current = "";
+      if (row.some((cell) => cell.length > 0)) {
+        rows.push(row);
+      }
+      row = [];
+      continue;
+    }
+
+    current += char;
+  }
+
+  row.push(current.trim());
+  if (row.some((cell) => cell.length > 0)) {
+    rows.push(row);
+  }
+
+  return rows;
+};
+
+const parseMeasurementCsv = (input: string): IngestWellMeasurementPayload[] => {
+  const [headerRow, ...dataRows] = parseCsv(input);
+  if (!headerRow || dataRows.length === 0) {
+    throw new Error("El CSV debe incluir encabezado y al menos una fila.");
+  }
+
+  const headers = headerRow.map((header) => header.trim());
+  const requiredHeaders = [
+    "codigoObra",
+    "companyRut",
+    "userRut",
+    "flowRate",
+    "measurementDate",
+    "measurementTime",
+    "totalizer",
+  ];
+  const missingHeaders = requiredHeaders.filter((header) => !headers.includes(header));
+  if (missingHeaders.length > 0) {
+    throw new Error(`Faltan columnas requeridas: ${missingHeaders.join(", ")}.`);
+  }
+
+  const columnIndex = new Map(headers.map((header, index) => [header, index]));
+  const readCell = (row: string[], header: string) => row[columnIndex.get(header) ?? -1] ?? "";
+
+  return dataRows.map((row, index) => {
+    const payload: IngestWellMeasurementPayload = {
+      codigoObra: readCell(row, "codigoObra"),
+      companyRut: readCell(row, "companyRut"),
+      flowRate: readCell(row, "flowRate"),
+      measurementDate: readCell(row, "measurementDate"),
+      measurementTime: readCell(row, "measurementTime"),
+      totalizer: readCell(row, "totalizer"),
+      userRut: readCell(row, "userRut"),
+      waterTableDepth: readCell(row, "waterTableDepth") || null,
+    };
+
+    const missingValues = requiredHeaders.filter((header) => {
+      const value = payload[header as keyof IngestWellMeasurementPayload];
+      return typeof value !== "string" || value.trim().length === 0;
+    });
+    if (missingValues.length > 0) {
+      throw new Error(`Fila ${index + 2}: faltan valores en ${missingValues.join(", ")}.`);
+    }
+
+    return payload;
+  });
+};
+
 const getCurrentValue = (points: { value: number }[]) =>
   points[points.length - 1]?.value ?? 0;
 
@@ -343,6 +834,10 @@ const getDailyChangeValue = (points: { value: number }[]) => {
 };
 
 const getRangeValue = (points: { value: number }[]) => {
+  if (points.length === 0) {
+    return 0;
+  }
+
   const values = points.map((point) => point.value);
   return Math.max(...values) - Math.min(...values);
 };
@@ -2425,19 +2920,29 @@ function SnowView({
 
 function OverviewView({
   cards,
+  etrErrorMessage,
   etrSeries,
+  meteoErrorMessage,
   meteoStatus,
   onOpenView,
+  snowErrorMessage,
   snowSeries,
   stations,
+  wellsErrorMessage,
+  wellsStatus,
   wells,
 }: {
   cards: ReturnType<typeof computeOverviewCards>;
+  etrErrorMessage: string | null;
   etrSeries: LineSeries[];
+  meteoErrorMessage: string | null;
   meteoStatus: RemoteLoadStatus;
   onOpenView: (viewId: Exclude<ViewId, "overview">) => void;
+  snowErrorMessage: string | null;
   snowSeries: LineSeries[];
   stations: MeteoStationPoint[];
+  wellsErrorMessage: string | null;
+  wellsStatus: RemoteLoadStatus;
   wells: WellMapPoint[];
 }) {
   const etrMiniLines = etrSeries.map((line) => ({
@@ -2487,6 +2992,8 @@ function OverviewView({
       <div className="overview-grid">
         {cards.map((card) => {
           const isNetworkCard = card.targetView === "wells" || card.targetView === "meteo";
+          const wellsHasNoData = card.targetView === "wells" && wells.length === 0;
+          const wellsIsLoading = wellsHasNoData && wellsStatus === "loading";
           const meteoHasNoData = card.targetView === "meteo" && stations.length === 0;
           const meteoIsLoading = meteoHasNoData && meteoStatus === "loading";
           const cardStatusLabel = isNetworkCard
@@ -2495,20 +3002,34 @@ function OverviewView({
               : card.status === "warning"
                 ? "Red en seguimiento"
                 : "Red estable"
-            : freshnessLabelMap[card.status];
+            : card.targetView === "etr"
+              ? etrFreshnessLabelMap[card.status]
+            : productFreshnessLabelMap[card.status];
 
           const cardSecondaryKpi =
             card.targetView === "wells"
-              ? `${wells.length} pozos monitoreados`
+              ? wellsIsLoading
+                ? "Cargando datos reales"
+                : wellsHasNoData
+                  ? wellsErrorMessage ?? "Sin datos disponibles"
+                  : `${wells.length} pozos monitoreados`
               : card.targetView === "meteo"
                 ? meteoIsLoading
                   ? "Cargando datos reales"
                   : meteoHasNoData
-                    ? "Sin datos disponibles"
+                    ? meteoErrorMessage ?? "Sin datos disponibles"
                     : `${stations.length} estaciones monitoreadas`
+                : card.targetView === "etr" && etrErrorMessage
+                  ? etrErrorMessage
+                  : card.targetView === "snow" && snowErrorMessage
+                    ? snowErrorMessage
                 : card.secondaryKpi;
           const cardPrimaryKpi =
-            card.targetView === "meteo" && meteoHasNoData
+            card.targetView === "wells" && wellsHasNoData
+              ? wellsIsLoading
+                ? "Pozos Cargando..."
+                : "Pozos Sin datos"
+            : card.targetView === "meteo" && meteoHasNoData
               ? meteoIsLoading
                 ? "Temp media red Cargando..."
                 : "Temp media red Sin datos"
@@ -2587,28 +3108,207 @@ function OverviewView({
 }
 
 function WellsView({
+  errorMessage,
+  isLoggedIn,
+  isWellsAdmin,
   manualEntries,
   manualForm,
   now,
   onManualChange,
   onManualSubmit,
+  onWellRegistryChange,
+  onWellRegistrySubmit,
+  onWellMeasurementChange,
+  onWellMeasurementCsvUpload,
+  onWellMeasurementSubmit,
   onSelectWell,
   selectedWellId,
+  status,
+  wellMeasurementCsvMessage,
+  wellMeasurementForm,
+  wellMeasurementMessage,
+  wellMeasurementStatus,
+  wellRegistryEntries,
+  wellRegistryForm,
+  wellRegistryMessage,
+  wellRegistryStatus,
   wells,
 }: {
+  errorMessage: string | null;
+  isLoggedIn: boolean;
+  isWellsAdmin: boolean;
   manualEntries: ManualWellEntry[];
   manualForm: ManualFormState;
   now: Date;
   onManualChange: (next: Partial<ManualFormState>) => void;
   onManualSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onWellRegistryChange: (next: Partial<WellRegistryFormState>) => void;
+  onWellRegistrySubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onWellMeasurementChange: (next: Partial<WellMeasurementFormState>) => void;
+  onWellMeasurementCsvUpload: (file: File) => void;
+  onWellMeasurementSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onSelectWell: (wellId: string) => void;
   selectedWellId: string;
+  status: RemoteLoadStatus;
+  wellMeasurementCsvMessage: string | null;
+  wellMeasurementForm: WellMeasurementFormState;
+  wellMeasurementMessage: string | null;
+  wellMeasurementStatus: RemoteLoadStatus;
+  wellRegistryEntries: WellRegistryEntry[];
+  wellRegistryForm: WellRegistryFormState;
+  wellRegistryMessage: string | null;
+  wellRegistryStatus: RemoteLoadStatus;
   wells: WellMapPoint[];
 }) {
+  const [activeWellsTab, setActiveWellsTab] =
+    useState<"monitoring" | "measurement" | "admin">("monitoring");
+  const canAddMeasurements = isWellsAdmin || wellRegistryEntries.length > 0;
   const waterByWell = useMemo(
     () => new Map(waterQualityRecords.map((record) => [record.wellId, record])),
     [],
   );
+
+  useEffect(() => {
+    if (
+      (activeWellsTab === "admin" && !isWellsAdmin) ||
+      (activeWellsTab === "measurement" && !canAddMeasurements)
+    ) {
+      setActiveWellsTab("monitoring");
+    }
+  }, [activeWellsTab, canAddMeasurements, isWellsAdmin]);
+
+  const wellsSubnav = isWellsAdmin || canAddMeasurements ? (
+    <div className="snow-subnav" role="tablist" aria-label="Secciones de pozos">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={activeWellsTab === "monitoring"}
+        className={activeWellsTab === "monitoring" ? "is-active" : ""}
+        onClick={() => setActiveWellsTab("monitoring")}
+      >
+        Monitoreo de pozos
+      </button>
+      {canAddMeasurements && (
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeWellsTab === "measurement"}
+          className={activeWellsTab === "measurement" ? "is-active" : ""}
+          onClick={() => setActiveWellsTab("measurement")}
+        >
+          Agregar medicion
+        </button>
+      )}
+      {isWellsAdmin && (
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeWellsTab === "admin"}
+          className={activeWellsTab === "admin" ? "is-active" : ""}
+          onClick={() => setActiveWellsTab("admin")}
+        >
+          Administracion de pozos
+        </button>
+      )}
+    </div>
+  ) : null;
+
+  if (isWellsAdmin && activeWellsTab === "admin") {
+    return (
+      <div className="view-stack">
+        <div className="view-intro">
+          <h2>Pozos y calidad de agua</h2>
+          <p>
+            Mapa operativo con estado por frescura de dato, fuente de captura y panel
+            de detalle por pozo.
+          </p>
+        </div>
+
+        {wellsSubnav}
+
+        <WellRegistryAdminPanel
+          entries={wellRegistryEntries}
+          form={wellRegistryForm}
+          message={wellRegistryMessage}
+          onChange={onWellRegistryChange}
+          onSubmit={onWellRegistrySubmit}
+          status={wellRegistryStatus}
+        />
+      </div>
+    );
+  }
+
+  if (canAddMeasurements && activeWellsTab === "measurement") {
+    return (
+      <div className="view-stack">
+        <div className="view-intro">
+          <h2>Pozos y calidad de agua</h2>
+          <p>
+            Mapa operativo con estado por frescura de dato, fuente de captura y panel
+            de detalle por pozo.
+          </p>
+        </div>
+
+        {wellsSubnav}
+
+        <WellMeasurementIngestPanel
+          csvMessage={wellMeasurementCsvMessage}
+          entries={wellRegistryEntries}
+          form={wellMeasurementForm}
+          message={wellMeasurementMessage}
+          onChange={onWellMeasurementChange}
+          onCsvUpload={onWellMeasurementCsvUpload}
+          onSubmit={onWellMeasurementSubmit}
+          status={wellMeasurementStatus}
+        />
+      </div>
+    );
+  }
+
+  if (isLoggedIn && (status === "loading" || status === "error" || wells.length === 0)) {
+    const isLoading = status === "loading";
+
+    return (
+      <div className="view-stack">
+        <div className="view-intro">
+          <h2>Pozos y calidad de agua</h2>
+          <p>
+            Mapa operativo con estado por frescura de dato, fuente de captura y panel
+            de detalle por pozo.
+          </p>
+        </div>
+
+        {wellsSubnav}
+
+        <Panel
+          title={isLoading ? "Cargando pozos" : "Pozos sin datos"}
+          subtitle="Lectura de mediciones subterraneas desde la API"
+        >
+          <RemoteDataState
+            message={
+              isLoading
+                ? "Consultando datos reales de pozos."
+                : errorMessage ?? "La API no entrego pozos disponibles para este usuario."
+            }
+            title={isLoading ? "Cargando datos reales" : "Sin datos disponibles"}
+            tone={isLoading ? "loading" : "error"}
+          />
+        </Panel>
+      </div>
+    );
+  }
+
+  if (wells.length === 0) {
+    return (
+      <div className="view-stack">
+        <div className="view-intro">
+          <h2>Pozos y calidad de agua</h2>
+          <p>No hay pozos disponibles.</p>
+        </div>
+      </div>
+    );
+  }
+
   const selectedWell = wells.find((well) => well.id === selectedWellId) ?? wells[0];
   const selectedQuality = waterByWell.get(selectedWell.id);
   const wellRows = wells.map((well) => ({
@@ -2632,18 +3332,20 @@ function WellsView({
       : latest;
   }, "");
   const seriesValues = selectedWell.levelSeries.map((point) => point.value);
-  const minSeriesValue = Math.min(...seriesValues) - 0.1;
-  const maxSeriesValue = Math.max(...seriesValues) + 0.1;
+  const minSeriesValue = seriesValues.length > 0 ? Math.min(...seriesValues) - 0.1 : -0.1;
+  const maxSeriesValue = seriesValues.length > 0 ? Math.max(...seriesValues) + 0.1 : 0.1;
 
   return (
     <div className="view-stack">
       <div className="view-intro">
         <h2>Pozos y calidad de agua</h2>
-        <p>
-          Mapa operativo con estado por frescura de dato, fuente de captura y panel
-          de detalle por pozo.
-        </p>
-      </div>
+          <p>
+            Mapa operativo con estado por frescura de dato, fuente de captura y panel
+            de detalle por pozo.
+          </p>
+        </div>
+
+        {wellsSubnav}
 
       <div className="stat-grid">
         <KpiCard
@@ -2923,6 +3625,7 @@ function WellsView({
 }
 
 function MeteoView({
+  errorMessage,
   isLoggedIn,
   now,
   onSelectStation,
@@ -2930,6 +3633,7 @@ function MeteoView({
   stations,
   status,
 }: {
+  errorMessage: string | null;
   isLoggedIn: boolean;
   now: Date;
   onSelectStation: (stationId: string) => void;
@@ -2955,7 +3659,7 @@ function MeteoView({
             message={
               isLoading
                 ? "Consultando datos reales de estaciones meteorologicas."
-                : "La API no entrego estaciones meteorologicas disponibles."
+                : errorMessage ?? "La API no entrego estaciones meteorologicas disponibles."
             }
             title={isLoading ? "Cargando datos reales" : "Sin datos disponibles"}
             tone={isLoading ? "loading" : "error"}
@@ -3248,14 +3952,27 @@ export default function App() {
   const [wellState, setWellState] = useState(wellMapPoints);
   const [stationState, setStationState] = useState<MeteoStationPoint[]>(meteoStationPoints);
   const [meteoStatus, setMeteoStatus] = useState<RemoteLoadStatus>("idle");
+  const [meteoErrorMessage, setMeteoErrorMessage] = useState<string | null>(null);
+  const [wellsStatus, setWellsStatus] = useState<RemoteLoadStatus>("idle");
+  const [wellsErrorMessage, setWellsErrorMessage] = useState<string | null>(null);
+  const [isWellsAdmin, setIsWellsAdmin] = useState(false);
+  const [wellRegistryEntries, setWellRegistryEntries] = useState<WellRegistryEntry[]>([]);
+  const [wellRegistryStatus, setWellRegistryStatus] = useState<RemoteLoadStatus>("idle");
+  const [wellRegistryMessage, setWellRegistryMessage] = useState<string | null>(null);
+  const [wellMeasurementStatus, setWellMeasurementStatus] =
+    useState<RemoteLoadStatus>("idle");
+  const [wellMeasurementMessage, setWellMeasurementMessage] = useState<string | null>(null);
+  const [wellMeasurementCsvMessage, setWellMeasurementCsvMessage] = useState<string | null>(null);
   const [etrOverviewSummary, setEtrOverviewSummary] = useState({
     lastDate: "2025-10-09",
     meanValue: 1.2,
   });
+  const [etrErrorMessage, setEtrErrorMessage] = useState<string | null>(null);
   const [etrOverviewSeries, setEtrOverviewSeries] =
     useState<LineSeries[]>(etrOverviewSeasonSeries);
   const [snowOverviewSeriesForSummary, setSnowOverviewSeriesForSummary] =
     useState<LineSeries[]>(snowOverviewSeries);
+  const [snowErrorMessage, setSnowErrorMessage] = useState<string | null>(null);
   const [manualForm, setManualForm] = useState<ManualFormState>({
     wellId: defaultManualWellId,
     date: "2026-03-22",
@@ -3263,6 +3980,25 @@ export default function App() {
     level: "",
     operator: "Operador CAS",
     note: "",
+  });
+  const [wellRegistryForm, setWellRegistryForm] = useState<WellRegistryFormState>({
+    codigoObra: "",
+    name: "",
+    lat: "",
+    lng: "",
+    provider: "",
+    centroControlRut: "",
+    aquiferSector: "",
+  });
+  const [wellMeasurementForm, setWellMeasurementForm] = useState<WellMeasurementFormState>({
+    codigoObra: "",
+    companyRut: "",
+    flowRate: "",
+    measurementDate: new Date().toISOString().slice(0, 10),
+    measurementTime: "10:00",
+    totalizer: "",
+    userRut: "",
+    waterTableDepth: "",
   });
   const dashboardNow = useMemo(() => {
     const seed = authIdToken ? Date.now() : new Date(mockNowIso).getTime();
@@ -3315,7 +4051,124 @@ export default function App() {
     let isMounted = true;
 
     if (!hasAuthenticatedApiSession) {
+      setWellsStatus("idle");
+      setWellsErrorMessage(null);
+      setWellState(wellMapPoints);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const idToken = authIdToken;
+    if (!idToken) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setWellsStatus("loading");
+    setWellsErrorMessage(null);
+    setWellState([]);
+
+    fetchWellMapPoints(idToken)
+      .then((nextWells) => {
+        if (isMounted) {
+          setWellState(nextWells);
+          setWellsStatus(nextWells.length > 0 ? "ready" : "error");
+          setWellsErrorMessage(nextWells.length > 0 ? null : "La API respondio sin pozos.");
+        }
+      })
+      .catch((error) => {
+        if (isMounted) {
+          setWellState([]);
+          setWellsStatus("error");
+          setWellsErrorMessage(
+            toRemoteErrorMessage(error, "No fue posible cargar datos reales de pozos."),
+          );
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authIdToken, hasAuthenticatedApiSession]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!hasAuthenticatedApiSession || !authIdToken) {
+      setIsWellsAdmin(false);
+      setWellRegistryEntries([]);
+      setWellRegistryStatus("idle");
+      setWellRegistryMessage(null);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setWellRegistryStatus("loading");
+    setWellRegistryMessage(null);
+
+    fetchWellsAdminStatus(authIdToken)
+      .then((isAdmin) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setIsWellsAdmin(isAdmin);
+        if (!isAdmin) {
+          fetchMyWellRegistryEntries(authIdToken)
+            .then((entries) => {
+              if (isMounted) {
+                setWellRegistryEntries(entries);
+                setWellRegistryStatus("ready");
+              }
+            })
+            .catch(() => {
+              if (isMounted) {
+                setWellRegistryEntries([]);
+                setWellRegistryStatus("error");
+                setWellRegistryMessage("No fue posible cargar tus pozos asignados.");
+              }
+            });
+          return;
+        }
+
+        fetchWellRegistryEntries(authIdToken)
+          .then((entries) => {
+            if (isMounted) {
+              setWellRegistryEntries(entries);
+              setWellRegistryStatus("ready");
+            }
+          })
+          .catch(() => {
+            if (isMounted) {
+              setWellRegistryEntries([]);
+              setWellRegistryStatus("error");
+              setWellRegistryMessage("No fue posible cargar el registry de pozos.");
+            }
+          });
+      })
+      .catch(() => {
+        if (isMounted) {
+          setIsWellsAdmin(false);
+          setWellRegistryEntries([]);
+          setWellRegistryStatus("error");
+          setWellRegistryMessage("No fue posible verificar permisos admin de pozos.");
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authIdToken, hasAuthenticatedApiSession]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!hasAuthenticatedApiSession) {
       setMeteoStatus("idle");
+      setMeteoErrorMessage(null);
       setStationState(meteoStationPoints);
       return () => {
         isMounted = false;
@@ -3330,6 +4183,7 @@ export default function App() {
     }
 
     setMeteoStatus("loading");
+    setMeteoErrorMessage(null);
     setStationState([]);
 
     fetchWeatherStationPoints(idToken)
@@ -3337,12 +4191,18 @@ export default function App() {
         if (isMounted) {
           setStationState(nextStations);
           setMeteoStatus(nextStations.length > 0 ? "ready" : "error");
+          setMeteoErrorMessage(
+            nextStations.length > 0 ? null : "La API respondio sin estaciones meteorologicas.",
+          );
         }
       })
-      .catch(() => {
+      .catch((error) => {
         if (isMounted) {
           setStationState([]);
           setMeteoStatus("error");
+          setMeteoErrorMessage(
+            toRemoteErrorMessage(error, "No fue posible cargar datos reales de meteo."),
+          );
         }
       });
 
@@ -3355,6 +4215,7 @@ export default function App() {
     let isMounted = true;
 
     if (!hasAuthenticatedApiSession) {
+      setEtrErrorMessage(null);
       setEtrOverviewSummary({
         lastDate: "2025-10-09",
         meanValue: 1.2,
@@ -3375,6 +4236,14 @@ export default function App() {
     Promise.allSettled([fetchEtrStdAe(idToken), fetchEtrSerieEt(idToken)])
       .then(([summaryResult, serieResult]) => {
         if (isMounted) {
+          const rejected = [summaryResult, serieResult].find(
+            (result) => result.status === "rejected",
+          );
+          setEtrErrorMessage(
+            rejected?.status === "rejected"
+              ? toRemoteErrorMessage(rejected.reason, "No fue posible cargar ET-LAT.")
+              : null,
+          );
           if (summaryResult.status === "fulfilled") {
             setEtrOverviewSummary({
               lastDate: summaryResult.value.fecha,
@@ -3392,8 +4261,11 @@ export default function App() {
           );
         }
       })
-      .catch(() => {
+      .catch((error) => {
         if (isMounted) {
+          setEtrErrorMessage(
+            toRemoteErrorMessage(error, "No fue posible cargar datos reales de ET-LAT."),
+          );
           setEtrOverviewSummary({
             lastDate: "Sin datos",
             meanValue: 0,
@@ -3411,6 +4283,7 @@ export default function App() {
     let isMounted = true;
 
     if (!hasAuthenticatedApiSession) {
+      setSnowErrorMessage(null);
       setSnowOverviewSeriesForSummary(snowOverviewSeries);
       return () => {
         isMounted = false;
@@ -3428,10 +4301,14 @@ export default function App() {
       .then((coverage) => {
         if (isMounted) {
           setSnowOverviewSeriesForSummary(toModisSnowLineSeries(coverage.ae ?? []));
+          setSnowErrorMessage(null);
         }
       })
-      .catch(() => {
+      .catch((error) => {
         if (isMounted) {
+          setSnowErrorMessage(
+            toRemoteErrorMessage(error, "No fue posible cargar datos reales de MODIS Snow."),
+          );
           setSnowOverviewSeriesForSummary([]);
         }
       });
@@ -3442,10 +4319,25 @@ export default function App() {
   }, [authIdToken, hasAuthenticatedApiSession]);
 
   useEffect(() => {
+    if (wells.length === 0) {
+      return;
+    }
+
     if (!wells.some((well) => well.id === selectedWellId)) {
       setSelectedWellId(wells[0].id);
     }
   }, [selectedWellId, wells]);
+
+  useEffect(() => {
+    if (wellMeasurementForm.codigoObra || wellRegistryEntries.length === 0) {
+      return;
+    }
+
+    setWellMeasurementForm((previous) => ({
+      ...previous,
+      codigoObra: wellRegistryEntries[0].codigoObra,
+    }));
+  }, [wellMeasurementForm.codigoObra, wellRegistryEntries]);
 
   useEffect(() => {
     if (stations.length === 0) {
@@ -3505,6 +4397,14 @@ export default function App() {
     ],
   );
 
+  const refreshWellsFromApi = async (idToken: string) => {
+    const nextWells = await fetchWellMapPoints(idToken);
+    setWellState(nextWells);
+    setWellsStatus(nextWells.length > 0 ? "ready" : "error");
+    setWellsErrorMessage(nextWells.length > 0 ? null : "La API respondio sin pozos.");
+    return nextWells;
+  };
+
   const handleManualSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -3543,6 +4443,127 @@ export default function App() {
     setManualForm((previous) => ({ ...previous, level: "", note: "" }));
   };
 
+  const handleWellRegistrySubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!authIdToken) {
+      return;
+    }
+
+    const lat = Number.parseFloat(wellRegistryForm.lat);
+    const lng = Number.parseFloat(wellRegistryForm.lng);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      setWellRegistryMessage("Latitud y longitud deben ser numeros validos.");
+      setWellRegistryStatus("error");
+      return;
+    }
+
+    setWellRegistryStatus("loading");
+    setWellRegistryMessage(null);
+
+    try {
+      await createWellRegistryEntry(authIdToken, {
+        codigoObra: wellRegistryForm.codigoObra,
+        name: wellRegistryForm.name,
+        lat,
+        lng,
+        provider: wellRegistryForm.provider || null,
+        centroControlRut: wellRegistryForm.centroControlRut || null,
+        aquiferSector: wellRegistryForm.aquiferSector || null,
+      });
+      const entries = await fetchWellRegistryEntries(authIdToken);
+      setWellRegistryEntries(entries);
+      setWellRegistryForm({
+        codigoObra: "",
+        name: "",
+        lat: "",
+        lng: "",
+        provider: "",
+        centroControlRut: "",
+        aquiferSector: "",
+      });
+      setWellRegistryStatus("ready");
+      setWellRegistryMessage("Pozo creado en registry.");
+    } catch {
+      setWellRegistryStatus("error");
+    setWellRegistryMessage("No fue posible crear el pozo. Revisa codigo_obra unico y formato OB.");
+    }
+  };
+
+  const handleWellMeasurementSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!authIdToken) {
+      return;
+    }
+
+    setWellMeasurementStatus("loading");
+    setWellMeasurementMessage(null);
+
+    try {
+      await ingestWellMeasurement(authIdToken, {
+        codigoObra: wellMeasurementForm.codigoObra,
+        companyRut: wellMeasurementForm.companyRut,
+        flowRate: wellMeasurementForm.flowRate,
+        measurementDate: wellMeasurementForm.measurementDate,
+        measurementTime: wellMeasurementForm.measurementTime,
+        totalizer: wellMeasurementForm.totalizer,
+        userRut: wellMeasurementForm.userRut,
+        waterTableDepth: wellMeasurementForm.waterTableDepth || null,
+      });
+      const nextWells = await refreshWellsFromApi(authIdToken);
+      const selected = nextWells.find((well) => well.id === wellMeasurementForm.codigoObra);
+      if (selected) {
+        setSelectedWellId(selected.id);
+      }
+      setWellMeasurementStatus("ready");
+      setWellMeasurementMessage("Medicion guardada y snapshot actualizado.");
+      setWellMeasurementForm((previous) => ({
+        ...previous,
+        flowRate: "",
+        totalizer: "",
+        waterTableDepth: "",
+      }));
+    } catch (error) {
+      setWellMeasurementStatus("error");
+      setWellMeasurementMessage(
+        toRemoteErrorMessage(error, "No fue posible guardar la medicion."),
+      );
+    }
+  };
+
+  const handleWellMeasurementCsvUpload = (file: File) => {
+    if (!authIdToken) {
+      return;
+    }
+
+    setWellMeasurementStatus("loading");
+    setWellMeasurementCsvMessage(null);
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const payloads = parseMeasurementCsv(String(reader.result ?? ""));
+        for (const payload of payloads) {
+          await ingestWellMeasurement(authIdToken, payload);
+        }
+        await refreshWellsFromApi(authIdToken);
+        setWellMeasurementStatus("ready");
+        setWellMeasurementCsvMessage(`${payloads.length} mediciones cargadas correctamente.`);
+      } catch (error) {
+        setWellMeasurementStatus("error");
+        setWellMeasurementCsvMessage(
+          toRemoteErrorMessage(error, "No fue posible cargar el CSV."),
+        );
+      }
+    };
+    reader.onerror = () => {
+      setWellMeasurementStatus("error");
+      setWellMeasurementCsvMessage("No fue posible leer el archivo CSV.");
+    };
+    reader.readAsText(file);
+  };
+
   const handleOpenLogin = () => {
     setAppScreen("login");
   };
@@ -3571,6 +4592,15 @@ export default function App() {
     await signOutFromGoogle();
     setIsLoggedIn(false);
     setAuthIdToken(null);
+    setWellState(wellMapPoints);
+    setWellsStatus("idle");
+    setIsWellsAdmin(false);
+    setWellRegistryEntries([]);
+    setWellRegistryStatus("idle");
+    setWellRegistryMessage(null);
+    setWellMeasurementStatus("idle");
+    setWellMeasurementMessage(null);
+    setWellMeasurementCsvMessage(null);
     setStationState(meteoStationPoints);
     setMeteoStatus("idle");
     setAppScreen("dashboard");
@@ -3654,11 +4684,16 @@ export default function App() {
         {activeView === "overview" && (
           <OverviewView
             cards={overviewCards}
+            etrErrorMessage={etrErrorMessage}
             etrSeries={etrOverviewSeries}
+            meteoErrorMessage={meteoErrorMessage}
             meteoStatus={meteoStatus}
             onOpenView={(viewId) => setActiveView(viewId)}
+            snowErrorMessage={snowErrorMessage}
             snowSeries={snowOverviewSeriesForSummary}
             stations={stations}
+            wellsErrorMessage={wellsErrorMessage}
+            wellsStatus={wellsStatus}
             wells={wells}
           />
         )}
@@ -3670,13 +4705,32 @@ export default function App() {
         )}
         {activeView === "wells" && (
           <WellsView
+            isLoggedIn={hasAuthenticatedApiSession}
+            isWellsAdmin={isWellsAdmin}
             manualEntries={manualEntries}
             manualForm={manualForm}
             now={dashboardNow}
             onManualChange={(next) => setManualForm((previous) => ({ ...previous, ...next }))}
             onManualSubmit={handleManualSubmit}
+            onWellRegistryChange={(next) =>
+              setWellRegistryForm((previous) => ({ ...previous, ...next }))}
+            onWellRegistrySubmit={handleWellRegistrySubmit}
+            onWellMeasurementChange={(next) =>
+              setWellMeasurementForm((previous) => ({ ...previous, ...next }))}
+            onWellMeasurementCsvUpload={handleWellMeasurementCsvUpload}
+            onWellMeasurementSubmit={handleWellMeasurementSubmit}
             onSelectWell={setSelectedWellId}
             selectedWellId={selectedWellId}
+            status={wellsStatus}
+            errorMessage={wellsErrorMessage}
+            wellMeasurementCsvMessage={wellMeasurementCsvMessage}
+            wellMeasurementForm={wellMeasurementForm}
+            wellMeasurementMessage={wellMeasurementMessage}
+            wellMeasurementStatus={wellMeasurementStatus}
+            wellRegistryEntries={wellRegistryEntries}
+            wellRegistryForm={wellRegistryForm}
+            wellRegistryMessage={wellRegistryMessage}
+            wellRegistryStatus={wellRegistryStatus}
             wells={wells}
           />
         )}
@@ -3688,6 +4742,7 @@ export default function App() {
             selectedStationId={selectedStationId}
             stations={stations}
             status={meteoStatus}
+            errorMessage={meteoErrorMessage}
           />
         )}
       </main>

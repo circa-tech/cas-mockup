@@ -1,4 +1,5 @@
 import { MeteoStationPoint } from "../data/mockupData";
+import { throwApiError } from "./apiError";
 
 type WeatherStationSnapshot = {
   etag?: string | null;
@@ -60,7 +61,7 @@ export const fetchWeatherStationPoints = async (
   }
 
   if (!response.ok) {
-    throw new Error(`Weather station snapshot request failed: ${response.status}`);
+    await throwApiError(response, "Weather station snapshot");
   }
 
   const snapshot = (await response.json()) as WeatherStationSnapshot;

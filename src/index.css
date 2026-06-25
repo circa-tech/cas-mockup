@@ -268,6 +268,10 @@ select:focus-visible {
   animation: dataStateSpin 0.9s linear infinite;
 }
 
+.data-state.has-custom-icon .data-state-icon svg {
+  animation: none;
+}
+
 .data-state.is-error .data-state-icon {
   background: #fff1f3;
   color: #bf4257;
@@ -1102,6 +1106,79 @@ select:focus-visible {
 .manual-entry-form button:hover {
   transform: translateY(-1px);
   box-shadow: 0 12px 20px rgba(33, 100, 209, 0.3);
+}
+
+.registry-list {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding: 12px 14px 14px;
+}
+
+.registry-row {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px 10px;
+}
+
+.registry-row div {
+  display: grid;
+  gap: 2px;
+}
+
+.registry-row strong {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.registry-row span {
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.registry-map-preview {
+  border-top: 1px solid var(--border);
+  padding: 14px;
+}
+
+.status-leaflet-map.is-registry-preview {
+  height: 320px;
+}
+
+.measurement-upload-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+  gap: 14px;
+}
+
+.csv-upload-box {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.csv-upload-box input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px;
+}
+
+.csv-upload-box p {
+  margin: 0;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .manual-history {
@@ -2130,6 +2207,10 @@ body {
   .snow-balance-global-controls {
     justify-content: space-between;
     width: 100%;
+  }
+
+  .measurement-upload-grid {
+    grid-template-columns: 1fr;
   }
 }
 
