@@ -140,6 +140,7 @@ import {
   fetchWellsAdminStatus,
   ingestWellMeasurement,
   type IngestWellMeasurementPayload,
+  type WellsCapabilities,
   type WellRegistryEntry,
 } from "./services/wellsApi";
 import { downloadMockQuadrantPng } from "./utils/mockQuadrantExport";
@@ -3118,9 +3119,10 @@ function OverviewView({
 }
 
 function WellsView({
+  canAddMeasurements,
+  canCreateWells,
   errorMessage,
   isLoggedIn,
-  isWellsAdmin,
   manualEntries,
   manualForm,
   now,
@@ -3144,9 +3146,10 @@ function WellsView({
   wellRegistryStatus,
   wells,
 }: {
+  canAddMeasurements: boolean;
+  canCreateWells: boolean;
   errorMessage: string | null;
   isLoggedIn: boolean;
-  isWellsAdmin: boolean;
   manualEntries: ManualWellEntry[];
   manualForm: ManualFormState;
   now: Date;
@@ -3172,7 +3175,7 @@ function WellsView({
 }) {
   const [activeWellsTab, setActiveWellsTab] =
     useState<"monitoring" | "measurement" | "admin">("monitoring");
-  const canAddMeasurements = isWellsAdmin || wellRegistryEntries.length > 0;
+  const canUseMeasurementForm = canAddMeasurements && wellRegistryEntries.length > 0;
   const waterByWell = useMemo(
     () => new Map(waterQualityRecords.map((record) => [record.wellId, record])),
     [],
@@ -3180,14 +3183,14 @@ function WellsView({
 
   useEffect(() => {
     if (
-      (activeWellsTab === "admin" && !isWellsAdmin) ||
-      (activeWellsTab === "measurement" && !canAddMeasurements)
+      (activeWellsTab === "admin" && !canCreateWells) ||
+      (activeWellsTab === "measurement" && !canUseMeasurementForm)
     ) {
       setActiveWellsTab("monitoring");
     }
-  }, [activeWellsTab, canAddMeasurements, isWellsAdmin]);
+  }, [activeWellsTab, canCreateWells, canUseMeasurementForm]);
 
-  const wellsSubnav = isWellsAdmin || canAddMeasurements ? (
+  const wellsSubnav = canCreateWells || canUseMeasurementForm ? (
     <div className="snow-subnav" role="tablist" aria-label="Secciones de pozos">
       <button
         type="button"
@@ -3198,7 +3201,7 @@ function WellsView({
       >
         Monitoreo de pozos
       </button>
-      {canAddMeasurements && (
+      {canUseMeasurementForm && (
         <button
           type="button"
           role="tab"
@@ -3209,7 +3212,7 @@ function WellsView({
           Agregar medicion
         </button>
       )}
-      {isWellsAdmin && (
+      {canCreateWells && (
         <button
           type="button"
           role="tab"
@@ -3223,7 +3226,7 @@ function WellsView({
     </div>
   ) : null;
 
-  if (isWellsAdmin && activeWellsTab === "admin") {
+  if (canCreateWells && activeWellsTab === "admin") {
     return (
       <div className="view-stack">
         <div className="view-intro">
@@ -3248,7 +3251,7 @@ function WellsView({
     );
   }
 
-  if (canAddMeasurements && activeWellsTab === "measurement") {
+  if (canUseMeasurementForm && activeWellsTab === "measurement") {
     return (
       <div className="view-stack">
         <div className="view-intro">
@@ -4187,7 +4190,14 @@ export default function App() {
   const [meteoErrorMessage, setMeteoErrorMessage] = useState<string | null>(null);
   const [wellsStatus, setWellsStatus] = useState<RemoteLoadStatus>("idle");
   const [wellsErrorMessage, setWellsErrorMessage] = useState<string | null>(null);
-  const [isWellsAdmin, setIsWellsAdmin] = useState(false);
+  const [wellsCapabilities, setWellsCapabilities] = useState<WellsCapabilities>({
+    canAddMeasurements: false,
+    canCreateWells: false,
+    canDeleteMeasurements: false,
+    canManageAccess: false,
+    canViewWells: false,
+    isAdmin: false,
+  });
   const [wellRegistryEntries, setWellRegistryEntries] = useState<WellRegistryEntry[]>([]);
   const [wellRegistryStatus, setWellRegistryStatus] = useState<RemoteLoadStatus>("idle");
   const [wellRegistryMessage, setWellRegistryMessage] = useState<string | null>(null);
@@ -4233,9 +4243,15 @@ export default function App() {
     waterTableDepth: "",
   });
   const canManageUsers = authPermissions.includes("users:manage");
+  const hasAuthenticatedApiSession = isLoggedIn && Boolean(authIdToken);
   const availableViews = useMemo(
-    () => views.filter((view) => view.id !== "admin" || canManageUsers),
-    [canManageUsers],
+    () =>
+      views.filter(
+        (view) =>
+          (view.id !== "admin" || canManageUsers) &&
+          (view.id !== "wells" || !hasAuthenticatedApiSession || authRole !== "public_user"),
+      ),
+    [authRole, canManageUsers, hasAuthenticatedApiSession],
   );
 
   const dashboardNow = useMemo(() => {
@@ -4245,7 +4261,6 @@ export default function App() {
     );
     return new Date(Math.max(seed, ...manualTimes));
   }, [authIdToken, manualEntries]);
-  const hasAuthenticatedApiSession = isLoggedIn && Boolean(authIdToken);
 
   const wells = useMemo(
     () =>
@@ -4289,10 +4304,15 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (activeView === "admin" && !canManageUsers) {
+    if (
+      (activeView === "admin" && !canManageUsers) ||
+      (activeView === "wells" &&
+        hasAuthenticatedApiSession &&
+        authRole === "public_user")
+    ) {
       setActiveView("overview");
     }
-  }, [activeView, canManageUsers]);
+  }, [activeView, authRole, canManageUsers, hasAuthenticatedApiSession]);
 
   useEffect(() => {
     let isMounted = true;
@@ -4344,7 +4364,14 @@ export default function App() {
     let isMounted = true;
 
     if (!hasAuthenticatedApiSession || !authIdToken) {
-      setIsWellsAdmin(false);
+      setWellsCapabilities({
+        canAddMeasurements: false,
+        canCreateWells: false,
+        canDeleteMeasurements: false,
+        canManageAccess: false,
+        canViewWells: false,
+        isAdmin: false,
+      });
       setWellRegistryEntries([]);
       setWellRegistryStatus("idle");
       setWellRegistryMessage(null);
@@ -4357,13 +4384,13 @@ export default function App() {
     setWellRegistryMessage(null);
 
     fetchWellsAdminStatus(authIdToken)
-      .then((isAdmin) => {
+      .then((capabilities) => {
         if (!isMounted) {
           return;
         }
 
-        setIsWellsAdmin(isAdmin);
-        if (!isAdmin) {
+        setWellsCapabilities(capabilities);
+        if (!capabilities.canManageAccess) {
           fetchMyWellRegistryEntries(authIdToken)
             .then((entries) => {
               if (isMounted) {
@@ -4398,7 +4425,14 @@ export default function App() {
       })
       .catch(() => {
         if (isMounted) {
-          setIsWellsAdmin(false);
+          setWellsCapabilities({
+            canAddMeasurements: false,
+            canCreateWells: false,
+            canDeleteMeasurements: false,
+            canManageAccess: false,
+            canViewWells: false,
+            isAdmin: false,
+          });
           setWellRegistryEntries([]);
           setWellRegistryStatus("error");
           setWellRegistryMessage("No fue posible verificar permisos admin de pozos.");
@@ -4847,7 +4881,14 @@ export default function App() {
     setAuthIdToken(null);
     setWellState(wellMapPoints);
     setWellsStatus("idle");
-    setIsWellsAdmin(false);
+    setWellsCapabilities({
+      canAddMeasurements: false,
+      canCreateWells: false,
+      canDeleteMeasurements: false,
+      canManageAccess: false,
+      canViewWells: false,
+      isAdmin: false,
+    });
     setWellRegistryEntries([]);
     setWellRegistryStatus("idle");
     setWellRegistryMessage(null);
@@ -4964,8 +5005,9 @@ export default function App() {
         )}
         {activeView === "wells" && (
           <WellsView
+            canAddMeasurements={wellsCapabilities.canAddMeasurements}
+            canCreateWells={wellsCapabilities.canCreateWells}
             isLoggedIn={hasAuthenticatedApiSession}
-            isWellsAdmin={isWellsAdmin}
             manualEntries={manualEntries}
             manualForm={manualForm}
             now={dashboardNow}

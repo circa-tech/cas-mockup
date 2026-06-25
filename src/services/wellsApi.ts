@@ -63,6 +63,15 @@ export type IngestWellMeasurementPayload = {
   userRut: string;
 };
 
+export type WellsCapabilities = {
+  canAddMeasurements: boolean;
+  canCreateWells: boolean;
+  canDeleteMeasurements: boolean;
+  canManageAccess: boolean;
+  canViewWells: boolean;
+  isAdmin: boolean;
+};
+
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
 
 export const fetchWellMapPoints = async (idToken: string): Promise<WellMapPoint[]> => {
@@ -84,10 +93,11 @@ export const fetchWellMapPoints = async (idToken: string): Promise<WellMapPoint[
   return mapMeasurementsToWells(measurements);
 };
 
-export const fetchWellsAdminStatus = async (idToken: string): Promise<boolean> => {
+export const fetchWellsAdminStatus = async (
+  idToken: string,
+): Promise<WellsCapabilities> => {
   const response = await requestWells("admin/me", idToken);
-  const payload = (await response.json()) as { isAdmin?: boolean };
-  return payload.isAdmin === true;
+  return response.json() as Promise<WellsCapabilities>;
 };
 
 export const fetchWellRegistryEntries = async (
