@@ -382,6 +382,8 @@ function WellRegistryAdminPanel({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   status: RemoteLoadStatus;
 }) {
+  const [activeAdminView, setActiveAdminView] =
+    useState<"registry" | "access">("registry");
   const [selectedAccessWellId, setSelectedAccessWellId] = useState("");
   const [accessEntries, setAccessEntries] = useState<WellAccessEntry[]>([]);
   const [accessStatus, setAccessStatus] = useState<RemoteLoadStatus>("idle");
@@ -487,7 +489,32 @@ function WellRegistryAdminPanel({
       title="Administracion de pozos"
       subtitle={`${entries.length} pozos en registry`}
     >
-      <form className="manual-entry-form" onSubmit={onSubmit}>
+      <div className="well-admin-view-nav" role="tablist" aria-label="Administracion de pozos">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeAdminView === "registry"}
+          className={activeAdminView === "registry" ? "is-active" : ""}
+          onClick={() => setActiveAdminView("registry")}
+        >
+          Crear pozo
+        </button>
+        {canManageAccess && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeAdminView === "access"}
+            className={activeAdminView === "access" ? "is-active" : ""}
+            onClick={() => setActiveAdminView("access")}
+          >
+            Usuarios por pozo
+          </button>
+        )}
+      </div>
+
+      {activeAdminView === "registry" && (
+        <>
+          <form className="manual-entry-form" onSubmit={onSubmit}>
         <div className="manual-two-col">
           <label>
             <span>Codigo obra</span>
@@ -571,53 +598,58 @@ function WellRegistryAdminPanel({
         <button type="submit" disabled={status === "loading"}>
           {status === "loading" ? "Guardando..." : "Crear pozo"}
         </button>
-      </form>
+          </form>
 
-      <div className="registry-map-preview">
-        {hasPreviewLocation ? (
-          <StatusLeafletMap
-            className="is-registry-preview"
-            points={[
-              {
-                id: "new-well-preview",
-                lat: previewLat,
-                lastUpdate: new Date().toISOString(),
-                lng: previewLng,
-                name: form.name || form.codigoObra || "Nuevo pozo",
-                sourceType: "manual",
-                status: "fresh",
-              },
-            ]}
-            selectedPointId="new-well-preview"
-          />
-        ) : (
-          <RemoteDataState
-            className="is-compact"
-            icon={<MapPinned size={18} />}
-            message="Ingresa latitud y longitud para previsualizar el punto."
-            title="Sin ubicacion"
-            tone="loading"
-          />
-        )}
-      </div>
+          <div className="registry-map-preview">
+            {hasPreviewLocation ? (
+              <StatusLeafletMap
+                className="is-registry-preview"
+                points={[
+                  {
+                    id: "new-well-preview",
+                    lat: previewLat,
+                    lastUpdate: new Date().toISOString(),
+                    lng: previewLng,
+                    name: form.name || form.codigoObra || "Nuevo pozo",
+                    sourceType: "manual",
+                    status: "fresh",
+                  },
+                ]}
+                selectedPointId="new-well-preview"
+              />
+            ) : (
+              <RemoteDataState
+                className="is-compact"
+                icon={<MapPinned size={18} />}
+                message="Ingresa latitud y longitud para previsualizar el punto."
+                title="Sin ubicacion"
+                tone="loading"
+              />
+            )}
+          </div>
 
-      {entries.length > 0 && (
-        <div className="registry-list">
-          {entries.slice(0, 6).map((entry) => (
-            <div className="registry-row" key={entry.id}>
-              <div>
-                <strong>{entry.name}</strong>
-                <span>{entry.codigoObra}</span>
-              </div>
-              <span>{entry.provider ?? "Sin provider"}</span>
+          {entries.length > 0 && (
+            <div className="registry-list">
+              {entries.slice(0, 6).map((entry) => (
+                <div className="registry-row" key={entry.id}>
+                  <div>
+                    <strong>{entry.name}</strong>
+                    <span>{entry.codigoObra}</span>
+                  </div>
+                  <span>{entry.provider ?? "Sin provider"}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
-      {canManageAccess && entries.length > 0 && (
+      {activeAdminView === "access" && canManageAccess && entries.length > 0 && (
         <div className="well-access-admin">
-          <h4>Accesos por pozo</h4>
+          <div>
+            <h4>Usuarios por pozo</h4>
+            <p>Asigna permisos o revoca el acceso de usuarios para cada pozo.</p>
+          </div>
           <label>
             <span>Pozo</span>
             <select
@@ -687,6 +719,15 @@ function WellRegistryAdminPanel({
             )}
           </div>
         </div>
+      )}
+
+      {activeAdminView === "access" && canManageAccess && entries.length === 0 && (
+        <RemoteDataState
+          className="is-compact"
+          message="Primero debes crear un pozo para poder administrar sus usuarios."
+          title="Sin pozos disponibles"
+          tone="error"
+        />
       )}
     </Panel>
   );

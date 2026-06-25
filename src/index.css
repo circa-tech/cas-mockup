@@ -1159,6 +1159,30 @@ select:focus-visible {
   opacity: 0.55;
 }
 
+.well-admin-view-nav {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
+}
+
+.well-admin-view-nav button {
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #667085;
+  padding: 0 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.well-admin-view-nav button.is-active {
+  border-color: #b9d2ff;
+  background: #eef4ff;
+  color: #175cd3;
+}
+
 .well-access-admin {
   display: grid;
   gap: 12px;
@@ -1170,6 +1194,12 @@ select:focus-visible {
   margin: 0;
   color: var(--text);
   font-size: 15px;
+}
+
+.well-access-admin p {
+  margin: 4px 0 0;
+  color: #667085;
+  font-size: 13px;
 }
 
 .well-access-admin > label {
