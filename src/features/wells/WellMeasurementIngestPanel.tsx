@@ -46,6 +46,11 @@ export function WellMeasurementIngestPanel({
         title="Agregar medicion"
         subtitle="Carga directa desde el mockup"
       >
+        {!hasRegistryEntries && (
+          <p role="status">
+            No hay pozos registrados. Crea un pozo antes de agregar mediciones.
+          </p>
+        )}
         <form className="manual-entry-form" onSubmit={onSubmit}>
           <label>
             <span>Pozo</span>

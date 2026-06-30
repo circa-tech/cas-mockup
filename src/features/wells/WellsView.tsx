@@ -68,7 +68,7 @@ export function WellsView({
 }) {
   const [activeWellsTab, setActiveWellsTab] =
     useState<"monitoring" | "measurement" | "admin">("monitoring");
-  const canUseMeasurementForm = canAddMeasurements && wellRegistryEntries.length > 0;
+  const canUseMeasurementForm = canAddMeasurements;
   useEffect(() => {
     if (
       (activeWellsTab === "admin" && !canCreateWells) ||
