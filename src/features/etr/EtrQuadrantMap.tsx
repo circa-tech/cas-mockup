@@ -1,13 +1,9 @@
 import { useEffect, useMemo } from "react";
 import { GeoJSON, LayersControl, MapContainer, TileLayer, useMap } from "react-leaflet";
-import etrQuadrantsGeoJson from "../data/etrQuadrantsGeoJson.json";
-import { chartPalette } from "../data/mockupData";
-import { ModifierWheelZoom } from "./ModifierWheelZoom";
-
-export type EtrQuadrantSelection = {
-  quadrantId: string;
-  quadrantLabel: string;
-};
+import etrQuadrantsGeoJson from "../../data/etrQuadrantsGeoJson.json";
+import { chartPalette } from "../../data/mockupData";
+import { ModifierWheelZoom } from "../../components/ModifierWheelZoom";
+import type { EtrQuadrantSelection } from "./mapSelections";
 
 type EtrQuadrantFeature = {
   geometry: {
@@ -52,14 +48,6 @@ const buildSelection = (feature: EtrQuadrantFeature | undefined): EtrQuadrantSel
     quadrantLabel: `Cuadrante ${quadrantId}`,
   };
 };
-
-const preferredDefaultQuadrant = localEtrQuadrantsGeoJson.features.find(
-  (feature) => getQuadrantId(feature) === 273,
-);
-
-export const defaultEtrQuadrantSelection: EtrQuadrantSelection = buildSelection(
-  preferredDefaultQuadrant ?? localEtrQuadrantsGeoJson.features[0],
-);
 
 const toGeometryRings = (feature: EtrQuadrantFeature | undefined): number[][][] => {
   if (!feature) {

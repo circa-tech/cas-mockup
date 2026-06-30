@@ -1,31 +1,13 @@
 import { useEffect, useRef } from "react";
 import { GeoJSON, LayersControl, MapContainer, TileLayer, useMap } from "react-leaflet";
-import etrUsoGeoJson from "../data/etrUsoGeoJson.json";
-import { chartPalette } from "../data/mockupData";
-import { ModifierWheelZoom } from "./ModifierWheelZoom";
-
-export type EtrUsoSelection = {
-  cultivo: string;
-  date: string;
-  etmaxRaw: number;
-  etrRaw: number;
-  usoId: string;
-};
-
-export type EtrUsoFeature = {
-  geometry: {
-    coordinates: number[][][][] | number[][][];
-    type: "MultiPolygon" | "Polygon";
-  };
-  id: number | string;
-  properties: {
-    cultivo: string;
-    etmax: number;
-    etr: number;
-    fecha: string;
-    uso_id: number;
-  };
-};
+import etrUsoGeoJson from "../../data/etrUsoGeoJson.json";
+import { chartPalette } from "../../data/mockupData";
+import {
+  buildEtrUsoSelection,
+  type EtrUsoFeature,
+  type EtrUsoSelection,
+} from "./mapSelections";
+import { ModifierWheelZoom } from "../../components/ModifierWheelZoom";
 
 type EtrUsoFeatureCollection = {
   features: EtrUsoFeature[];
@@ -90,19 +72,6 @@ const getUsoId = (feature: EtrUsoFeature | undefined) => {
   const parsed = Number.parseInt(String(candidate), 10);
   return Number.isNaN(parsed) ? 0 : parsed;
 };
-
-export const buildEtrUsoSelection = (feature: EtrUsoFeature | undefined): EtrUsoSelection => ({
-  cultivo: feature?.properties.cultivo ?? "Sin dato",
-  date: feature?.properties.fecha ?? "",
-  etmaxRaw: feature?.properties.etmax ?? 0,
-  etrRaw: feature?.properties.etr ?? 0,
-  usoId: String(getUsoId(feature)),
-});
-
-export const defaultEtrUsoMapSelection: EtrUsoSelection = buildEtrUsoSelection(
-  localEtrUsoGeoJson.features.find((feature) => String(getUsoId(feature)) === "855") ??
-    localEtrUsoGeoJson.features[0],
-);
 
 function InitialUsoViewport({
   features,

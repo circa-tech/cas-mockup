@@ -268,6 +268,10 @@ select:focus-visible {
   animation: dataStateSpin 0.9s linear infinite;
 }
 
+.data-state.has-custom-icon .data-state-icon svg {
+  animation: none;
+}
+
 .data-state.is-error .data-state-icon {
   background: #fff1f3;
   color: #bf4257;
@@ -1067,6 +1071,27 @@ select:focus-visible {
   padding: 0 11px;
 }
 
+.manual-entry-form input[aria-invalid="true"] {
+  border-color: hsl(2 68% 48%);
+}
+
+.field-error,
+.form-feedback {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.field-error,
+.form-feedback.is-error {
+  color: hsl(2 68% 44%);
+}
+
+.form-feedback.is-success {
+  color: hsl(146 62% 30%);
+  font-weight: 600;
+}
+
 .manual-two-col {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1102,6 +1127,199 @@ select:focus-visible {
 .manual-entry-form button:hover {
   transform: translateY(-1px);
   box-shadow: 0 12px 20px rgba(33, 100, 209, 0.3);
+}
+
+.registry-list {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding: 12px 14px 14px;
+}
+
+.registry-row {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px 10px;
+}
+
+.registry-row div {
+  display: grid;
+  gap: 2px;
+}
+
+.registry-row strong {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.registry-row span {
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.registry-row > button {
+  min-height: 34px;
+  border: 1px solid #f0a3a3;
+  border-radius: 8px;
+  background: #fff5f5;
+  color: #b42318;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.registry-row > button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.well-admin-view-nav {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
+}
+
+.well-admin-view-nav button {
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #667085;
+  padding: 0 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.well-admin-view-nav button.is-active {
+  border-color: #b9d2ff;
+  background: #eef4ff;
+  color: #175cd3;
+}
+
+.well-access-admin {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding: 14px;
+}
+
+.well-access-admin h4 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.well-access-admin p {
+  margin: 4px 0 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+.well-access-admin > label {
+  display: grid;
+  gap: 6px;
+}
+
+.well-access-admin > label span {
+  color: #4e5460;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.well-access-admin > label select {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 11px;
+}
+
+.registry-map-preview {
+  border-top: 1px solid var(--border);
+  padding: 14px;
+}
+
+.status-leaflet-map.is-registry-preview {
+  height: 320px;
+}
+
+.measurement-upload-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+  gap: 14px;
+}
+
+.csv-upload-box {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.csv-template-action,
+.csv-upload-action {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0 12px;
+}
+
+.csv-template-action:hover {
+  background: hsl(210 24% 97%);
+}
+
+.csv-upload-action {
+  border-color: hsl(215 72% 48%);
+  background: hsl(215 72% 48%);
+  color: #fff;
+}
+
+.csv-upload-action:hover {
+  background: hsl(215 72% 42%);
+}
+
+.csv-template-action:disabled,
+.csv-upload-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.csv-upload-box input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px;
+}
+
+.csv-upload-box p {
+  margin: 0;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.csv-selected-file {
+  color: #475467;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .manual-history {
@@ -2131,6 +2349,10 @@ body {
     justify-content: space-between;
     width: 100%;
   }
+
+  .measurement-upload-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .site-header-actions {
@@ -2157,6 +2379,16 @@ body {
   font-size: 12px;
   font-weight: 620;
   white-space: nowrap;
+}
+
+.auth-role-dot {
+  border-radius: 999px;
+  background: hsl(152 45% 91%);
+  color: hsl(151 48% 26%);
+  font-size: 10px;
+  font-weight: 760;
+  padding: 2px 6px;
+  text-transform: uppercase;
 }
 
 .auth-action-btn {
@@ -2187,6 +2419,184 @@ body {
   color: hsl(205 62% 34%);
   border-color: hsl(205 42% 76%);
   background: hsl(205 80% 97%);
+}
+
+.admin-view {
+  gap: 16px;
+}
+
+.admin-summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.admin-summary {
+  min-width: 150px;
+  border: 1px solid hsl(210 18% 86%);
+  border-radius: 8px;
+  background: #fff;
+  padding: 12px 14px;
+  box-shadow: 0 6px 14px rgba(16, 44, 92, 0.08);
+}
+
+.admin-summary span {
+  display: block;
+  color: hsl(215 14% 48%);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.admin-summary strong {
+  display: block;
+  margin-top: 4px;
+  color: hsl(216 32% 22%);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.admin-inline-error {
+  border: 1px solid hsl(5 72% 82%);
+  border-radius: 8px;
+  background: hsl(5 80% 97%);
+  color: hsl(5 62% 34%);
+  font-size: 13px;
+  font-weight: 650;
+  padding: 10px 12px;
+}
+
+.admin-users-table-wrap {
+  overflow-x: auto;
+}
+
+.admin-users-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 620px;
+}
+
+.admin-users-table thead {
+  background: hsl(210 30% 97%);
+}
+
+.admin-users-table th,
+.admin-users-table td {
+  border-bottom: 1px solid hsl(210 18% 90%);
+  padding: 12px 14px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.admin-users-table th {
+  color: hsl(215 18% 40%);
+  font-size: 11px;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.admin-users-table tr.is-current-user {
+  background: hsl(205 80% 98%);
+}
+
+.admin-user-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 210px;
+}
+
+.admin-user-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: hsl(205 70% 94%);
+  color: hsl(205 64% 34%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.admin-user-icon svg {
+  display: block;
+}
+
+.admin-user-cell strong,
+.admin-user-cell span {
+  display: block;
+}
+
+.admin-user-cell strong {
+  color: hsl(216 28% 22%);
+  font-size: 13px;
+}
+
+.admin-user-cell span {
+  color: hsl(215 14% 49%);
+  font-size: 12px;
+}
+
+.admin-role-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-role-control select {
+  min-width: 116px;
+  border: 1px solid hsl(210 18% 83%);
+  border-radius: 8px;
+  background: #fff;
+  color: hsl(216 28% 24%);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  padding: 7px 9px;
+}
+
+.admin-saving {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: hsl(205 62% 34%);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.admin-current-user {
+  border-radius: 999px;
+  background: hsl(205 70% 94%);
+  color: hsl(205 62% 30%);
+  font-size: 11px;
+  font-weight: 760;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.admin-permission-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-permission-list span,
+.admin-empty-permissions {
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
+.admin-permission-list span {
+  background: hsl(152 45% 91%);
+  color: hsl(151 48% 26%);
+}
+
+.admin-empty-permissions {
+  background: hsl(210 20% 94%);
+  color: hsl(215 13% 46%);
 }
 
 .login-shell {

@@ -2,7 +2,7 @@ import { initializeApp, getApps } from "firebase/app";
 import {
   getAuth,
   GoogleAuthProvider,
-  onAuthStateChanged,
+  onIdTokenChanged,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -14,6 +14,9 @@ export type AuthSession = {
   idToken: string | null;
   isConfigured: boolean;
   isLoggedIn: boolean;
+  permissions: string[];
+  role: string;
+  uid: string | null;
   userName: string;
 };
 
@@ -52,28 +55,54 @@ export const subscribeToAuthSession = (
       idToken: null,
       isConfigured: false,
       isLoggedIn: false,
+      permissions: [],
+      role: "public_user",
+      uid: null,
       userName: defaultAuthUserName,
     });
     return () => undefined;
   }
 
-  return onAuthStateChanged(auth, async (user) => {
+  let shouldForceInitialRefresh = true;
+  return onIdTokenChanged(auth, async (user) => {
     if (!user) {
       onChange({
         idToken: null,
         isConfigured: true,
         isLoggedIn: false,
+        permissions: [],
+        role: "public_user",
+        uid: null,
         userName: defaultAuthUserName,
       });
       return;
     }
 
-    onChange({
-      idToken: await user.getIdToken(),
-      isConfigured: true,
-      isLoggedIn: true,
-      userName: user.displayName || user.email || defaultAuthUserName,
-    });
+    try {
+      const forceRefresh = shouldForceInitialRefresh;
+      shouldForceInitialRefresh = false;
+      const tokenResult = await user.getIdTokenResult(forceRefresh);
+
+      onChange({
+        idToken: tokenResult.token,
+        isConfigured: true,
+        isLoggedIn: true,
+        permissions: normalizePermissionsClaim(tokenResult.claims.permissions),
+        role: normalizeRoleClaim(tokenResult.claims.role),
+        uid: user.uid,
+        userName: user.displayName || user.email || defaultAuthUserName,
+      });
+    } catch {
+      onChange({
+        idToken: null,
+        isConfigured: true,
+        isLoggedIn: false,
+        permissions: [],
+        role: "public_user",
+        uid: null,
+        userName: defaultAuthUserName,
+      });
+    }
   });
 };
 
@@ -84,6 +113,9 @@ export const signInWithGoogle = async (): Promise<AuthSession> => {
       idToken: null,
       isConfigured: false,
       isLoggedIn: true,
+      permissions: [],
+      role: "public_user",
+      uid: null,
       userName: "Camila Rojas",
     };
   }
@@ -92,10 +124,15 @@ export const signInWithGoogle = async (): Promise<AuthSession> => {
   provider.setCustomParameters({ prompt: "select_account" });
   const credentials = await signInWithPopup(auth, provider);
 
+  const tokenResult = await credentials.user.getIdTokenResult(true);
+
   return {
-    idToken: await credentials.user.getIdToken(),
+    idToken: tokenResult.token,
     isConfigured: true,
     isLoggedIn: true,
+    permissions: normalizePermissionsClaim(tokenResult.claims.permissions),
+    role: normalizeRoleClaim(tokenResult.claims.role),
+    uid: credentials.user.uid,
     userName: credentials.user.displayName || credentials.user.email || defaultAuthUserName,
   };
 };
@@ -110,16 +147,24 @@ export const signInWithEmailPassword = async (
       idToken: null,
       isConfigured: false,
       isLoggedIn: true,
+      permissions: [],
+      role: "public_user",
+      uid: null,
       userName: email || defaultAuthUserName,
     };
   }
 
   const credentials = await signInWithEmailAndPassword(auth, email, password);
 
+  const tokenResult = await credentials.user.getIdTokenResult(true);
+
   return {
-    idToken: await credentials.user.getIdToken(),
+    idToken: tokenResult.token,
     isConfigured: true,
     isLoggedIn: true,
+    permissions: normalizePermissionsClaim(tokenResult.claims.permissions),
+    role: normalizeRoleClaim(tokenResult.claims.role),
+    uid: credentials.user.uid,
     userName: credentials.user.displayName || credentials.user.email || defaultAuthUserName,
   };
 };
@@ -130,3 +175,11 @@ export const signOutFromGoogle = async (): Promise<void> => {
     await signOut(auth);
   }
 };
+
+const normalizeRoleClaim = (value: unknown): string =>
+  typeof value === "string" && value.trim().length > 0 ? value.trim() : "public_user";
+
+const normalizePermissionsClaim = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.filter((permission): permission is string => typeof permission === "string")
+    : [];

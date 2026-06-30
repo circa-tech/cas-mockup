@@ -1,7 +1,11 @@
 import { BarGroup } from "../components/SimpleBarChart";
 import { LinePoint, LineSeries } from "../components/SimpleLineChart";
+import { toZonedDateTimeIso } from "../utils/date";
 
-export type ViewId = "overview" | "etr" | "snow" | "wells" | "meteo";
+const mockSantiagoIso = (date: string, time: string) =>
+  toZonedDateTimeIso(date, time) ?? `${date}T${time}`;
+
+export type ViewId = "overview" | "etr" | "snow" | "wells" | "meteo" | "admin";
 
 export const views: { id: ViewId; label: string }[] = [
   { id: "overview", label: "Resumen" },
@@ -9,6 +13,7 @@ export const views: { id: ViewId; label: string }[] = [
   { id: "snow", label: "MODIS Snow" },
   { id: "wells", label: "Pozos" },
   { id: "meteo", label: "Meteo" },
+  { id: "admin", label: "Admin" },
 ];
 
 export const etrStats = [
@@ -17,8 +22,8 @@ export const etrStats = [
   { label: "ETMAX media", value: "1.8 mm/día" },
 ];
 
-export const etrLastUpdateIso = "2026-03-21T07:15:00-03:00";
-export const snowLastUpdateIso = "2026-03-20T06:45:00-03:00";
+export const etrLastUpdateIso = mockSantiagoIso("2026-03-21", "07:15:00");
+export const snowLastUpdateIso = mockSantiagoIso("2026-03-20", "06:45:00");
 
 export const chartPalette = {
   chart1: "rgb(20, 104, 163)",
@@ -748,12 +753,13 @@ export type ComputeOverviewCardsInput = {
   snowLastUpdate: string;
   snowSeries: LineSeries[];
   stations: MeteoStationPoint[];
-  staleThresholdDays?: number;
   wells: WellMapPoint[];
 };
 
 export const staleThresholdDaysDefault = 2;
-export const mockNowIso = "2026-03-22T12:00:00-03:00";
+const etrStaleThresholdDays = 8;
+const snowStaleThresholdDays = 2;
+export const mockNowIso = mockSantiagoIso("2026-03-22", "12:00:00");
 
 export const getFreshnessStatus = (
   lastUpdate: string,
@@ -817,7 +823,6 @@ export const computeOverviewCards = ({
   snowLastUpdate,
   snowSeries,
   stations,
-  staleThresholdDays = staleThresholdDaysDefault,
   wells,
 }: ComputeOverviewCardsInput): OverviewCard[] => {
   const snowCurrentPoint = snowSeries[0]?.points[snowSeries[0].points.length - 1];
@@ -834,7 +839,6 @@ export const computeOverviewCards = ({
     : 0;
   const wellsOnTime = wells.filter((well) => well.status !== "stale").length;
   const wellsStale = wells.filter((well) => well.status === "stale").length;
-  const stationsOnTime = stations.filter((station) => station.status !== "stale").length;
   const stationsStale = hasMeteoData
     ? stations.filter((station) => station.status === "stale").length
     : meteoIsLoading
@@ -848,7 +852,7 @@ export const computeOverviewCards = ({
       targetView: "etr",
       primaryKpi: `ETR media ${etrMeanValue.toFixed(1)} mm/día`,
       secondaryKpi: `Última fecha ${etrLastDate}`,
-      status: getFreshnessStatus(etrLastUpdate, now, staleThresholdDays),
+      status: getFreshnessStatus(etrLastUpdate, now, etrStaleThresholdDays),
       lastUpdate: etrLastUpdate,
     },
     {
@@ -859,7 +863,7 @@ export const computeOverviewCards = ({
       secondaryKpi: hasSnowData
         ? `Vs año pasado ${snowDelta >= 0 ? "+" : ""}${snowDelta.toFixed(0)} pp`
         : "Sin datos disponibles",
-      status: getFreshnessStatus(snowLastUpdate, now, staleThresholdDays),
+      status: getFreshnessStatus(snowLastUpdate, now, snowStaleThresholdDays),
       lastUpdate: snowLastUpdate,
     },
     {
@@ -908,7 +912,7 @@ const wellSeedData: Omit<WellMapPoint, "status">[] = [
     name: "Pozo Guatulame",
     lat: -27.281,
     lng: -70.361,
-    lastUpdate: "2026-03-22T10:20:00-03:00",
+    lastUpdate: mockSantiagoIso("2026-03-22", "10:20:00"),
     sourceType: "telemetry",
     provider: "Proveedor Norte",
     aquiferSector: "Acuífero 1",
@@ -919,7 +923,7 @@ const wellSeedData: Omit<WellMapPoint, "status">[] = [
     name: "Pozo Mal Paso",
     lat: -27.368,
     lng: -70.451,
-    lastUpdate: "2026-03-21T07:40:00-03:00",
+    lastUpdate: mockSantiagoIso("2026-03-21", "07:40:00"),
     sourceType: "telemetry",
     provider: "Proveedor Centro",
     aquiferSector: "Acuífero 2",
@@ -930,7 +934,7 @@ const wellSeedData: Omit<WellMapPoint, "status">[] = [
     name: "Pozo Las Juntas",
     lat: -27.14,
     lng: -70.211,
-    lastUpdate: "2026-03-18T08:30:00-03:00",
+    lastUpdate: mockSantiagoIso("2026-03-18", "08:30:00"),
     sourceType: "manual",
     provider: "Carga Manual",
     aquiferSector: "Acuífero 3",
@@ -941,7 +945,7 @@ const wellSeedData: Omit<WellMapPoint, "status">[] = [
     name: "Pozo Piedra Colgada",
     lat: -27.312,
     lng: -70.286,
-    lastUpdate: "2026-03-20T16:15:00-03:00",
+    lastUpdate: mockSantiagoIso("2026-03-20", "16:15:00"),
     sourceType: "manual",
     provider: "Carga Manual",
     aquiferSector: "Acuífero 4",
@@ -995,7 +999,7 @@ const meteoSeedData: Omit<MeteoStationPoint, "status">[] = [
     name: "Estación Copiapó",
     lat: -27.366,
     lng: -70.332,
-    lastUpdate: "2026-03-22T09:10:00-03:00",
+    lastUpdate: mockSantiagoIso("2026-03-22", "09:10:00"),
     sourceType: "telemetry",
     temperatureValue: 18.2,
     humidityValue: 42,
@@ -1007,7 +1011,7 @@ const meteoSeedData: Omit<MeteoStationPoint, "status">[] = [
     name: "Estación Tierra Amarilla",
     lat: -27.479,
     lng: -70.26,
-    lastUpdate: "2026-03-19T06:20:00-03:00",
+    lastUpdate: mockSantiagoIso("2026-03-19", "06:20:00"),
     sourceType: "telemetry",
     temperatureValue: 17.4,
     humidityValue: 47,
@@ -1019,7 +1023,7 @@ const meteoSeedData: Omit<MeteoStationPoint, "status">[] = [
     name: "Estación Jorquera",
     lat: -27.192,
     lng: -69.952,
-    lastUpdate: "2026-03-21T08:05:00-03:00",
+    lastUpdate: mockSantiagoIso("2026-03-21", "08:05:00"),
     sourceType: "telemetry",
     temperatureValue: 14.9,
     humidityValue: 53,

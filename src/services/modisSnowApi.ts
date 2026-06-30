@@ -1,5 +1,6 @@
 import type { LineSeries } from "../components/SimpleLineChart";
 import { chartPalette } from "../data/mockupData";
+import { throwApiError } from "./apiError";
 
 export type ModisSnowBasinId = "ae" | "jorquera" | "pulido" | "manflas";
 
@@ -41,7 +42,7 @@ const requestModisSnow = async (
   });
 
   if (!response.ok) {
-    throw new Error(`MODIS Snow ${path} request failed: ${response.status}`);
+    await throwApiError(response, `MODIS Snow ${path}`);
   }
 
   return response;
@@ -59,9 +60,9 @@ export const fetchModisSnowLatestImage = async (
 ): Promise<ModisSnowLatestImage> => {
   const response = await requestModisSnow("latest-image", idToken);
   const blob = await response.blob();
-
+  const imageDate = response.headers.get("X-Image-Date");
   return {
-    imageDate: response.headers.get("X-Image-Date"),
+    imageDate,
     objectUrl: URL.createObjectURL(blob),
   };
 };

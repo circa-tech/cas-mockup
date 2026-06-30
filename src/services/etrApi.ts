@@ -1,6 +1,7 @@
 import { BarGroup } from "../components/SimpleBarChart";
 import { LineSeries } from "../components/SimpleLineChart";
 import { chartPalette, EtrDownloadFormat, EtrDownloadVariable } from "../data/mockupData";
+import { throwApiError } from "./apiError";
 
 export type GeoJsonFeatureCollection = {
   type: "FeatureCollection";
@@ -61,23 +62,19 @@ const requestEtr = async <T>(
     throw new Error("Missing VITE_API_BASE_URL");
   }
 
+  const normalizedParams = Object.fromEntries(
+    Object.entries(params ?? {}).filter(([, value]) => value !== undefined),
+  );
   const url = new URL(`${apiBaseUrl}/api/v1/et-lat/${path}`, window.location.origin);
-  Object.entries(params ?? {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      url.searchParams.set(key, String(value));
-    }
+  Object.entries(normalizedParams).forEach(([key, value]) => {
+    url.searchParams.set(key, String(value));
   });
-
   const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${idToken}`,
-    },
+    headers: { Authorization: `Bearer ${idToken}` },
   });
-
   if (!response.ok) {
-    throw new Error(`ET-LAT ${path} request failed: ${response.status}`);
+    await throwApiError(response, `ET-LAT ${path}`);
   }
-
   return response.json() as Promise<T>;
 };
 

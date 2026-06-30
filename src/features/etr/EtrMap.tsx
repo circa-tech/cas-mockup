@@ -1,15 +1,9 @@
 import { useEffect, useRef } from "react";
 import { LayersControl, MapContainer, Polygon, TileLayer, Tooltip, useMap } from "react-leaflet";
-import etrSectorsGeoJson from "../data/etrSectorsGeoJson.json";
-import { chartPalette } from "../data/mockupData";
-import { ModifierWheelZoom } from "./ModifierWheelZoom";
-
-export type EtrSectorSelection = {
-  regionId: string;
-  regionLabel: string;
-  sectorId: string;
-  sectorName: string;
-};
+import etrSectorsGeoJson from "../../data/etrSectorsGeoJson.json";
+import { chartPalette } from "../../data/mockupData";
+import { ModifierWheelZoom } from "../../components/ModifierWheelZoom";
+import type { EtrSectorSelection } from "./mapSelections";
 
 type EtrMapProps = {
   geoJson?: { features: unknown[]; type: "FeatureCollection" };
