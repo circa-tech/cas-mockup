@@ -1,3 +1,14 @@
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly detail: string,
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
+}
+
 export const throwApiError = async (response: Response, label: string): Promise<never> => {
   let detail = "";
 
@@ -23,7 +34,9 @@ export const throwApiError = async (response: Response, label: string): Promise<
     // Ignore non-JSON error bodies.
   }
 
-  throw new Error(
+  throw new ApiRequestError(
     detail ? `${label}: ${detail}` : `${label} request failed: ${response.status}`,
+    response.status,
+    detail,
   );
 };

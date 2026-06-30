@@ -45,31 +45,18 @@ export const fetchWeatherStationPoints = async (
   }
 
   const cached = readCachedSnapshot();
-  const headers = new Headers({
-    Authorization: `Bearer ${idToken}`,
-  });
-  if (cached?.etag) {
-    headers.set("If-None-Match", cached.etag);
-  }
-
+  const headers = new Headers({ Authorization: `Bearer ${idToken}` });
+  if (cached?.etag) headers.set("If-None-Match", cached.etag);
   const response = await fetch(`${apiBaseUrl}/api/v1/weather-stations/snapshot`, {
     headers,
   });
-
-  if (response.status === 304 && cached) {
-    return mapSnapshotToStations(cached.snapshot);
-  }
-
-  if (!response.ok) {
-    await throwApiError(response, "Weather station snapshot");
-  }
-
+  if (response.status === 304 && cached) return mapSnapshotToStations(cached.snapshot);
+  if (!response.ok) await throwApiError(response, "Weather station snapshot");
   const snapshot = (await response.json()) as WeatherStationSnapshot;
   writeCachedSnapshot({
     etag: response.headers.get("ETag") ?? snapshot.etag ?? null,
     snapshot,
   });
-
   return mapSnapshotToStations(snapshot);
 };
 

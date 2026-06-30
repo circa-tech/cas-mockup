@@ -8,9 +8,9 @@ import {
   Tooltip,
   useMap,
 } from "react-leaflet";
-import { chartPalette } from "../data/mockupData";
-import snowCoverageGeoJson from "../data/snowCoverageGeoJson.json";
-import { ModifierWheelZoom } from "./ModifierWheelZoom";
+import { chartPalette } from "../../data/mockupData";
+import snowCoverageGeoJson from "../../data/snowCoverageGeoJson.json";
+import { ModifierWheelZoom } from "../../components/ModifierWheelZoom";
 
 type SnowGeometry = {
   coordinates: number[][][] | number[][][][];

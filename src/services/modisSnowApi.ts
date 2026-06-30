@@ -60,9 +60,9 @@ export const fetchModisSnowLatestImage = async (
 ): Promise<ModisSnowLatestImage> => {
   const response = await requestModisSnow("latest-image", idToken);
   const blob = await response.blob();
-
+  const imageDate = response.headers.get("X-Image-Date");
   return {
-    imageDate: response.headers.get("X-Image-Date"),
+    imageDate,
     objectUrl: URL.createObjectURL(blob),
   };
 };

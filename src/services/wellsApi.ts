@@ -1,5 +1,7 @@
 import type { LinePoint } from "../components/SimpleLineChart";
 import type { WellMapPoint } from "../data/mockupData";
+import { authQueryScope, queryClient } from "../lib/queryClient";
+import { toZonedDateTimeIso } from "../utils/date";
 import { throwApiError } from "./apiError";
 
 type GroundwaterMeasurement = {
@@ -26,6 +28,9 @@ type WellMeasurement = {
 export type WellRegistryEntry = {
   active: boolean;
   aquiferSector?: string | null;
+  casCode: string;
+  casId: string;
+  casName: string;
   centroControlRut?: string | null;
   codigoObra: string;
   createdAt: string;
@@ -39,6 +44,7 @@ export type WellRegistryEntry = {
 
 export type CreateWellRegistryEntryPayload = {
   aquiferSector?: string | null;
+  casId: string;
   centroControlRut?: string | null;
   codigoObra: string;
   lat: number;
@@ -47,20 +53,25 @@ export type CreateWellRegistryEntryPayload = {
   provider?: string | null;
 };
 
-export type GrantWellAccessPayload = {
-  firebaseUid: string;
-  permission: "read" | "write" | "admin";
+export type CasOrganization = {
+  active: boolean;
+  code: string;
+  createdAt: string;
+  id: string;
+  name: string;
+  updatedAt: string;
 };
 
-export type WellAccessEntry = {
+export type CasMembership = {
   active: boolean;
+  casId: string;
+  createdAt: string;
   firebaseUid: string;
   id: number;
-  permission: "read" | "write" | "admin";
-  wellId: string;
+  updatedAt: string;
 };
 
-export type WellAccessUser = {
+export type CasMembershipUser = {
   displayName: string | null;
   email: string | null;
   role: string;
@@ -82,7 +93,7 @@ export type WellsCapabilities = {
   canAddMeasurements: boolean;
   canCreateWells: boolean;
   canDeleteMeasurements: boolean;
-  canManageAccess: boolean;
+  canManageCas: boolean;
   canViewWells: boolean;
   isAdmin: boolean;
 };
@@ -99,13 +110,8 @@ export const fetchWellMapPoints = async (idToken: string): Promise<WellMapPoint[
       Authorization: `Bearer ${idToken}`,
     },
   });
-
-  if (!response.ok) {
-    await throwApiError(response, "Wells measurements");
-  }
-
-  const measurements = (await response.json()) as WellMeasurement[];
-  return mapMeasurementsToWells(measurements);
+  if (!response.ok) await throwApiError(response, "Wells measurements");
+  return mapMeasurementsToWells((await response.json()) as WellMeasurement[]);
 };
 
 export const fetchWellsAdminStatus = async (
@@ -137,62 +143,66 @@ export const createWellRegistryEntry = async (
     body: JSON.stringify(payload),
     method: "POST",
   });
+  await invalidateWells(idToken);
   return response.json() as Promise<WellRegistryEntry>;
 };
 
-export const grantWellAccess = async (
+export const fetchCasOrganizations = async (
   idToken: string,
-  wellId: string,
-  payload: GrantWellAccessPayload,
-): Promise<void> => {
-  await requestWells(`registry/${wellId}/access`, idToken, {
+): Promise<CasOrganization[]> => {
+  const response = await requestWells("cas", idToken);
+  return response.json() as Promise<CasOrganization[]>;
+};
+
+export const createCasOrganization = async (
+  idToken: string,
+  payload: { code: string; name: string },
+): Promise<CasOrganization> => {
+  const response = await requestWells("cas", idToken, {
     body: JSON.stringify(payload),
     method: "POST",
   });
+  await invalidateWells(idToken);
+  return response.json() as Promise<CasOrganization>;
 };
 
-export const fetchWellAccessEntries = async (
+export const fetchCasMemberships = async (
   idToken: string,
-  wellId: string,
-): Promise<WellAccessEntry[]> => {
-  const response = await requestWells(`registry/${wellId}/access`, idToken);
-  return response.json() as Promise<WellAccessEntry[]>;
+  casId: string,
+): Promise<CasMembership[]> => {
+  const response = await requestWells(`cas/${casId}/memberships`, idToken);
+  return response.json() as Promise<CasMembership[]>;
 };
 
-export const fetchWellAccessUsers = async (
+export const fetchCasMembershipUsers = async (
   idToken: string,
-): Promise<WellAccessUser[]> => {
-  const response = await requestWells("users", idToken);
-  return response.json() as Promise<WellAccessUser[]>;
+): Promise<CasMembershipUser[]> => {
+  const response = await requestWells("cas/users", idToken);
+  return response.json() as Promise<CasMembershipUser[]>;
 };
 
-export const setWellAccess = async (
+export const setCasMembership = async (
   idToken: string,
-  wellId: string,
+  casId: string,
   firebaseUid: string,
-  permission: WellAccessEntry["permission"],
-): Promise<WellAccessEntry> => {
-  const response = await requestWells(
-    `registry/${wellId}/access/${encodeURIComponent(firebaseUid)}`,
-    idToken,
-    {
-      body: JSON.stringify({ permission }),
-      method: "PUT",
-    },
-  );
-  return response.json() as Promise<WellAccessEntry>;
+): Promise<CasMembership> => {
+  const response = await requestWells(`cas/${casId}/memberships`, idToken, {
+    body: JSON.stringify({ firebaseUid }),
+    method: "PUT",
+  });
+  await invalidateWells(idToken);
+  return response.json() as Promise<CasMembership>;
 };
 
-export const revokeWellAccess = async (
+export const revokeCasMembership = async (
   idToken: string,
-  wellId: string,
+  casId: string,
   firebaseUid: string,
 ): Promise<void> => {
-  await requestWells(
-    `registry/${wellId}/access/${encodeURIComponent(firebaseUid)}`,
-    idToken,
-    { method: "DELETE" },
-  );
+  await requestWells(`cas/${casId}/memberships/${encodeURIComponent(firebaseUid)}`, idToken, {
+    method: "DELETE",
+  });
+  await invalidateWells(idToken);
 };
 
 export const ingestWellMeasurement = async (
@@ -200,29 +210,57 @@ export const ingestWellMeasurement = async (
   payload: IngestWellMeasurementPayload,
 ): Promise<void> => {
   await requestWells("groundwater-measurements", idToken, {
-    body: JSON.stringify({
-      credentials: {
-        companyRut: payload.companyRut,
-        userRut: payload.userRut,
-      },
-      groundwaterMeasurement: {
-        flowRate: toDecimalString(payload.flowRate),
-        measurementDate: payload.measurementDate,
-        measurementTime: normalizeTime(payload.measurementTime),
-        totalizer: toIntegerString(payload.totalizer),
-        waterTableDepth:
-          payload.waterTableDepth === null || payload.waterTableDepth.trim() === ""
-            ? null
-            : toDecimalString(payload.waterTableDepth),
-      },
-    }),
+    body: JSON.stringify(toApiMeasurement(payload)),
     headers: {
       sourceTimestamp: toSourceTimestamp(new Date()),
       workCode: payload.codigoObra,
     },
     method: "POST",
   });
+  await invalidateWells(idToken);
 };
+
+export const ingestWellMeasurementsBatch = async (
+  idToken: string,
+  payloads: IngestWellMeasurementPayload[],
+): Promise<{ insertedCount: number; skippedCount: number }> => {
+  const response = await requestWells("groundwater-measurements/batch", idToken, {
+    body: JSON.stringify({
+      measurements: payloads.map((payload) => ({
+        workCode: payload.codigoObra,
+        ...toApiMeasurement(payload),
+      })),
+    }),
+    headers: {
+      sourceTimestamp: toSourceTimestamp(new Date()),
+    },
+    method: "POST",
+  });
+  await invalidateWells(idToken);
+  return response.json() as Promise<{ insertedCount: number; skippedCount: number }>;
+};
+
+const invalidateWells = (idToken: string) =>
+  queryClient.invalidateQueries({
+    queryKey: ["wells", authQueryScope(idToken)],
+  });
+
+const toApiMeasurement = (payload: IngestWellMeasurementPayload) => ({
+  credentials: {
+    companyRut: payload.companyRut,
+    userRut: payload.userRut,
+  },
+  groundwaterMeasurement: {
+    flowRate: toDecimalString(payload.flowRate),
+    measurementDate: payload.measurementDate,
+    measurementTime: normalizeTime(payload.measurementTime),
+    totalizer: toIntegerString(payload.totalizer),
+    waterTableDepth:
+      payload.waterTableDepth === null || payload.waterTableDepth.trim() === ""
+        ? null
+        : toDecimalString(payload.waterTableDepth),
+  },
+});
 
 const requestWells = async (
   path: string,
@@ -337,9 +375,8 @@ const hasRegistryLocation = (
   measurement.name.trim().length > 0;
 
 const compareByMeasurementTimestamp = (left: WellMeasurement, right: WellMeasurement) =>
-  toMeasurementIso(left.groundwaterMeasurement).localeCompare(
-    toMeasurementIso(right.groundwaterMeasurement),
-  );
+  Date.parse(toMeasurementIso(left.groundwaterMeasurement)) -
+  Date.parse(toMeasurementIso(right.groundwaterMeasurement));
 
 const buildLevelSeries = (measurements: WellMeasurement[]): LinePoint[] => {
   const points = measurements.flatMap((measurement) => {
@@ -349,7 +386,7 @@ const buildLevelSeries = (measurements: WellMeasurement[]): LinePoint[] => {
     }
 
     return {
-      label: toChartLabel(measurement.groundwaterMeasurement.measurementDate),
+      label: toChartLabel(measurement.groundwaterMeasurement),
       value,
     };
   });
@@ -358,11 +395,15 @@ const buildLevelSeries = (measurements: WellMeasurement[]): LinePoint[] => {
 };
 
 const toMeasurementIso = (measurement: GroundwaterMeasurement) =>
-  `${measurement.measurementDate}T${measurement.measurementTime}-03:00`;
+  toZonedDateTimeIso(
+    measurement.measurementDate,
+    measurement.measurementTime,
+  ) ?? `${measurement.measurementDate}T${measurement.measurementTime}`;
 
-const toChartLabel = (value: string) => {
-  const [, month, day] = value.split("-");
-  return month && day ? `${day}/${month}` : value;
+const toChartLabel = (measurement: GroundwaterMeasurement) => {
+  const [, month, day] = measurement.measurementDate.split("-");
+  const time = measurement.measurementTime.slice(0, 5);
+  return month && day ? `${day}/${month} ${time}` : measurement.measurementDate;
 };
 
 const toNumber = (value: string | number | null | undefined): number | null => {

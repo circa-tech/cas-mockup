@@ -2,7 +2,7 @@ import { initializeApp, getApps } from "firebase/app";
 import {
   getAuth,
   GoogleAuthProvider,
-  onAuthStateChanged,
+  onIdTokenChanged,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -63,7 +63,8 @@ export const subscribeToAuthSession = (
     return () => undefined;
   }
 
-  return onAuthStateChanged(auth, async (user) => {
+  let shouldForceInitialRefresh = true;
+  return onIdTokenChanged(auth, async (user) => {
     if (!user) {
       onChange({
         idToken: null,
@@ -77,17 +78,31 @@ export const subscribeToAuthSession = (
       return;
     }
 
-    const tokenResult = await user.getIdTokenResult();
+    try {
+      const forceRefresh = shouldForceInitialRefresh;
+      shouldForceInitialRefresh = false;
+      const tokenResult = await user.getIdTokenResult(forceRefresh);
 
-    onChange({
-      idToken: tokenResult.token,
-      isConfigured: true,
-      isLoggedIn: true,
-      permissions: normalizePermissionsClaim(tokenResult.claims.permissions),
-      role: normalizeRoleClaim(tokenResult.claims.role),
-      uid: user.uid,
-      userName: user.displayName || user.email || defaultAuthUserName,
-    });
+      onChange({
+        idToken: tokenResult.token,
+        isConfigured: true,
+        isLoggedIn: true,
+        permissions: normalizePermissionsClaim(tokenResult.claims.permissions),
+        role: normalizeRoleClaim(tokenResult.claims.role),
+        uid: user.uid,
+        userName: user.displayName || user.email || defaultAuthUserName,
+      });
+    } catch {
+      onChange({
+        idToken: null,
+        isConfigured: true,
+        isLoggedIn: false,
+        permissions: [],
+        role: "public_user",
+        uid: null,
+        userName: defaultAuthUserName,
+      });
+    }
   });
 };
 

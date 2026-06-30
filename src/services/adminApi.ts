@@ -66,4 +66,10 @@ export const updateAdminUserRole = (
       body: JSON.stringify({ role }),
       method: "PUT",
     },
-  );
+  ).then(async (updated) => {
+    await queryClient.invalidateQueries({
+      queryKey: ["admin", authQueryScope(idToken), "users"],
+    });
+    return updated;
+  });
+import { authQueryScope, queryClient } from "../lib/queryClient";
