@@ -178,11 +178,14 @@ export default function App() {
               authIdToken={app.authIdToken}
               canAddMeasurements={app.wellsCapabilities.canAddMeasurements}
               canCreateWells={app.wellsCapabilities.canCreateWells}
+              canManageWells={app.wellsCapabilities.canManageWells}
               canManageCas={app.wellsCapabilities.canManageCas}
               isLoggedIn={app.hasAuthenticatedApiSession}
               now={app.dashboardNow}
               onWellRegistryChange={app.handleWellRegistryChange}
+              onWellRegistryDelete={app.handleWellRegistryDelete}
               onWellRegistrySubmit={app.handleWellRegistrySubmit}
+              onWellRegistryUpdate={app.handleWellRegistryUpdate}
               onWellMeasurementChange={app.handleWellMeasurementChange}
               onWellMeasurementCsvUpload={app.handleWellMeasurementCsvUpload}
               onWellMeasurementSubmit={app.handleWellMeasurementSubmit}

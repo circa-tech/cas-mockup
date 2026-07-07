@@ -6,7 +6,7 @@ import { throwApiError } from "./apiError";
 
 type GroundwaterMeasurement = {
   conductivity?: string | number | null;
-  flowRate: string | number;
+  flowRate?: string | number | null;
   isOperating?: boolean | null;
   measurementDate: string;
   measurementTime: string;
@@ -14,7 +14,7 @@ type GroundwaterMeasurement = {
   ph?: string | number | null;
   pressure?: string | number | null;
   source?: "api" | "manual" | string | null;
-  totalizer: string | number;
+  totalizer?: string | number | null;
   waterTableDepth?: string | number | null;
   waterLevelCondition?: WaterLevelCondition | null;
 };
@@ -29,46 +29,23 @@ export type WaterRight = {
   numero?: string | null;
 };
 
+export type OwnerContact = {
+  email?: string | null;
+  phone?: string | null;
+  representative?: string | null;
+  rut?: string | null;
+};
+
 type WellMeasurement = {
   aquiferSector?: string | null;
-  authorizedFlowRate?: string | number | null;
-  authorizedVolume?: string | number | null;
   codigoObra?: string | null;
-  createdAt: string;
-  catchmentStatus?: CatchmentStatus | null;
-  datum?: string | null;
-  fieldContactEmail?: string | null;
-  fieldContactPhone?: string | null;
-  fieldContactRepresentative?: string | null;
-  flowmeterBrand?: string | null;
-  flowmeterDiameter?: string | number | null;
-  flowmeterInstallationDate?: string | null;
-  flowmeterModel?: string | null;
+  createdAt?: string | null;
   groundwaterMeasurement: GroundwaterMeasurement;
-  habilitationDiameter?: string | number | null;
-  huso?: string | null;
-  id: number;
+  id?: number | null;
   lat?: number | null;
-  levelProbeBrand?: string | null;
-  levelProbeDiameter?: string | number | null;
-  levelProbeInstallationDate?: string | null;
-  levelProbeInstallationDepth?: string | number | null;
-  locationReference?: string | null;
   lng?: number | null;
   name?: string | null;
-  observations?: string | null;
-  ownerContactEmail?: string | null;
-  ownerContactPhone?: string | null;
-  ownerContactRepresentative?: string | null;
   provider?: string | null;
-  pumpDepth?: string | number | null;
-  shac?: string | null;
-  shacSubsector?: string | null;
-  telemetryEnabled?: boolean | null;
-  utmEasting?: string | number | null;
-  utmNorthing?: string | number | null;
-  waterRights?: WaterRight[] | null;
-  wellDepth?: string | number | null;
   wellId?: string | null;
 };
 
@@ -104,9 +81,7 @@ export type WellRegistryEntry = {
   lng: number;
   name: string;
   observations?: string | null;
-  ownerContactEmail?: string | null;
-  ownerContactPhone?: string | null;
-  ownerContactRepresentative?: string | null;
+  ownerContacts?: OwnerContact[] | null;
   provider?: string | null;
   pumpDepth?: string | number | null;
   shac?: string | null;
@@ -146,9 +121,7 @@ export type CreateWellRegistryEntryPayload = {
   lng: number;
   name: string;
   observations?: string | null;
-  ownerContactEmail?: string | null;
-  ownerContactPhone?: string | null;
-  ownerContactRepresentative?: string | null;
+  ownerContacts?: OwnerContact[] | null;
   provider?: string | null;
   pumpDepth?: string | null;
   shac?: string | null;
@@ -205,7 +178,9 @@ export type IngestWellMeasurementPayload = {
 export type WellsCapabilities = {
   canAddMeasurements: boolean;
   canCreateWells: boolean;
+  canDeleteWells: boolean;
   canDeleteMeasurements: boolean;
+  canManageWells: boolean;
   canManageCas: boolean;
   canViewWells: boolean;
   isAdmin: boolean;
@@ -260,6 +235,29 @@ export const createWellRegistryEntry = async (
   return response.json() as Promise<WellRegistryEntry>;
 };
 
+export const updateWellRegistryEntry = async (
+  idToken: string,
+  wellId: string,
+  payload: CreateWellRegistryEntryPayload,
+): Promise<WellRegistryEntry> => {
+  const response = await requestWells(`registry/${wellId}`, idToken, {
+    body: JSON.stringify(payload),
+    method: "PUT",
+  });
+  await invalidateWells(idToken);
+  return response.json() as Promise<WellRegistryEntry>;
+};
+
+export const deleteWellRegistryEntry = async (
+  idToken: string,
+  wellId: string,
+): Promise<void> => {
+  await requestWells(`registry/${wellId}`, idToken, {
+    method: "DELETE",
+  });
+  await invalidateWells(idToken);
+};
+
 export const fetchCasOrganizations = async (
   idToken: string,
 ): Promise<CasOrganization[]> => {
@@ -277,6 +275,29 @@ export const createCasOrganization = async (
   });
   await invalidateWells(idToken);
   return response.json() as Promise<CasOrganization>;
+};
+
+export const updateCasOrganization = async (
+  idToken: string,
+  casId: string,
+  payload: { code: string; name: string },
+): Promise<CasOrganization> => {
+  const response = await requestWells(`cas/${casId}`, idToken, {
+    body: JSON.stringify(payload),
+    method: "PUT",
+  });
+  await invalidateWells(idToken);
+  return response.json() as Promise<CasOrganization>;
+};
+
+export const deleteCasOrganization = async (
+  idToken: string,
+  casId: string,
+): Promise<void> => {
+  await requestWells(`cas/${casId}`, idToken, {
+    method: "DELETE",
+  });
+  await invalidateWells(idToken);
 };
 
 export const fetchCasMemberships = async (

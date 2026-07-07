@@ -1243,6 +1243,18 @@ select:focus-visible {
   box-shadow: 0 12px 20px rgba(33, 100, 209, 0.3);
 }
 
+.manual-entry-form .secondary-button {
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: #344054;
+  box-shadow: none;
+}
+
+.manual-entry-form button:not(.icon-only-button) svg {
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
 .registry-list {
   display: grid;
   gap: 8px;
@@ -1265,6 +1277,16 @@ select:focus-visible {
 .registry-row div {
   display: grid;
   gap: 2px;
+}
+
+.registry-row .registry-row-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.registry-row .registry-row-actions .icon-only-button {
+  min-height: 34px;
+  width: 34px;
 }
 
 .registry-row strong {

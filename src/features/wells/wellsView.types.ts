@@ -25,9 +25,12 @@ export type WellRegistryFormState = {
   lng: string;
   name: string;
   observations: string;
-  ownerContactEmail: string;
-  ownerContactPhone: string;
-  ownerContactRepresentative: string;
+  ownerContacts: {
+    email: string;
+    phone: string;
+    representative: string;
+    rut: string;
+  }[];
   provider: string;
   pumpDepth: string;
   shac: string;

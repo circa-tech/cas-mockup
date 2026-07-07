@@ -17,12 +17,15 @@ export function WellsView({
   authIdToken,
   canAddMeasurements,
   canCreateWells,
+  canManageWells,
   canManageCas,
   errorMessage,
   isLoggedIn,
   now,
   onWellRegistryChange,
+  onWellRegistryDelete,
   onWellRegistrySubmit,
+  onWellRegistryUpdate,
   onWellMeasurementChange,
   onWellMeasurementCsvUpload,
   onWellMeasurementSubmit,
@@ -43,12 +46,18 @@ export function WellsView({
   authIdToken: string | null;
   canAddMeasurements: boolean;
   canCreateWells: boolean;
+  canManageWells: boolean;
   canManageCas: boolean;
   errorMessage: string | null;
   isLoggedIn: boolean;
   now: Date;
   onWellRegistryChange: (next: Partial<WellRegistryFormState>) => void;
+  onWellRegistryDelete: (wellId: string) => Promise<void>;
   onWellRegistrySubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onWellRegistryUpdate: (
+    wellId: string,
+    event: FormEvent<HTMLFormElement>,
+  ) => Promise<void>;
   onWellMeasurementChange: (next: Partial<WellMeasurementFormState>) => void;
   onWellMeasurementCsvUpload: (file: File) => Promise<boolean>;
   onWellMeasurementSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -130,11 +139,14 @@ export function WellsView({
         <WellRegistryAdminPanel
           authIdToken={authIdToken}
           canManageCas={canManageCas}
+          canManageWells={canManageWells}
           entries={wellRegistryEntries}
           form={wellRegistryForm}
           message={wellRegistryMessage}
           onChange={onWellRegistryChange}
+          onDeleteWell={onWellRegistryDelete}
           onSubmit={onWellRegistrySubmit}
+          onUpdateWell={onWellRegistryUpdate}
           status={wellRegistryStatus}
         />
       </div>

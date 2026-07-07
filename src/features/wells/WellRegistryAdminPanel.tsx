@@ -1,6 +1,8 @@
 import {
+  Pencil,
   MapPinned,
   Plus,
+  Save,
   Trash2
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -9,11 +11,13 @@ import { Panel } from "../../components/Panel";
 import { RemoteDataState } from "../../components/RemoteDataState";
 import {
   createCasOrganization,
+  deleteCasOrganization,
   fetchCasMemberships,
   fetchCasMembershipUsers,
   fetchCasOrganizations,
   revokeCasMembership,
   setCasMembership,
+  updateCasOrganization,
   type WellRegistryEntry
 } from "../../services/wellsApi";
 import type { RemoteLoadStatus } from "../../types/remote";
@@ -28,33 +32,105 @@ const StatusLeafletMap = lazy(() =>
   })),
 );
 
+const stringValue = (value: string | number | null | undefined) =>
+  value === null || value === undefined ? "" : String(value);
+
+const dateValue = (value: string | null | undefined) => value?.slice(0, 10) ?? "";
+
+const entryToForm = (entry: WellRegistryEntry): WellRegistryFormState => ({
+  aquiferSector: entry.aquiferSector ?? "",
+  authorizedFlowRate: stringValue(entry.authorizedFlowRate),
+  authorizedVolume: stringValue(entry.authorizedVolume),
+  casId: entry.casId,
+  catchmentStatus: entry.catchmentStatus ?? "",
+  centroControlRut: entry.centroControlRut ?? "",
+  codigoObra: entry.codigoObra,
+  datum: entry.datum ?? "",
+  fieldContactEmail: entry.fieldContactEmail ?? "",
+  fieldContactPhone: entry.fieldContactPhone ?? "",
+  fieldContactRepresentative: entry.fieldContactRepresentative ?? "",
+  flowmeterBrand: entry.flowmeterBrand ?? "",
+  flowmeterDiameter: stringValue(entry.flowmeterDiameter),
+  flowmeterInstallationDate: dateValue(entry.flowmeterInstallationDate),
+  flowmeterModel: entry.flowmeterModel ?? "",
+  habilitationDiameter: stringValue(entry.habilitationDiameter),
+  huso: entry.huso ?? "",
+  lat: stringValue(entry.lat),
+  levelProbeBrand: entry.levelProbeBrand ?? "",
+  levelProbeDiameter: stringValue(entry.levelProbeDiameter),
+  levelProbeInstallationDate: dateValue(entry.levelProbeInstallationDate),
+  levelProbeInstallationDepth: stringValue(entry.levelProbeInstallationDepth),
+  locationReference: entry.locationReference ?? "",
+  lng: stringValue(entry.lng),
+  name: entry.name,
+  observations: entry.observations ?? "",
+  ownerContacts:
+    entry.ownerContacts && entry.ownerContacts.length > 0
+      ? entry.ownerContacts.map((contact) => ({
+          email: contact.email ?? "",
+          phone: contact.phone ?? "",
+          representative: contact.representative ?? "",
+          rut: contact.rut ?? "",
+        }))
+      : [{ email: "", phone: "", representative: "", rut: "" }],
+  provider: entry.provider ?? "",
+  pumpDepth: stringValue(entry.pumpDepth),
+  shac: entry.shac ?? "",
+  shacSubsector: entry.shacSubsector ?? "",
+  telemetryEnabled:
+    entry.telemetryEnabled === null || entry.telemetryEnabled === undefined
+      ? ""
+      : String(entry.telemetryEnabled),
+  utmEasting: stringValue(entry.utmEasting),
+  utmNorthing: stringValue(entry.utmNorthing),
+  waterRights:
+    entry.waterRights && entry.waterRights.length > 0
+      ? entry.waterRights.map((right) => ({
+          anio: stringValue(right.anio),
+          cbr: right.cbr ?? "",
+          fojas: right.fojas ?? "",
+          numero: right.numero ?? "",
+        }))
+      : [{ anio: "", cbr: "", fojas: "", numero: "" }],
+  wellDepth: stringValue(entry.wellDepth),
+});
+
 
 
 export function WellRegistryAdminPanel({
   authIdToken,
   canManageCas,
+  canManageWells,
   entries,
   form,
   message,
   onChange,
+  onDeleteWell,
   onSubmit,
+  onUpdateWell,
   status,
 }: {
   authIdToken: string | null;
   canManageCas: boolean;
+  canManageWells: boolean;
   entries: WellRegistryEntry[];
   form: WellRegistryFormState;
   message: string | null;
   onChange: (next: Partial<WellRegistryFormState>) => void;
+  onDeleteWell: (wellId: string) => Promise<void>;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onUpdateWell: (wellId: string, event: FormEvent<HTMLFormElement>) => Promise<void>;
   status: RemoteLoadStatus;
 }) {
   const [activeAdminView, setActiveAdminView] =
     useState<"registry" | "cas">("registry");
+  const [editingWellId, setEditingWellId] = useState<string | null>(null);
   const [selectedCasId, setSelectedCasId] = useState("");
   const [membershipUid, setMembershipUid] = useState("");
   const [casCode, setCasCode] = useState("");
   const [casName, setCasName] = useState("");
+  const [editCasCode, setEditCasCode] = useState("");
+  const [editCasName, setEditCasName] = useState("");
   const [casStatus, setCasStatus] = useState<RemoteLoadStatus>("idle");
   const [casMessage, setCasMessage] = useState<string | null>(null);
   const organizationsQuery = useQuery({
@@ -77,6 +153,9 @@ export function WellRegistryAdminPanel({
   });
   const organizations = organizationsQuery.data ?? [];
   const memberships = membershipsQuery.data ?? [];
+  const selectedOrganization = organizations.find(
+    (organization) => organization.id === selectedCasId,
+  );
   const membershipUsers = (usersQuery.data ?? []).filter(
     (user) => user.role === "cas_user",
   );
@@ -111,6 +190,11 @@ export function WellRegistryAdminPanel({
   }, [membershipUsers]);
 
   useEffect(() => {
+    setEditCasCode(selectedOrganization?.code ?? "");
+    setEditCasName(selectedOrganization?.name ?? "");
+  }, [selectedOrganization?.code, selectedOrganization?.name]);
+
+  useEffect(() => {
     if (membershipsQuery.isPending && membershipsQuery.isEnabled) {
       setCasStatus("loading");
     } else if (membershipsQuery.isError) {
@@ -136,6 +220,25 @@ export function WellRegistryAdminPanel({
     if (membershipsQuery.isEnabled) await membershipsQuery.refetch();
   };
 
+  const handleWellEdit = (entry: WellRegistryEntry) => {
+    setEditingWellId(entry.id);
+    onChange(entryToForm(entry));
+  };
+
+  const handleWellCancelEdit = () => {
+    setEditingWellId(null);
+  };
+
+  const handleWellDelete = async (entry: WellRegistryEntry) => {
+    if (!window.confirm(`Eliminar el pozo ${entry.codigoObra}?`)) {
+      return;
+    }
+    await onDeleteWell(entry.id);
+    if (editingWellId === entry.id) {
+      setEditingWellId(null);
+    }
+  };
+
   const handleCasCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!authIdToken || !casCode.trim() || !casName.trim()) {
@@ -158,6 +261,50 @@ export function WellRegistryAdminPanel({
     } catch (error) {
       setCasStatus("error");
       setCasMessage(toRemoteErrorMessage(error, "No fue posible crear la organizacion CAS."));
+    }
+  };
+
+  const handleCasUpdate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!authIdToken || !selectedCasId || !editCasCode.trim() || !editCasName.trim()) {
+      return;
+    }
+    setCasStatus("loading");
+    setCasMessage(null);
+    try {
+      const updated = await updateCasOrganization(authIdToken, selectedCasId, {
+        code: editCasCode.trim(),
+        name: editCasName.trim(),
+      });
+      await organizationsQuery.refetch();
+      setCasStatus("ready");
+      setCasMessage(`CAS ${updated.code} actualizada.`);
+    } catch (error) {
+      setCasStatus("error");
+      setCasMessage(toRemoteErrorMessage(error, "No fue posible actualizar la CAS."));
+    }
+  };
+
+  const handleCasDelete = async () => {
+    if (!authIdToken || !selectedCasId || !selectedOrganization) {
+      return;
+    }
+    if (!window.confirm(`Eliminar la CAS ${selectedOrganization.code}?`)) {
+      return;
+    }
+    setCasStatus("loading");
+    setCasMessage(null);
+    try {
+      await deleteCasOrganization(authIdToken, selectedCasId);
+      const result = await organizationsQuery.refetch();
+      const nextOrganization = result.data?.[0];
+      setSelectedCasId(nextOrganization?.id ?? "");
+      onChange({ casId: nextOrganization?.id ?? "" });
+      setCasStatus("ready");
+      setCasMessage("CAS eliminada del registro activo.");
+    } catch (error) {
+      setCasStatus("error");
+      setCasMessage(toRemoteErrorMessage(error, "No fue posible eliminar la CAS."));
     }
   };
 
@@ -225,7 +372,16 @@ export function WellRegistryAdminPanel({
 
       {activeAdminView === "registry" && (
         <>
-          <form className="manual-entry-form" onSubmit={onSubmit}>
+          <form
+            className="manual-entry-form"
+            onSubmit={(event) => {
+              if (editingWellId) {
+                void onUpdateWell(editingWellId, event);
+                return;
+              }
+              onSubmit(event);
+            }}
+          >
             <label>
               <span>CAS</span>
               <select
@@ -637,38 +793,99 @@ export function WellRegistryAdminPanel({
             </section>
 
             <section className="metadata-fieldset" aria-labelledby="owner-contact-heading">
-              <h4 id="owner-contact-heading">Contacto titular</h4>
-              <div className="manual-two-col">
-                <label>
-                  <span>Representante</span>
-                  <input
-                    type="text"
-                    value={form.ownerContactRepresentative}
-                    placeholder="Nombre contacto"
-                    onChange={(event) =>
-                      onChange({ ownerContactRepresentative: event.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  <span>Teléfono</span>
-                  <input
-                    type="tel"
-                    value={form.ownerContactPhone}
-                    placeholder="+56 9 1234 5678"
-                    onChange={(event) => onChange({ ownerContactPhone: event.target.value })}
-                  />
-                </label>
+              <div className="water-rights-head">
+                <h4 id="owner-contact-heading">Contacto titular</h4>
+                <button
+                  type="button"
+                  className="icon-text-button"
+                  onClick={() =>
+                    onChange({
+                      ownerContacts: [
+                        ...form.ownerContacts,
+                        { email: "", phone: "", representative: "", rut: "" },
+                      ],
+                    })
+                  }
+                >
+                  <Plus size={16} aria-hidden="true" />
+                  Agregar
+                </button>
               </div>
-              <label>
-                <span>E-mail</span>
-                <input
-                  type="email"
-                  value={form.ownerContactEmail}
-                  placeholder="titular@cas.cl"
-                  onChange={(event) => onChange({ ownerContactEmail: event.target.value })}
-                />
-              </label>
+              {form.ownerContacts.map((contact, index) => (
+                <div className="water-right-row" key={index}>
+                  <label>
+                    <span>Representante</span>
+                    <input
+                      type="text"
+                      value={contact.representative}
+                      placeholder="Nombre contacto"
+                      onChange={(event) => {
+                        const ownerContacts = [...form.ownerContacts];
+                        ownerContacts[index] = {
+                          ...contact,
+                          representative: event.target.value,
+                        };
+                        onChange({ ownerContacts });
+                      }}
+                    />
+                  </label>
+                  <label>
+                    <span>RUT</span>
+                    <input
+                      type="text"
+                      value={contact.rut}
+                      placeholder="12345678-9"
+                      onChange={(event) => {
+                        const ownerContacts = [...form.ownerContacts];
+                        ownerContacts[index] = { ...contact, rut: event.target.value };
+                        onChange({ ownerContacts });
+                      }}
+                    />
+                  </label>
+                  <label>
+                    <span>Teléfono</span>
+                    <input
+                      type="tel"
+                      value={contact.phone}
+                      placeholder="+56 9 1234 5678"
+                      onChange={(event) => {
+                        const ownerContacts = [...form.ownerContacts];
+                        ownerContacts[index] = { ...contact, phone: event.target.value };
+                        onChange({ ownerContacts });
+                      }}
+                    />
+                  </label>
+                  <label>
+                    <span>E-mail</span>
+                    <input
+                      type="email"
+                      value={contact.email}
+                      placeholder="titular@cas.cl"
+                      onChange={(event) => {
+                        const ownerContacts = [...form.ownerContacts];
+                        ownerContacts[index] = { ...contact, email: event.target.value };
+                        onChange({ ownerContacts });
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="icon-only-button"
+                    title="Quitar contacto"
+                    aria-label="Quitar contacto"
+                    disabled={form.ownerContacts.length === 1}
+                    onClick={() =>
+                      onChange({
+                        ownerContacts: form.ownerContacts.filter(
+                          (_, itemIndex) => itemIndex !== index,
+                        ),
+                      })
+                    }
+                  >
+                    <Trash2 size={16} aria-hidden="true" />
+                  </button>
+                </div>
+              ))}
             </section>
 
             <section className="metadata-fieldset" aria-labelledby="field-contact-heading">
@@ -766,9 +983,25 @@ export function WellRegistryAdminPanel({
               />
             </label>
 
-            <button type="submit" disabled={status === "loading"}>
-              {status === "loading" ? "Guardando..." : "Crear pozo"}
-            </button>
+            <div className="manual-two-col">
+              <button type="submit" disabled={status === "loading"}>
+                {status === "loading"
+                  ? "Guardando..."
+                  : editingWellId
+                    ? "Guardar cambios"
+                    : "Crear pozo"}
+              </button>
+              {editingWellId && (
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={status === "loading"}
+                  onClick={handleWellCancelEdit}
+                >
+                  Cancelar edición
+                </button>
+              )}
+            </div>
             {message && !workCodeError && (
               <p
                 className={`form-feedback ${status === "ready" ? "is-success" : "is-error"}`}
@@ -822,6 +1055,30 @@ export function WellRegistryAdminPanel({
                       ? `${entry.authorizedFlowRate} L/s`
                       : entry.provider ?? "Sin proveedor"}
                   </span>
+                  {canManageWells && (
+                    <div className="registry-row-actions">
+                      <button
+                        type="button"
+                        className="icon-only-button"
+                        title="Editar pozo"
+                        aria-label={`Editar pozo ${entry.codigoObra}`}
+                        disabled={status === "loading"}
+                        onClick={() => handleWellEdit(entry)}
+                      >
+                        <Pencil size={16} aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-only-button"
+                        title="Eliminar pozo"
+                        aria-label={`Eliminar pozo ${entry.codigoObra}`}
+                        disabled={status === "loading"}
+                        onClick={() => void handleWellDelete(entry)}
+                      >
+                        <Trash2 size={16} aria-hidden="true" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -848,6 +1105,46 @@ export function WellRegistryAdminPanel({
               ))}
             </select>
           </label>
+
+          <form className="manual-entry-form" onSubmit={handleCasUpdate}>
+            <div className="manual-two-col">
+              <label>
+                <span>Codigo CAS seleccionada</span>
+                <input
+                  value={editCasCode}
+                  onChange={(event) => setEditCasCode(event.target.value)}
+                  required
+                  disabled={!selectedOrganization}
+                />
+              </label>
+              <label>
+                <span>Nombre CAS seleccionada</span>
+                <input
+                  value={editCasName}
+                  onChange={(event) => setEditCasName(event.target.value)}
+                  required
+                  disabled={!selectedOrganization}
+                />
+              </label>
+            </div>
+            <div className="manual-two-col">
+              <button
+                type="submit"
+                disabled={casStatus === "loading" || !selectedOrganization}
+              >
+                <Save size={16} aria-hidden="true" />
+                Guardar CAS
+              </button>
+              <button
+                type="button"
+                disabled={casStatus === "loading" || !selectedOrganization}
+                onClick={() => void handleCasDelete()}
+              >
+                <Trash2 size={16} aria-hidden="true" />
+                Eliminar CAS
+              </button>
+            </div>
+          </form>
 
           <form className="manual-entry-form" onSubmit={handleCasCreate}>
             <div className="manual-two-col">
