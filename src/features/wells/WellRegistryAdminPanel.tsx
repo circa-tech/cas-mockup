@@ -362,6 +362,7 @@ export function WellRegistryAdminPanel({
                   },
                 ]}
                 selectedPointId="new-well-preview"
+                selectedPointZoom={16}
               />
             ) : (
               <RemoteDataState

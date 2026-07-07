@@ -704,6 +704,10 @@ type GeoPointBase = {
 export type WellMapPoint = GeoPointBase & {
   aquiferSector: string;
   levelSeries: LinePoint[];
+  levelSeriesBySource?: {
+    manual?: LinePoint[];
+    telemetry?: LinePoint[];
+  };
   provider: string;
 };
 

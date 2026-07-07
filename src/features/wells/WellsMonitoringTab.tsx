@@ -4,7 +4,7 @@ import { KpiCard } from "../../components/KpiCard";
 import { MiniSparkline } from "../../components/MiniSparkline";
 import { Panel } from "../../components/Panel";
 import { RemoteDataState } from "../../components/RemoteDataState";
-import { SimpleLineChart } from "../../components/SimpleLineChart";
+import { SimpleLineChart, type LineSeries } from "../../components/SimpleLineChart";
 import { StatusLeafletMap } from "../../components/StatusLeafletMap";
 import {
   chartPalette,
@@ -48,6 +48,33 @@ const sourceLabelMap = {
   telemetry: "Telemetría",
   manual: "Manual",
 } as const;
+
+const toLevelChartSeries = (well: WellMapPoint): LineSeries[] => {
+  const manualSeries = well.levelSeriesBySource?.manual ?? [];
+  const telemetrySeries = well.levelSeriesBySource?.telemetry ?? [];
+  const separatedSeries = [
+    ...(manualSeries.length > 0
+      ? [{ label: "Manual", color: chartPalette.chart5, points: manualSeries }]
+      : []),
+    ...(telemetrySeries.length > 0
+      ? [{
+          label: "API / Telemetría",
+          color: chartPalette.chart6,
+          points: telemetrySeries,
+        }]
+      : []),
+  ];
+
+  if (separatedSeries.length > 0) {
+    return separatedSeries;
+  }
+
+  return [{
+    label: well.name,
+    color: chartPalette.chart6,
+    points: well.levelSeries,
+  }];
+};
 
 export function WellsMonitoringTab({
   errorMessage,
@@ -117,7 +144,10 @@ export function WellsMonitoringTab({
       ? well.lastUpdate
       : latest;
   }, "");
-  const seriesValues = selectedWell.levelSeries.map((point) => point.value);
+  const levelChartSeries = toLevelChartSeries(selectedWell);
+  const seriesValues = levelChartSeries.flatMap((series) =>
+    series.points.map((point) => point.value),
+  );
   const minSeriesValue = seriesValues.length > 0 ? Math.min(...seriesValues) - 0.1 : -0.1;
   const maxSeriesValue = seriesValues.length > 0 ? Math.max(...seriesValues) + 0.1 : 0.1;
   const dailyChange = getDailyChangeValue(selectedWell.levelSeries);
@@ -285,11 +315,7 @@ export function WellsMonitoringTab({
           maxValue={maxSeriesValue}
           minValue={minSeriesValue}
           mode="linear"
-          series={[{
-            label: selectedWell.name,
-            color: chartPalette.chart6,
-            points: selectedWell.levelSeries,
-          }]}
+          series={levelChartSeries}
           unit="m"
           xLabelAngle={-40}
         />

@@ -37,15 +37,19 @@ type ChartRow = {
 };
 
 const buildRows = (series: LineSeries[]): ChartRow[] => {
-  if (series.length === 0 || series[0].points.length === 0) {
+  if (series.length === 0) {
     return [];
   }
 
-  return series[0].points.map((point, index) => {
-    const row: ChartRow = { label: point.label };
+  const labels = [...new Set(series.flatMap((item) => item.points.map((point) => point.label)))];
 
+  return labels.map((label) => {
+    const row: ChartRow = { label };
     series.forEach((item) => {
-      row[item.label] = item.points[index]?.value ?? 0;
+      const point = item.points.find((candidate) => candidate.label === label);
+      if (point) {
+        row[item.label] = point.value;
+      }
     });
 
     return row;

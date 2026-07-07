@@ -11,6 +11,7 @@ import {
   fetchWellsAdminStatus,
   ingestWellMeasurement,
   ingestWellMeasurementsBatch,
+  type WaterLevelCondition,
   type WellsCapabilities,
 } from "../../services/wellsApi";
 import type { RemoteLoadStatus } from "../../types/remote";
@@ -26,6 +27,9 @@ const emptyCapabilities: WellsCapabilities = {
   canViewWells: false,
   isAdmin: false,
 };
+
+const toWaterLevelCondition = (value: string): WaterLevelCondition | null =>
+  value === "static" || value === "dynamic" || value === "unknown" ? value : null;
 
 const getWellCreationErrorMessage = (error: unknown) => {
   if (error instanceof ApiRequestError) {
@@ -86,12 +90,18 @@ export function useWellsController({
     useState<WellMeasurementFormState>({
       codigoObra: "",
       companyRut: "",
+      conductivity: "",
       flowRate: "",
+      isOperating: "",
       measurementDate: new Date().toISOString().slice(0, 10),
       measurementTime: "10:00",
+      observations: "",
+      ph: "",
+      pressure: "",
       totalizer: "",
       userRut: "",
       waterTableDepth: "",
+      waterLevelCondition: "",
     });
 
   const measurementsQuery = useQuery({
@@ -259,7 +269,16 @@ export function useWellsController({
     try {
       await ingestWellMeasurement(authIdToken, {
         ...wellMeasurementForm,
+        conductivity: wellMeasurementForm.conductivity || null,
+        isOperating:
+          wellMeasurementForm.isOperating === ""
+            ? null
+            : wellMeasurementForm.isOperating === "true",
+        observations: wellMeasurementForm.observations || null,
+        ph: wellMeasurementForm.ph || null,
+        pressure: wellMeasurementForm.pressure || null,
         waterTableDepth: wellMeasurementForm.waterTableDepth || null,
+        waterLevelCondition: toWaterLevelCondition(wellMeasurementForm.waterLevelCondition),
       });
       const nextWells = await refreshWells();
       if (nextWells.some((well) => well.id === wellMeasurementForm.codigoObra)) {
@@ -269,9 +288,15 @@ export function useWellsController({
       setWellMeasurementMessage("Medición guardada correctamente.");
       setWellMeasurementForm((previous) => ({
         ...previous,
+        conductivity: "",
         flowRate: "",
+        isOperating: "",
+        observations: "",
+        ph: "",
+        pressure: "",
         totalizer: "",
         waterTableDepth: "",
+        waterLevelCondition: "",
       }));
     } catch (error) {
       setWellMeasurementStatus("error");

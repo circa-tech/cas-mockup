@@ -1050,6 +1050,27 @@ select:focus-visible {
   padding: 14px;
 }
 
+.measurement-empty-notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 2px;
+  border: 1px solid hsl(36 58% 82%);
+  border-radius: 10px;
+  background: hsl(42 72% 96%);
+  color: hsl(32 42% 31%);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+  padding: 11px 12px;
+}
+
+.measurement-empty-notice svg {
+  color: hsl(34 64% 44%);
+}
+
 .manual-entry-form label {
   display: grid;
   gap: 6px;
@@ -1062,13 +1083,20 @@ select:focus-visible {
 }
 
 .manual-entry-form input,
-.manual-entry-form select {
+.manual-entry-form select,
+.manual-entry-form textarea {
   width: 100%;
   min-height: 44px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: #fff;
   padding: 0 11px;
+}
+
+.manual-entry-form textarea {
+  min-height: 88px;
+  padding: 11px;
+  resize: vertical;
 }
 
 .manual-entry-form input[aria-invalid="true"] {
@@ -1791,6 +1819,7 @@ select:focus-visible {
 
   .manual-entry-form input,
   .manual-entry-form select,
+  .manual-entry-form textarea,
   .manual-entry-form button {
     min-height: 48px;
     font-size: 16px;
@@ -2105,7 +2134,8 @@ body {
 }
 
 .manual-entry-form input,
-.manual-entry-form select {
+.manual-entry-form select,
+.manual-entry-form textarea {
   border-color: hsl(210 18% 86%);
   background: hsl(0 0% 100%);
 }

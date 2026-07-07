@@ -5,12 +5,21 @@ import { toZonedDateTimeIso } from "../utils/date";
 import { throwApiError } from "./apiError";
 
 type GroundwaterMeasurement = {
+  conductivity?: string | number | null;
   flowRate: string | number;
+  isOperating?: boolean | null;
   measurementDate: string;
   measurementTime: string;
+  observations?: string | null;
+  ph?: string | number | null;
+  pressure?: string | number | null;
+  source?: "api" | "manual" | string | null;
   totalizer: string | number;
   waterTableDepth?: string | number | null;
+  waterLevelCondition?: WaterLevelCondition | null;
 };
+
+export type WaterLevelCondition = "static" | "dynamic" | "unknown";
 
 type WellMeasurement = {
   aquiferSector?: string | null;
@@ -81,10 +90,16 @@ export type CasMembershipUser = {
 export type IngestWellMeasurementPayload = {
   codigoObra: string;
   companyRut: string;
+  conductivity: string | null;
   flowRate: string;
+  isOperating: boolean | null;
   measurementDate: string;
   measurementTime: string;
+  observations: string | null;
+  ph: string | null;
+  pressure: string | null;
   waterTableDepth: string | null;
+  waterLevelCondition: WaterLevelCondition | null;
   totalizer: string;
   userRut: string;
 };
@@ -212,6 +227,7 @@ export const ingestWellMeasurement = async (
   await requestWells("groundwater-measurements", idToken, {
     body: JSON.stringify(toApiMeasurement(payload)),
     headers: {
+      measurementSource: "manual",
       sourceTimestamp: toSourceTimestamp(new Date()),
       workCode: payload.codigoObra,
     },
@@ -232,6 +248,7 @@ export const ingestWellMeasurementsBatch = async (
       })),
     }),
     headers: {
+      measurementSource: "manual",
       sourceTimestamp: toSourceTimestamp(new Date()),
     },
     method: "POST",
@@ -251,14 +268,29 @@ const toApiMeasurement = (payload: IngestWellMeasurementPayload) => ({
     userRut: payload.userRut,
   },
   groundwaterMeasurement: {
+    conductivity:
+      payload.conductivity === null || payload.conductivity.trim() === ""
+        ? null
+        : toDecimalString(payload.conductivity),
     flowRate: toDecimalString(payload.flowRate),
+    isOperating: payload.isOperating,
     measurementDate: payload.measurementDate,
     measurementTime: normalizeTime(payload.measurementTime),
+    observations: payload.observations,
+    ph:
+      payload.ph === null || payload.ph.trim() === ""
+        ? null
+        : toDecimalString(payload.ph),
+    pressure:
+      payload.pressure === null || payload.pressure.trim() === ""
+        ? null
+        : toDecimalString(payload.pressure),
     totalizer: toIntegerString(payload.totalizer),
     waterTableDepth:
       payload.waterTableDepth === null || payload.waterTableDepth.trim() === ""
         ? null
         : toDecimalString(payload.waterTableDepth),
+    waterLevelCondition: payload.waterLevelCondition,
   },
 });
 
@@ -359,6 +391,7 @@ const mapMeasurementsToWells = (measurements: WellMeasurement[]): WellMapPoint[]
       provider: latest.provider ?? "Sin proveedor",
       aquiferSector: latest.aquiferSector ?? "Sin sector",
       levelSeries: buildLevelSeries(sortedRows),
+      levelSeriesBySource: buildLevelSeriesBySource(sortedRows),
       status: "stale",
     };
   });
@@ -392,6 +425,22 @@ const buildLevelSeries = (measurements: WellMeasurement[]): LinePoint[] => {
   });
 
   return points.slice(-18);
+};
+
+const buildLevelSeriesBySource = (
+  measurements: WellMeasurement[],
+): WellMapPoint["levelSeriesBySource"] => {
+  const manual = buildLevelSeries(
+    measurements.filter((measurement) => measurement.groundwaterMeasurement.source === "manual"),
+  );
+  const telemetry = buildLevelSeries(
+    measurements.filter((measurement) => measurement.groundwaterMeasurement.source === "api"),
+  );
+
+  return {
+    ...(manual.length > 0 ? { manual } : {}),
+    ...(telemetry.length > 0 ? { telemetry } : {}),
+  };
 };
 
 const toMeasurementIso = (measurement: GroundwaterMeasurement) =>
