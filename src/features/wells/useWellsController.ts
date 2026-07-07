@@ -206,10 +206,11 @@ const buildWellRegistryPayload = (
 
   return {
     payload: {
-      ...form,
+      casId: form.casId,
       codigoObra: workCode,
       lat,
       lng,
+      name: form.name,
       provider: form.provider || null,
       centroControlRut: form.centroControlRut || null,
       catchmentStatus: toCatchmentStatus(form.catchmentStatus),
