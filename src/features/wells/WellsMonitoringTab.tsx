@@ -151,7 +151,6 @@ export function WellsMonitoringTab({
   const minSeriesValue = seriesValues.length > 0 ? Math.min(...seriesValues) - 0.1 : -0.1;
   const maxSeriesValue = seriesValues.length > 0 ? Math.max(...seriesValues) + 0.1 : 0.1;
   const dailyChange = getDailyChangeValue(selectedWell.levelSeries);
-
   return (
     <div className="view-stack">
       <WellsIntro />

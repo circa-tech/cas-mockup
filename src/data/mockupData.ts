@@ -703,12 +703,47 @@ type GeoPointBase = {
 
 export type WellMapPoint = GeoPointBase & {
   aquiferSector: string;
+  authorizedFlowRate?: string | number | null;
+  authorizedVolume?: string | number | null;
+  catchmentStatus?: "operativa" | "deshabilitada" | "pozo_monitoreo" | null;
+  datum?: string | null;
+  fieldContactEmail?: string | null;
+  fieldContactPhone?: string | null;
+  fieldContactRepresentative?: string | null;
+  flowmeterBrand?: string | null;
+  flowmeterDiameter?: string | number | null;
+  flowmeterInstallationDate?: string | null;
+  flowmeterModel?: string | null;
+  habilitationDiameter?: string | number | null;
+  huso?: string | null;
+  levelProbeBrand?: string | null;
+  levelProbeDiameter?: string | number | null;
+  levelProbeInstallationDate?: string | null;
+  levelProbeInstallationDepth?: string | number | null;
   levelSeries: LinePoint[];
   levelSeriesBySource?: {
     manual?: LinePoint[];
     telemetry?: LinePoint[];
   };
+  locationReference?: string | null;
+  observations?: string | null;
+  ownerContactEmail?: string | null;
+  ownerContactPhone?: string | null;
+  ownerContactRepresentative?: string | null;
   provider: string;
+  pumpDepth?: string | number | null;
+  shac?: string | null;
+  shacSubsector?: string | null;
+  telemetryEnabled?: boolean | null;
+  utmEasting?: string | number | null;
+  utmNorthing?: string | number | null;
+  waterRights?: {
+    anio?: number | string | null;
+    cbr?: string | null;
+    fojas?: string | null;
+    numero?: string | null;
+  }[] | null;
+  wellDepth?: string | number | null;
 };
 
 export type MeteoStationPoint = GeoPointBase & {

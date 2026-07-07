@@ -1,5 +1,7 @@
 import {
-  MapPinned
+  MapPinned,
+  Plus,
+  Trash2
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { FormEvent, lazy, useEffect, useMemo, useState } from "react";
@@ -303,7 +305,7 @@ export function WellRegistryAdminPanel({
 
             <div className="manual-two-col">
               <label>
-                <span>Provider</span>
+                <span>Proveedor</span>
                 <input
                   type="text"
                   value={form.provider}
@@ -323,12 +325,444 @@ export function WellRegistryAdminPanel({
             </div>
 
             <label>
+              <span>Estado de la captación</span>
+              <select
+                value={form.catchmentStatus}
+                onChange={(event) => onChange({ catchmentStatus: event.target.value })}
+              >
+                <option value="">Sin dato</option>
+                <option value="operativa">Operativa</option>
+                <option value="deshabilitada">Deshabilitada</option>
+                <option value="pozo_monitoreo">Pozo de monitoreo</option>
+              </select>
+            </label>
+
+            <label>
               <span>Sector acuifero</span>
               <input
                 type="text"
                 value={form.aquiferSector}
                 placeholder="Acuifero 1"
                 onChange={(event) => onChange({ aquiferSector: event.target.value })}
+              />
+            </label>
+
+            <section className="metadata-fieldset">
+              <div className="manual-two-col">
+                <label>
+                  <span>SHAC</span>
+                  <input
+                    type="text"
+                    value={form.shac}
+                    placeholder="Sector hidrogeológico"
+                    onChange={(event) => onChange({ shac: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Subsector SHAC</span>
+                  <input
+                    type="text"
+                    value={form.shacSubsector}
+                    placeholder="Subsector"
+                    onChange={(event) => onChange({ shacSubsector: event.target.value })}
+                  />
+                </label>
+              </div>
+            </section>
+
+            <label>
+              <span>Caudal autorizado</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.authorizedFlowRate}
+                placeholder="12.50"
+                onChange={(event) => onChange({ authorizedFlowRate: event.target.value })}
+              />
+            </label>
+
+            <section className="metadata-fieldset" aria-labelledby="water-rights-heading">
+              <div className="water-rights-head">
+                <h4 id="water-rights-heading">Derechos de aprovechamiento</h4>
+                <button
+                  type="button"
+                  className="icon-text-button"
+                  onClick={() =>
+                    onChange({
+                      waterRights: [
+                        ...form.waterRights,
+                        { anio: "", cbr: "", fojas: "", numero: "" },
+                      ],
+                    })
+                  }
+                >
+                  <Plus size={16} aria-hidden="true" />
+                  Agregar
+                </button>
+              </div>
+              {form.waterRights.map((right, index) => (
+                <div className="water-right-row" key={index}>
+                  <label>
+                    <span>Fojas</span>
+                    <input
+                      type="text"
+                      value={right.fojas}
+                      onChange={(event) => {
+                        const waterRights = [...form.waterRights];
+                        waterRights[index] = { ...right, fojas: event.target.value };
+                        onChange({ waterRights });
+                      }}
+                    />
+                  </label>
+                  <label>
+                    <span>Número</span>
+                    <input
+                      type="text"
+                      value={right.numero}
+                      onChange={(event) => {
+                        const waterRights = [...form.waterRights];
+                        waterRights[index] = { ...right, numero: event.target.value };
+                        onChange({ waterRights });
+                      }}
+                    />
+                  </label>
+                  <label>
+                    <span>Año</span>
+                    <input
+                      type="number"
+                      step="1"
+                      value={right.anio}
+                      onChange={(event) => {
+                        const waterRights = [...form.waterRights];
+                        waterRights[index] = { ...right, anio: event.target.value };
+                        onChange({ waterRights });
+                      }}
+                    />
+                  </label>
+                  <label>
+                    <span>CBR</span>
+                    <input
+                      type="text"
+                      value={right.cbr}
+                      onChange={(event) => {
+                        const waterRights = [...form.waterRights];
+                        waterRights[index] = { ...right, cbr: event.target.value };
+                        onChange({ waterRights });
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="icon-only-button"
+                    title="Quitar derecho"
+                    aria-label="Quitar derecho"
+                    disabled={form.waterRights.length === 1}
+                    onClick={() =>
+                      onChange({
+                        waterRights: form.waterRights.filter((_, itemIndex) => itemIndex !== index),
+                      })
+                    }
+                  >
+                    <Trash2 size={16} aria-hidden="true" />
+                  </button>
+                </div>
+              ))}
+            </section>
+
+            <div className="manual-two-col">
+              <label>
+                <span>Volumen autorizado</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.authorizedVolume}
+                  placeholder="120000.00"
+                  onChange={(event) => onChange({ authorizedVolume: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>Telemetría</span>
+                <select
+                  value={form.telemetryEnabled}
+                  onChange={(event) => onChange({ telemetryEnabled: event.target.value })}
+                >
+                  <option value="">Sin dato</option>
+                  <option value="true">Sí</option>
+                  <option value="false">No</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="manual-two-col">
+              <label>
+                <span>Profundidad pozo</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.wellDepth}
+                  placeholder="80.00"
+                  onChange={(event) => onChange({ wellDepth: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>Profundidad bomba</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.pumpDepth}
+                  placeholder="55.00"
+                  onChange={(event) => onChange({ pumpDepth: event.target.value })}
+                />
+              </label>
+            </div>
+
+            <label>
+              <span>Diámetro habilitación</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.habilitationDiameter}
+                placeholder="8.00"
+                onChange={(event) => onChange({ habilitationDiameter: event.target.value })}
+              />
+            </label>
+
+            <section className="metadata-fieldset" aria-labelledby="utm-heading">
+              <h4 id="utm-heading">Coordenadas UTM</h4>
+              <div className="manual-two-col">
+                <label>
+                  <span>Este</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.utmEasting}
+                    placeholder="368000.00"
+                    onChange={(event) => onChange({ utmEasting: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Norte</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.utmNorthing}
+                    placeholder="6972000.00"
+                    onChange={(event) => onChange({ utmNorthing: event.target.value })}
+                  />
+                </label>
+              </div>
+              <div className="manual-two-col">
+                <label>
+                  <span>Huso</span>
+                  <input
+                    type="text"
+                    value={form.huso}
+                    placeholder="19S"
+                    onChange={(event) => onChange({ huso: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Datum</span>
+                  <input
+                    type="text"
+                    value={form.datum}
+                    placeholder="WGS84"
+                    onChange={(event) => onChange({ datum: event.target.value })}
+                  />
+                </label>
+              </div>
+              <label>
+                <span>Referencia ubicación</span>
+                <input
+                  type="text"
+                  value={form.locationReference}
+                  placeholder="Sector norte del predio"
+                  onChange={(event) => onChange({ locationReference: event.target.value })}
+                />
+              </label>
+            </section>
+
+            <section className="metadata-fieldset" aria-labelledby="flowmeter-heading">
+              <h4 id="flowmeter-heading">Caudalímetro</h4>
+              <div className="manual-two-col">
+                <label>
+                  <span>Diámetro</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.flowmeterDiameter}
+                    placeholder="4.00"
+                    onChange={(event) => onChange({ flowmeterDiameter: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Marca</span>
+                  <input
+                    type="text"
+                    value={form.flowmeterBrand}
+                    placeholder="Marca"
+                    onChange={(event) => onChange({ flowmeterBrand: event.target.value })}
+                  />
+                </label>
+              </div>
+              <div className="manual-two-col">
+                <label>
+                  <span>Modelo</span>
+                  <input
+                    type="text"
+                    value={form.flowmeterModel}
+                    placeholder="Modelo"
+                    onChange={(event) => onChange({ flowmeterModel: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Fecha de instalación</span>
+                  <input
+                    type="date"
+                    value={form.flowmeterInstallationDate}
+                    onChange={(event) =>
+                      onChange({ flowmeterInstallationDate: event.target.value })
+                    }
+                  />
+                </label>
+              </div>
+            </section>
+
+            <section className="metadata-fieldset" aria-labelledby="owner-contact-heading">
+              <h4 id="owner-contact-heading">Contacto titular</h4>
+              <div className="manual-two-col">
+                <label>
+                  <span>Representante</span>
+                  <input
+                    type="text"
+                    value={form.ownerContactRepresentative}
+                    placeholder="Nombre contacto"
+                    onChange={(event) =>
+                      onChange({ ownerContactRepresentative: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Teléfono</span>
+                  <input
+                    type="tel"
+                    value={form.ownerContactPhone}
+                    placeholder="+56 9 1234 5678"
+                    onChange={(event) => onChange({ ownerContactPhone: event.target.value })}
+                  />
+                </label>
+              </div>
+              <label>
+                <span>E-mail</span>
+                <input
+                  type="email"
+                  value={form.ownerContactEmail}
+                  placeholder="titular@cas.cl"
+                  onChange={(event) => onChange({ ownerContactEmail: event.target.value })}
+                />
+              </label>
+            </section>
+
+            <section className="metadata-fieldset" aria-labelledby="field-contact-heading">
+              <h4 id="field-contact-heading">Contacto terreno</h4>
+              <div className="manual-two-col">
+                <label>
+                  <span>Representante</span>
+                  <input
+                    type="text"
+                    value={form.fieldContactRepresentative}
+                    placeholder="Nombre contacto"
+                    onChange={(event) =>
+                      onChange({ fieldContactRepresentative: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Teléfono</span>
+                  <input
+                    type="tel"
+                    value={form.fieldContactPhone}
+                    placeholder="+56 9 1234 5678"
+                    onChange={(event) => onChange({ fieldContactPhone: event.target.value })}
+                  />
+                </label>
+              </div>
+              <label>
+                <span>E-mail</span>
+                <input
+                  type="email"
+                  value={form.fieldContactEmail}
+                  placeholder="terreno@cas.cl"
+                  onChange={(event) => onChange({ fieldContactEmail: event.target.value })}
+                />
+              </label>
+            </section>
+
+            <section className="metadata-fieldset" aria-labelledby="level-probe-heading">
+              <h4 id="level-probe-heading">Sonda de nivel</h4>
+              <div className="manual-two-col">
+                <label>
+                  <span>Diámetro</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.levelProbeDiameter}
+                    placeholder="1.00"
+                    onChange={(event) => onChange({ levelProbeDiameter: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Marca</span>
+                  <input
+                    type="text"
+                    value={form.levelProbeBrand}
+                    placeholder="Marca"
+                    onChange={(event) => onChange({ levelProbeBrand: event.target.value })}
+                  />
+                </label>
+              </div>
+              <div className="manual-two-col">
+                <label>
+                  <span>Fecha de instalación</span>
+                  <input
+                    type="date"
+                    value={form.levelProbeInstallationDate}
+                    onChange={(event) =>
+                      onChange({ levelProbeInstallationDate: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Profundidad de instalación</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.levelProbeInstallationDepth}
+                    placeholder="55.00"
+                    onChange={(event) =>
+                      onChange({ levelProbeInstallationDepth: event.target.value })
+                    }
+                  />
+                </label>
+              </div>
+            </section>
+
+            <label>
+              <span>Observaciones</span>
+              <textarea
+                value={form.observations}
+                placeholder="Notas generales del pozo"
+                onChange={(event) => onChange({ observations: event.target.value })}
               />
             </label>
 
@@ -383,7 +817,11 @@ export function WellRegistryAdminPanel({
                     <strong>{entry.name}</strong>
                     <span>{entry.codigoObra} · {entry.casCode}</span>
                   </div>
-                  <span>{entry.provider ?? "Sin provider"}</span>
+                  <span>
+                    {entry.authorizedFlowRate !== null && entry.authorizedFlowRate !== undefined
+                      ? `${entry.authorizedFlowRate} L/s`
+                      : entry.provider ?? "Sin proveedor"}
+                  </span>
                 </div>
               ))}
             </div>

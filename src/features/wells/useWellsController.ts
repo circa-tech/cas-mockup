@@ -11,6 +11,7 @@ import {
   fetchWellsAdminStatus,
   ingestWellMeasurement,
   ingestWellMeasurementsBatch,
+  type CatchmentStatus,
   type WaterLevelCondition,
   type WellsCapabilities,
 } from "../../services/wellsApi";
@@ -30,6 +31,23 @@ const emptyCapabilities: WellsCapabilities = {
 
 const toWaterLevelCondition = (value: string): WaterLevelCondition | null =>
   value === "static" || value === "dynamic" || value === "unknown" ? value : null;
+
+const toCatchmentStatus = (value: string): CatchmentStatus | null =>
+  value === "operativa" || value === "deshabilitada" || value === "pozo_monitoreo"
+    ? value
+    : null;
+
+const parseOptionalMetadataNumber = (value: string): number | null => {
+  if (value.trim() === "") return null;
+  return Number.parseFloat(value);
+};
+
+const emptyWaterRight = () => ({
+  anio: "",
+  cbr: "",
+  fojas: "",
+  numero: "",
+});
 
 const getWellCreationErrorMessage = (error: unknown) => {
   if (error instanceof ApiRequestError) {
@@ -78,13 +96,43 @@ export function useWellsController({
     useState<string | null>(null);
   const [wellRegistryForm, setWellRegistryForm] = useState<WellRegistryFormState>({
     aquiferSector: "",
+    authorizedFlowRate: "",
+    authorizedVolume: "",
     casId: "",
+    catchmentStatus: "",
     centroControlRut: "",
     codigoObra: "",
+    datum: "",
+    fieldContactEmail: "",
+    fieldContactPhone: "",
+    fieldContactRepresentative: "",
+    flowmeterBrand: "",
+    flowmeterDiameter: "",
+    flowmeterInstallationDate: "",
+    flowmeterModel: "",
+    habilitationDiameter: "",
+    huso: "",
     lat: "",
+    levelProbeBrand: "",
+    levelProbeDiameter: "",
+    levelProbeInstallationDate: "",
+    levelProbeInstallationDepth: "",
+    locationReference: "",
     lng: "",
     name: "",
+    observations: "",
+    ownerContactEmail: "",
+    ownerContactPhone: "",
+    ownerContactRepresentative: "",
     provider: "",
+    pumpDepth: "",
+    shac: "",
+    shacSubsector: "",
+    telemetryEnabled: "",
+    utmEasting: "",
+    utmNorthing: "",
+    waterRights: [emptyWaterRight()],
+    wellDepth: "",
   });
   const [wellMeasurementForm, setWellMeasurementForm] =
     useState<WellMeasurementFormState>({
@@ -222,9 +270,65 @@ export function useWellsController({
     }
     const lat = Number.parseFloat(wellRegistryForm.lat);
     const lng = Number.parseFloat(wellRegistryForm.lng);
+    const authorizedFlowRate =
+      wellRegistryForm.authorizedFlowRate.trim() === ""
+        ? null
+        : Number.parseFloat(wellRegistryForm.authorizedFlowRate);
+    const authorizedVolume = parseOptionalMetadataNumber(wellRegistryForm.authorizedVolume);
+    const wellDepth = parseOptionalMetadataNumber(wellRegistryForm.wellDepth);
+    const pumpDepth = parseOptionalMetadataNumber(wellRegistryForm.pumpDepth);
+    const habilitationDiameter = parseOptionalMetadataNumber(
+      wellRegistryForm.habilitationDiameter,
+    );
+    const flowmeterDiameter = parseOptionalMetadataNumber(
+      wellRegistryForm.flowmeterDiameter,
+    );
+    const levelProbeDiameter = parseOptionalMetadataNumber(
+      wellRegistryForm.levelProbeDiameter,
+    );
+    const levelProbeInstallationDepth = parseOptionalMetadataNumber(
+      wellRegistryForm.levelProbeInstallationDepth,
+    );
+    const utmEasting = parseOptionalMetadataNumber(wellRegistryForm.utmEasting);
+    const utmNorthing = parseOptionalMetadataNumber(wellRegistryForm.utmNorthing);
+    const waterRights = wellRegistryForm.waterRights
+      .map((right) => ({
+        anio: right.anio.trim() === "" ? null : Number.parseInt(right.anio, 10),
+        cbr: right.cbr.trim() || null,
+        fojas: right.fojas.trim() || null,
+        numero: right.numero.trim() || null,
+      }))
+      .filter((right) =>
+        right.fojas !== null ||
+        right.numero !== null ||
+        right.anio !== null ||
+        right.cbr !== null
+      );
+    const invalidMetadataNumber = [
+      ["Caudal autorizado", authorizedFlowRate],
+      ["Volumen autorizado", authorizedVolume],
+      ["Profundidad pozo", wellDepth],
+      ["Profundidad bomba", pumpDepth],
+      ["Diámetro habilitación", habilitationDiameter],
+      ["Diámetro caudalímetro", flowmeterDiameter],
+      ["Diámetro sonda de nivel", levelProbeDiameter],
+      ["Profundidad instalación sonda de nivel", levelProbeInstallationDepth],
+      ["UTM Este", utmEasting],
+      ["UTM Norte", utmNorthing],
+    ].find(([, value]) => typeof value === "number" && (!Number.isFinite(value) || value < 0));
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       setWellRegistryStatus("error");
       setWellRegistryMessage("Latitud y longitud deben ser números válidos.");
+      return;
+    }
+    if (invalidMetadataNumber) {
+      setWellRegistryStatus("error");
+      setWellRegistryMessage(`${invalidMetadataNumber[0]} debe ser un número positivo.`);
+      return;
+    }
+    if (waterRights.some((right) => right.anio !== null && !Number.isFinite(right.anio))) {
+      setWellRegistryStatus("error");
+      setWellRegistryMessage("Año de derecho de aprovechamiento debe ser un número válido.");
       return;
     }
 
@@ -238,18 +342,89 @@ export function useWellsController({
         lng,
         provider: wellRegistryForm.provider || null,
         centroControlRut: wellRegistryForm.centroControlRut || null,
+        catchmentStatus: toCatchmentStatus(wellRegistryForm.catchmentStatus),
         aquiferSector: wellRegistryForm.aquiferSector || null,
+        authorizedFlowRate:
+          authorizedFlowRate === null ? null : authorizedFlowRate.toFixed(2),
+        authorizedVolume:
+          authorizedVolume === null ? null : authorizedVolume.toFixed(2),
+        wellDepth: wellDepth === null ? null : wellDepth.toFixed(2),
+        pumpDepth: pumpDepth === null ? null : pumpDepth.toFixed(2),
+        habilitationDiameter:
+          habilitationDiameter === null ? null : habilitationDiameter.toFixed(2),
+        flowmeterDiameter:
+          flowmeterDiameter === null ? null : flowmeterDiameter.toFixed(2),
+        flowmeterBrand: wellRegistryForm.flowmeterBrand || null,
+        flowmeterModel: wellRegistryForm.flowmeterModel || null,
+        flowmeterInstallationDate: wellRegistryForm.flowmeterInstallationDate || null,
+        ownerContactRepresentative: wellRegistryForm.ownerContactRepresentative || null,
+        ownerContactPhone: wellRegistryForm.ownerContactPhone || null,
+        ownerContactEmail: wellRegistryForm.ownerContactEmail || null,
+        fieldContactRepresentative: wellRegistryForm.fieldContactRepresentative || null,
+        fieldContactPhone: wellRegistryForm.fieldContactPhone || null,
+        fieldContactEmail: wellRegistryForm.fieldContactEmail || null,
+        levelProbeDiameter:
+          levelProbeDiameter === null ? null : levelProbeDiameter.toFixed(2),
+        levelProbeBrand: wellRegistryForm.levelProbeBrand || null,
+        levelProbeInstallationDate: wellRegistryForm.levelProbeInstallationDate || null,
+        levelProbeInstallationDepth:
+          levelProbeInstallationDepth === null
+            ? null
+            : levelProbeInstallationDepth.toFixed(2),
+        telemetryEnabled:
+          wellRegistryForm.telemetryEnabled === ""
+            ? null
+            : wellRegistryForm.telemetryEnabled === "true",
+        observations: wellRegistryForm.observations || null,
+        huso: wellRegistryForm.huso || null,
+        datum: wellRegistryForm.datum || null,
+        locationReference: wellRegistryForm.locationReference || null,
+        shac: wellRegistryForm.shac || null,
+        shacSubsector: wellRegistryForm.shacSubsector || null,
+        utmEasting: utmEasting === null ? null : utmEasting.toFixed(2),
+        utmNorthing: utmNorthing === null ? null : utmNorthing.toFixed(2),
+        waterRights,
       });
       await registryQuery.refetch();
       setWellRegistryForm((previous) => ({
         ...previous,
         aquiferSector: "",
+        authorizedFlowRate: "",
+        authorizedVolume: "",
+        catchmentStatus: "",
         centroControlRut: "",
         codigoObra: "",
+        datum: "",
+        fieldContactEmail: "",
+        fieldContactPhone: "",
+        fieldContactRepresentative: "",
+        flowmeterBrand: "",
+        flowmeterDiameter: "",
+        flowmeterInstallationDate: "",
+        flowmeterModel: "",
+        habilitationDiameter: "",
+        huso: "",
         lat: "",
+        levelProbeBrand: "",
+        levelProbeDiameter: "",
+        levelProbeInstallationDate: "",
+        levelProbeInstallationDepth: "",
+        locationReference: "",
         lng: "",
         name: "",
+        observations: "",
+        ownerContactEmail: "",
+        ownerContactPhone: "",
+        ownerContactRepresentative: "",
         provider: "",
+        pumpDepth: "",
+        shac: "",
+        shacSubsector: "",
+        telemetryEnabled: "",
+        utmEasting: "",
+        utmNorthing: "",
+        waterRights: [emptyWaterRight()],
+        wellDepth: "",
       }));
       setWellRegistryStatus("ready");
       setWellRegistryMessage(
