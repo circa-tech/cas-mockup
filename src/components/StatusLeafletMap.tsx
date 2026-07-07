@@ -1,10 +1,12 @@
 import L from "leaflet";
+import { useEffect } from "react";
 import {
   LayersControl,
   MapContainer,
   Marker,
   TileLayer,
   Tooltip,
+  useMap,
 } from "react-leaflet";
 import {
   GeoPointStatus,
@@ -28,6 +30,7 @@ type StatusLeafletMapProps = {
   className?: string;
   points: StatusLeafletPoint[];
   selectedPointId?: string;
+  selectedPointZoom?: number;
   onSelect?: (pointId: string) => void;
 };
 
@@ -95,13 +98,32 @@ const buildMarkerIcon = (
     iconSize: [22, 22],
   });
 
+function FocusSelectedPoint({
+  point,
+  zoom,
+}: {
+  point?: StatusLeafletPoint;
+  zoom?: number;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!point || zoom === undefined) return;
+    map.setView([point.lat, point.lng], zoom);
+  }, [map, point, zoom]);
+
+  return null;
+}
+
 export function StatusLeafletMap({
   className,
   onSelect,
   points,
   selectedPointId,
+  selectedPointZoom,
 }: StatusLeafletMapProps) {
   const hasSelection = Boolean(selectedPointId);
+  const selectedPoint = points.find((point) => point.id === selectedPointId);
 
   return (
     <MapContainer
@@ -111,6 +133,7 @@ export function StatusLeafletMap({
       zoomControl
     >
       <ModifierWheelZoom />
+      <FocusSelectedPoint point={selectedPoint} zoom={selectedPointZoom} />
       <LayersControl position="topright">
         <LayersControl.BaseLayer name="OpenStreetMap">
           <TileLayer

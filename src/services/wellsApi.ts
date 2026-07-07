@@ -5,19 +5,43 @@ import { toZonedDateTimeIso } from "../utils/date";
 import { throwApiError } from "./apiError";
 
 type GroundwaterMeasurement = {
-  flowRate: string | number;
+  conductivity?: string | number | null;
+  flowRate?: string | number | null;
+  isOperating?: boolean | null;
   measurementDate: string;
   measurementTime: string;
-  totalizer: string | number;
+  observations?: string | null;
+  ph?: string | number | null;
+  pressure?: string | number | null;
+  source?: "api" | "manual" | string | null;
+  totalizer?: string | number | null;
   waterTableDepth?: string | number | null;
+  waterLevelCondition?: WaterLevelCondition | null;
+};
+
+export type WaterLevelCondition = "static" | "dynamic" | "unknown";
+export type CatchmentStatus = "operativa" | "deshabilitada" | "pozo_monitoreo";
+
+export type WaterRight = {
+  anio?: number | string | null;
+  cbr?: string | null;
+  fojas?: string | null;
+  numero?: string | null;
+};
+
+export type OwnerContact = {
+  email?: string | null;
+  phone?: string | null;
+  representative?: string | null;
+  rut?: string | null;
 };
 
 type WellMeasurement = {
   aquiferSector?: string | null;
   codigoObra?: string | null;
-  createdAt: string;
+  createdAt?: string | null;
   groundwaterMeasurement: GroundwaterMeasurement;
-  id: number;
+  id?: number | null;
   lat?: number | null;
   lng?: number | null;
   name?: string | null;
@@ -28,29 +52,85 @@ type WellMeasurement = {
 export type WellRegistryEntry = {
   active: boolean;
   aquiferSector?: string | null;
+  authorizedFlowRate?: string | number | null;
+  authorizedVolume?: string | number | null;
   casCode: string;
   casId: string;
   casName: string;
   centroControlRut?: string | null;
+  catchmentStatus?: CatchmentStatus | null;
   codigoObra: string;
   createdAt: string;
+  datum?: string | null;
+  fieldContactEmail?: string | null;
+  fieldContactPhone?: string | null;
+  fieldContactRepresentative?: string | null;
+  flowmeterBrand?: string | null;
+  flowmeterDiameter?: string | number | null;
+  flowmeterInstallationDate?: string | null;
+  flowmeterModel?: string | null;
+  habilitationDiameter?: string | number | null;
+  huso?: string | null;
   id: string;
   lat: number;
+  levelProbeBrand?: string | null;
+  levelProbeDiameter?: string | number | null;
+  levelProbeInstallationDate?: string | null;
+  levelProbeInstallationDepth?: string | number | null;
+  locationReference?: string | null;
   lng: number;
   name: string;
+  observations?: string | null;
+  ownerContacts?: OwnerContact[] | null;
   provider?: string | null;
+  pumpDepth?: string | number | null;
+  shac?: string | null;
+  shacSubsector?: string | null;
+  telemetryEnabled?: boolean | null;
+  utmEasting?: string | number | null;
+  utmNorthing?: string | number | null;
+  waterRights?: WaterRight[] | null;
   updatedAt: string;
+  wellDepth?: string | number | null;
 };
 
 export type CreateWellRegistryEntryPayload = {
   aquiferSector?: string | null;
+  authorizedFlowRate?: string | null;
+  authorizedVolume?: string | null;
   casId: string;
   centroControlRut?: string | null;
+  catchmentStatus?: CatchmentStatus | null;
   codigoObra: string;
+  datum?: string | null;
+  fieldContactEmail?: string | null;
+  fieldContactPhone?: string | null;
+  fieldContactRepresentative?: string | null;
+  flowmeterBrand?: string | null;
+  flowmeterDiameter?: string | null;
+  flowmeterInstallationDate?: string | null;
+  flowmeterModel?: string | null;
+  habilitationDiameter?: string | null;
+  huso?: string | null;
   lat: number;
+  levelProbeBrand?: string | null;
+  levelProbeDiameter?: string | null;
+  levelProbeInstallationDate?: string | null;
+  levelProbeInstallationDepth?: string | null;
+  locationReference?: string | null;
   lng: number;
   name: string;
+  observations?: string | null;
+  ownerContacts?: OwnerContact[] | null;
   provider?: string | null;
+  pumpDepth?: string | null;
+  shac?: string | null;
+  shacSubsector?: string | null;
+  telemetryEnabled?: boolean | null;
+  utmEasting?: string | null;
+  utmNorthing?: string | null;
+  waterRights?: WaterRight[] | null;
+  wellDepth?: string | null;
 };
 
 export type CasOrganization = {
@@ -81,10 +161,16 @@ export type CasMembershipUser = {
 export type IngestWellMeasurementPayload = {
   codigoObra: string;
   companyRut: string;
+  conductivity: string | null;
   flowRate: string;
+  isOperating: boolean | null;
   measurementDate: string;
   measurementTime: string;
+  observations: string | null;
+  ph: string | null;
+  pressure: string | null;
   waterTableDepth: string | null;
+  waterLevelCondition: WaterLevelCondition | null;
   totalizer: string;
   userRut: string;
 };
@@ -92,7 +178,9 @@ export type IngestWellMeasurementPayload = {
 export type WellsCapabilities = {
   canAddMeasurements: boolean;
   canCreateWells: boolean;
+  canDeleteWells: boolean;
   canDeleteMeasurements: boolean;
+  canManageWells: boolean;
   canManageCas: boolean;
   canViewWells: boolean;
   isAdmin: boolean;
@@ -147,6 +235,29 @@ export const createWellRegistryEntry = async (
   return response.json() as Promise<WellRegistryEntry>;
 };
 
+export const updateWellRegistryEntry = async (
+  idToken: string,
+  wellId: string,
+  payload: CreateWellRegistryEntryPayload,
+): Promise<WellRegistryEntry> => {
+  const response = await requestWells(`registry/${wellId}`, idToken, {
+    body: JSON.stringify(payload),
+    method: "PUT",
+  });
+  await invalidateWells(idToken);
+  return response.json() as Promise<WellRegistryEntry>;
+};
+
+export const deleteWellRegistryEntry = async (
+  idToken: string,
+  wellId: string,
+): Promise<void> => {
+  await requestWells(`registry/${wellId}`, idToken, {
+    method: "DELETE",
+  });
+  await invalidateWells(idToken);
+};
+
 export const fetchCasOrganizations = async (
   idToken: string,
 ): Promise<CasOrganization[]> => {
@@ -164,6 +275,29 @@ export const createCasOrganization = async (
   });
   await invalidateWells(idToken);
   return response.json() as Promise<CasOrganization>;
+};
+
+export const updateCasOrganization = async (
+  idToken: string,
+  casId: string,
+  payload: { code: string; name: string },
+): Promise<CasOrganization> => {
+  const response = await requestWells(`cas/${casId}`, idToken, {
+    body: JSON.stringify(payload),
+    method: "PUT",
+  });
+  await invalidateWells(idToken);
+  return response.json() as Promise<CasOrganization>;
+};
+
+export const deleteCasOrganization = async (
+  idToken: string,
+  casId: string,
+): Promise<void> => {
+  await requestWells(`cas/${casId}`, idToken, {
+    method: "DELETE",
+  });
+  await invalidateWells(idToken);
 };
 
 export const fetchCasMemberships = async (
@@ -212,6 +346,7 @@ export const ingestWellMeasurement = async (
   await requestWells("groundwater-measurements", idToken, {
     body: JSON.stringify(toApiMeasurement(payload)),
     headers: {
+      measurementSource: "manual",
       sourceTimestamp: toSourceTimestamp(new Date()),
       workCode: payload.codigoObra,
     },
@@ -232,6 +367,7 @@ export const ingestWellMeasurementsBatch = async (
       })),
     }),
     headers: {
+      measurementSource: "manual",
       sourceTimestamp: toSourceTimestamp(new Date()),
     },
     method: "POST",
@@ -251,14 +387,29 @@ const toApiMeasurement = (payload: IngestWellMeasurementPayload) => ({
     userRut: payload.userRut,
   },
   groundwaterMeasurement: {
+    conductivity:
+      payload.conductivity === null || payload.conductivity.trim() === ""
+        ? null
+        : toDecimalString(payload.conductivity),
     flowRate: toDecimalString(payload.flowRate),
+    isOperating: payload.isOperating,
     measurementDate: payload.measurementDate,
     measurementTime: normalizeTime(payload.measurementTime),
+    observations: payload.observations,
+    ph:
+      payload.ph === null || payload.ph.trim() === ""
+        ? null
+        : toDecimalString(payload.ph),
+    pressure:
+      payload.pressure === null || payload.pressure.trim() === ""
+        ? null
+        : toDecimalString(payload.pressure),
     totalizer: toIntegerString(payload.totalizer),
     waterTableDepth:
       payload.waterTableDepth === null || payload.waterTableDepth.trim() === ""
         ? null
         : toDecimalString(payload.waterTableDepth),
+    waterLevelCondition: payload.waterLevelCondition,
   },
 });
 
@@ -359,6 +510,7 @@ const mapMeasurementsToWells = (measurements: WellMeasurement[]): WellMapPoint[]
       provider: latest.provider ?? "Sin proveedor",
       aquiferSector: latest.aquiferSector ?? "Sin sector",
       levelSeries: buildLevelSeries(sortedRows),
+      levelSeriesBySource: buildLevelSeriesBySource(sortedRows),
       status: "stale",
     };
   });
@@ -392,6 +544,22 @@ const buildLevelSeries = (measurements: WellMeasurement[]): LinePoint[] => {
   });
 
   return points.slice(-18);
+};
+
+const buildLevelSeriesBySource = (
+  measurements: WellMeasurement[],
+): WellMapPoint["levelSeriesBySource"] => {
+  const manual = buildLevelSeries(
+    measurements.filter((measurement) => measurement.groundwaterMeasurement.source === "manual"),
+  );
+  const telemetry = buildLevelSeries(
+    measurements.filter((measurement) => measurement.groundwaterMeasurement.source === "api"),
+  );
+
+  return {
+    ...(manual.length > 0 ? { manual } : {}),
+    ...(telemetry.length > 0 ? { telemetry } : {}),
+  };
 };
 
 const toMeasurementIso = (measurement: GroundwaterMeasurement) =>

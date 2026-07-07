@@ -971,6 +971,28 @@ select:focus-visible {
   font-size: 13px;
 }
 
+.metadata-groups {
+  display: grid;
+  gap: 12px;
+}
+
+.metadata-group {
+  display: grid;
+  gap: 7px;
+}
+
+.metadata-group + .metadata-group {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.metadata-group h4 {
+  margin: 0;
+  color: #202733;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .comparison-list {
   display: grid;
   gap: 10px;
@@ -1050,6 +1072,27 @@ select:focus-visible {
   padding: 14px;
 }
 
+.measurement-empty-notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 2px;
+  border: 1px solid hsl(36 58% 82%);
+  border-radius: 10px;
+  background: hsl(42 72% 96%);
+  color: hsl(32 42% 31%);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+  padding: 11px 12px;
+}
+
+.measurement-empty-notice svg {
+  color: hsl(34 64% 44%);
+}
+
 .manual-entry-form label {
   display: grid;
   gap: 6px;
@@ -1062,13 +1105,20 @@ select:focus-visible {
 }
 
 .manual-entry-form input,
-.manual-entry-form select {
+.manual-entry-form select,
+.manual-entry-form textarea {
   width: 100%;
   min-height: 44px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: #fff;
   padding: 0 11px;
+}
+
+.manual-entry-form textarea {
+  min-height: 88px;
+  padding: 11px;
+  resize: vertical;
 }
 
 .manual-entry-form input[aria-invalid="true"] {
@@ -1096,6 +1146,70 @@ select:focus-visible {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.metadata-fieldset {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.metadata-fieldset h4 {
+  margin: 0;
+  color: #202733;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.water-rights-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.water-right-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) 36px;
+  gap: 10px;
+  align-items: end;
+}
+
+.icon-text-button,
+.icon-only-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.icon-text-button {
+  padding: 0 10px;
+}
+
+.icon-only-button {
+  width: 36px;
+  padding: 0;
+}
+
+.icon-text-button:hover,
+.icon-only-button:hover {
+  border-color: #9fb1c9;
+  background: #f7fafc;
+}
+
+.icon-only-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .manual-source-pill {
@@ -1129,6 +1243,18 @@ select:focus-visible {
   box-shadow: 0 12px 20px rgba(33, 100, 209, 0.3);
 }
 
+.manual-entry-form .secondary-button {
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: #344054;
+  box-shadow: none;
+}
+
+.manual-entry-form button:not(.icon-only-button) svg {
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
 .registry-list {
   display: grid;
   gap: 8px;
@@ -1151,6 +1277,16 @@ select:focus-visible {
 .registry-row div {
   display: grid;
   gap: 2px;
+}
+
+.registry-row .registry-row-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.registry-row .registry-row-actions .icon-only-button {
+  min-height: 34px;
+  width: 34px;
 }
 
 .registry-row strong {
@@ -1772,6 +1908,14 @@ select:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .water-right-row {
+    grid-template-columns: 1fr;
+  }
+
+  .water-right-row .icon-only-button {
+    width: 100%;
+  }
+
   .status-leaflet-map {
     height: 390px;
   }
@@ -1791,6 +1935,7 @@ select:focus-visible {
 
   .manual-entry-form input,
   .manual-entry-form select,
+  .manual-entry-form textarea,
   .manual-entry-form button {
     min-height: 48px;
     font-size: 16px;
@@ -2105,7 +2250,8 @@ body {
 }
 
 .manual-entry-form input,
-.manual-entry-form select {
+.manual-entry-form select,
+.manual-entry-form textarea {
   border-color: hsl(210 18% 86%);
   background: hsl(0 0% 100%);
 }

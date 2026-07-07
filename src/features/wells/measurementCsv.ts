@@ -1,4 +1,10 @@
-import type { IngestWellMeasurementPayload } from "../../services/wellsApi";
+import type {
+  IngestWellMeasurementPayload,
+  WaterLevelCondition,
+} from "../../services/wellsApi";
+
+const toWaterLevelCondition = (value: string): WaterLevelCondition | null =>
+  value === "static" || value === "dynamic" || value === "unknown" ? value : null;
 
 const measurementCsvHeaders = [
   "codigoObra",
@@ -8,7 +14,13 @@ const measurementCsvHeaders = [
   "measurementDate",
   "measurementTime",
   "waterTableDepth",
+  "waterLevelCondition",
   "totalizer",
+  "pressure",
+  "ph",
+  "conductivity",
+  "isOperating",
+  "observations",
 ] as const;
 
 const parseCsv = (input: string): string[][] => {
@@ -114,6 +126,7 @@ export const parseMeasurementCsv = (
 
   return dataRows.map((row, index) => {
     const rowNumber = index + 2;
+    const waterLevelConditionValue = readCell(row, "waterLevelCondition");
     if (row.length !== measurementCsvHeaders.length) {
       throw new Error(
         `Fila ${rowNumber}: se esperaban ${measurementCsvHeaders.length} columnas y se encontraron ${row.length}.`,
@@ -122,16 +135,34 @@ export const parseMeasurementCsv = (
     const payload: IngestWellMeasurementPayload = {
       codigoObra: readCell(row, "codigoObra"),
       companyRut: readCell(row, "companyRut"),
+      conductivity: readCell(row, "conductivity") || null,
       flowRate: readCell(row, "flowRate"),
+      isOperating:
+        readCell(row, "isOperating") === ""
+          ? null
+          : readCell(row, "isOperating") === "true",
       measurementDate: readCell(row, "measurementDate"),
       measurementTime: readCell(row, "measurementTime"),
+      observations: readCell(row, "observations") || null,
+      ph: readCell(row, "ph") || null,
+      pressure: readCell(row, "pressure") || null,
       totalizer: readCell(row, "totalizer"),
       userRut: readCell(row, "userRut"),
       waterTableDepth: readCell(row, "waterTableDepth") || null,
+      waterLevelCondition: toWaterLevelCondition(waterLevelConditionValue),
     };
 
+    const optionalHeaders = new Set([
+      "waterTableDepth",
+      "waterLevelCondition",
+      "pressure",
+      "ph",
+      "conductivity",
+      "isOperating",
+      "observations",
+    ]);
     const requiredHeaders = measurementCsvHeaders.filter(
-      (header) => header !== "waterTableDepth",
+      (header) => !optionalHeaders.has(header),
     );
     const missingValues = requiredHeaders.filter((header) => {
       const value = payload[header as keyof IngestWellMeasurementPayload];
@@ -174,6 +205,34 @@ export const parseMeasurementCsv = (
     if (!/^\d{1,15}$/.test(payload.totalizer)) {
       throw new Error(`Fila ${rowNumber}: totalizer debe ser un entero de hasta 15 dígitos.`);
     }
+    for (const field of ["pressure", "ph", "conductivity"] as const) {
+      const value = payload[field];
+      if (value !== null && !/^\d+\.\d{2}$/.test(value)) {
+        throw new Error(
+          `Fila ${rowNumber}: ${field} debe estar vacío o tener exactamente dos decimales.`,
+        );
+      }
+    }
+    if (payload.ph !== null && Number(payload.ph) > 14) {
+      throw new Error(`Fila ${rowNumber}: ph debe estar entre 0 y 14.`);
+    }
+    const operatingValue = readCell(row, "isOperating");
+    if (operatingValue !== "" && operatingValue !== "true" && operatingValue !== "false") {
+      throw new Error(`Fila ${rowNumber}: isOperating debe estar vacío, true o false.`);
+    }
+    if (
+      waterLevelConditionValue !== "" &&
+      waterLevelConditionValue !== "static" &&
+      waterLevelConditionValue !== "dynamic" &&
+      waterLevelConditionValue !== "unknown"
+    ) {
+      throw new Error(
+        `Fila ${rowNumber}: waterLevelCondition debe estar vacío, static, dynamic o unknown.`,
+      );
+    }
+    if (payload.observations !== null && payload.observations.length > 1000) {
+      throw new Error(`Fila ${rowNumber}: observations no puede superar 1000 caracteres.`);
+    }
 
     const logicalKey = [
       payload.codigoObra,
@@ -201,7 +260,13 @@ export const downloadMeasurementCsvTemplate = (workCode: string) => {
       "2026-06-28",
       "10:00:00",
       "9.85",
+      "",
       "1010",
+      "",
+      "",
+      "",
+      "",
+      "",
     ].join(","),
   ].join("\r\n");
   const url = URL.createObjectURL(

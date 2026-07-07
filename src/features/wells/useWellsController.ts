@@ -5,12 +5,17 @@ import { queryKeys } from "../../lib/queryKeys";
 import { ApiRequestError } from "../../services/apiError";
 import {
   createWellRegistryEntry,
+  deleteWellRegistryEntry,
   fetchMyWellRegistryEntries,
   fetchWellMapPoints,
   fetchWellRegistryEntries,
   fetchWellsAdminStatus,
   ingestWellMeasurement,
   ingestWellMeasurementsBatch,
+  updateWellRegistryEntry,
+  type CatchmentStatus,
+  type CreateWellRegistryEntryPayload,
+  type WaterLevelCondition,
   type WellsCapabilities,
 } from "../../services/wellsApi";
 import type { RemoteLoadStatus } from "../../types/remote";
@@ -21,11 +26,79 @@ import type { WellMeasurementFormState, WellRegistryFormState } from "./WellsVie
 const emptyCapabilities: WellsCapabilities = {
   canAddMeasurements: false,
   canCreateWells: false,
+  canDeleteWells: false,
   canDeleteMeasurements: false,
+  canManageWells: false,
   canManageCas: false,
   canViewWells: false,
   isAdmin: false,
 };
+
+const toWaterLevelCondition = (value: string): WaterLevelCondition | null =>
+  value === "static" || value === "dynamic" || value === "unknown" ? value : null;
+
+const toCatchmentStatus = (value: string): CatchmentStatus | null =>
+  value === "operativa" || value === "deshabilitada" || value === "pozo_monitoreo"
+    ? value
+    : null;
+
+const parseOptionalMetadataNumber = (value: string): number | null => {
+  if (value.trim() === "") return null;
+  return Number.parseFloat(value);
+};
+
+const emptyWaterRight = () => ({
+  anio: "",
+  cbr: "",
+  fojas: "",
+  numero: "",
+});
+
+const emptyOwnerContact = () => ({
+  email: "",
+  phone: "",
+  representative: "",
+  rut: "",
+});
+
+const emptyWellRegistryForm = (): WellRegistryFormState => ({
+  aquiferSector: "",
+  authorizedFlowRate: "",
+  authorizedVolume: "",
+  casId: "",
+  catchmentStatus: "",
+  centroControlRut: "",
+  codigoObra: "",
+  datum: "",
+  fieldContactEmail: "",
+  fieldContactPhone: "",
+  fieldContactRepresentative: "",
+  flowmeterBrand: "",
+  flowmeterDiameter: "",
+  flowmeterInstallationDate: "",
+  flowmeterModel: "",
+  habilitationDiameter: "",
+  huso: "",
+  lat: "",
+  levelProbeBrand: "",
+  levelProbeDiameter: "",
+  levelProbeInstallationDate: "",
+  levelProbeInstallationDepth: "",
+  locationReference: "",
+  lng: "",
+  name: "",
+  observations: "",
+  ownerContacts: [emptyOwnerContact()],
+  provider: "",
+  pumpDepth: "",
+  shac: "",
+  shacSubsector: "",
+  telemetryEnabled: "",
+  utmEasting: "",
+  utmNorthing: "",
+  waterRights: [emptyWaterRight()],
+  wellDepth: "",
+});
 
 const getWellCreationErrorMessage = (error: unknown) => {
   if (error instanceof ApiRequestError) {
@@ -53,6 +126,131 @@ const getCsvUploadErrorMessage = (error: unknown) => {
   return toRemoteErrorMessage(error, "No fue posible cargar el CSV.");
 };
 
+const buildWellRegistryPayload = (
+  form: WellRegistryFormState,
+): { error: string } | { payload: CreateWellRegistryEntryPayload } => {
+  const workCode = form.codigoObra.trim();
+  if (!/^OB-\d{4}-[1-9]\d*$/.test(workCode) || !form.casId) {
+    return {
+      error: !form.casId
+        ? "Debes seleccionar una CAS válida."
+        : "Código de obra inválido. Usa el formato OB-0101-11.",
+    };
+  }
+
+  const lat = Number.parseFloat(form.lat);
+  const lng = Number.parseFloat(form.lng);
+  const authorizedFlowRate =
+    form.authorizedFlowRate.trim() === ""
+      ? null
+      : Number.parseFloat(form.authorizedFlowRate);
+  const authorizedVolume = parseOptionalMetadataNumber(form.authorizedVolume);
+  const wellDepth = parseOptionalMetadataNumber(form.wellDepth);
+  const pumpDepth = parseOptionalMetadataNumber(form.pumpDepth);
+  const habilitationDiameter = parseOptionalMetadataNumber(form.habilitationDiameter);
+  const flowmeterDiameter = parseOptionalMetadataNumber(form.flowmeterDiameter);
+  const levelProbeDiameter = parseOptionalMetadataNumber(form.levelProbeDiameter);
+  const levelProbeInstallationDepth = parseOptionalMetadataNumber(
+    form.levelProbeInstallationDepth,
+  );
+  const utmEasting = parseOptionalMetadataNumber(form.utmEasting);
+  const utmNorthing = parseOptionalMetadataNumber(form.utmNorthing);
+  const waterRights = form.waterRights
+    .map((right) => ({
+      anio: right.anio.trim() === "" ? null : Number.parseInt(right.anio, 10),
+      cbr: right.cbr.trim() || null,
+      fojas: right.fojas.trim() || null,
+      numero: right.numero.trim() || null,
+    }))
+    .filter((right) =>
+      right.fojas !== null ||
+      right.numero !== null ||
+      right.anio !== null ||
+      right.cbr !== null
+    );
+  const ownerContacts = form.ownerContacts
+    .map((contact) => ({
+      email: contact.email.trim() || null,
+      phone: contact.phone.trim() || null,
+      representative: contact.representative.trim() || null,
+      rut: contact.rut.trim() || null,
+    }))
+    .filter((contact) =>
+      contact.representative !== null ||
+      contact.rut !== null ||
+      contact.phone !== null ||
+      contact.email !== null
+    );
+  const invalidMetadataNumber = [
+    ["Caudal autorizado", authorizedFlowRate],
+    ["Volumen autorizado", authorizedVolume],
+    ["Profundidad pozo", wellDepth],
+    ["Profundidad bomba", pumpDepth],
+    ["Diámetro habilitación", habilitationDiameter],
+    ["Diámetro caudalímetro", flowmeterDiameter],
+    ["Diámetro sonda de nivel", levelProbeDiameter],
+    ["Profundidad instalación sonda de nivel", levelProbeInstallationDepth],
+    ["UTM Este", utmEasting],
+    ["UTM Norte", utmNorthing],
+  ].find(([, value]) => typeof value === "number" && (!Number.isFinite(value) || value < 0));
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return { error: "Latitud y longitud deben ser números válidos." };
+  }
+  if (invalidMetadataNumber) {
+    return { error: `${invalidMetadataNumber[0]} debe ser un número positivo.` };
+  }
+  if (waterRights.some((right) => right.anio !== null && !Number.isFinite(right.anio))) {
+    return { error: "Año de derecho de aprovechamiento debe ser un número válido." };
+  }
+
+  return {
+    payload: {
+      casId: form.casId,
+      codigoObra: workCode,
+      lat,
+      lng,
+      name: form.name,
+      provider: form.provider || null,
+      centroControlRut: form.centroControlRut || null,
+      catchmentStatus: toCatchmentStatus(form.catchmentStatus),
+      aquiferSector: form.aquiferSector || null,
+      authorizedFlowRate: authorizedFlowRate === null ? null : authorizedFlowRate.toFixed(2),
+      authorizedVolume: authorizedVolume === null ? null : authorizedVolume.toFixed(2),
+      wellDepth: wellDepth === null ? null : wellDepth.toFixed(2),
+      pumpDepth: pumpDepth === null ? null : pumpDepth.toFixed(2),
+      habilitationDiameter:
+        habilitationDiameter === null ? null : habilitationDiameter.toFixed(2),
+      flowmeterDiameter: flowmeterDiameter === null ? null : flowmeterDiameter.toFixed(2),
+      flowmeterBrand: form.flowmeterBrand || null,
+      flowmeterModel: form.flowmeterModel || null,
+      flowmeterInstallationDate: form.flowmeterInstallationDate || null,
+      ownerContacts,
+      fieldContactRepresentative: form.fieldContactRepresentative || null,
+      fieldContactPhone: form.fieldContactPhone || null,
+      fieldContactEmail: form.fieldContactEmail || null,
+      levelProbeDiameter: levelProbeDiameter === null ? null : levelProbeDiameter.toFixed(2),
+      levelProbeBrand: form.levelProbeBrand || null,
+      levelProbeInstallationDate: form.levelProbeInstallationDate || null,
+      levelProbeInstallationDepth:
+        levelProbeInstallationDepth === null
+          ? null
+          : levelProbeInstallationDepth.toFixed(2),
+      telemetryEnabled:
+        form.telemetryEnabled === "" ? null : form.telemetryEnabled === "true",
+      observations: form.observations || null,
+      huso: form.huso || null,
+      datum: form.datum || null,
+      locationReference: form.locationReference || null,
+      shac: form.shac || null,
+      shacSubsector: form.shacSubsector || null,
+      utmEasting: utmEasting === null ? null : utmEasting.toFixed(2),
+      utmNorthing: utmNorthing === null ? null : utmNorthing.toFixed(2),
+      waterRights,
+    },
+  };
+};
+
 export function useWellsController({
   authIdToken,
   hasAuthenticatedApiSession,
@@ -72,26 +270,24 @@ export function useWellsController({
     useState<RemoteLoadStatus>("idle");
   const [wellMeasurementCsvMessage, setWellMeasurementCsvMessage] =
     useState<string | null>(null);
-  const [wellRegistryForm, setWellRegistryForm] = useState<WellRegistryFormState>({
-    aquiferSector: "",
-    casId: "",
-    centroControlRut: "",
-    codigoObra: "",
-    lat: "",
-    lng: "",
-    name: "",
-    provider: "",
-  });
+  const [wellRegistryForm, setWellRegistryForm] =
+    useState<WellRegistryFormState>(emptyWellRegistryForm);
   const [wellMeasurementForm, setWellMeasurementForm] =
     useState<WellMeasurementFormState>({
       codigoObra: "",
       companyRut: "",
+      conductivity: "",
       flowRate: "",
+      isOperating: "",
       measurementDate: new Date().toISOString().slice(0, 10),
       measurementTime: "10:00",
+      observations: "",
+      ph: "",
+      pressure: "",
       totalizer: "",
       userRut: "",
       waterTableDepth: "",
+      waterLevelCondition: "",
     });
 
   const measurementsQuery = useQuery({
@@ -200,46 +396,21 @@ export function useWellsController({
   const handleWellRegistrySubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!authIdToken) return;
-    const workCode = wellRegistryForm.codigoObra.trim();
-    if (!/^OB-\d{4}-[1-9]\d*$/.test(workCode) || !wellRegistryForm.casId) {
+    const result = buildWellRegistryPayload(wellRegistryForm);
+    if ("error" in result) {
       setWellRegistryStatus("error");
-      setWellRegistryMessage(
-        !wellRegistryForm.casId
-          ? "Debes seleccionar una CAS válida."
-          : "Código de obra inválido. Usa el formato OB-0101-11.",
-      );
-      return;
-    }
-    const lat = Number.parseFloat(wellRegistryForm.lat);
-    const lng = Number.parseFloat(wellRegistryForm.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      setWellRegistryStatus("error");
-      setWellRegistryMessage("Latitud y longitud deben ser números válidos.");
+      setWellRegistryMessage(result.error);
       return;
     }
 
     setWellRegistryStatus("loading");
     setWellRegistryMessage(null);
     try {
-      const created = await createWellRegistryEntry(authIdToken, {
-        ...wellRegistryForm,
-        codigoObra: workCode,
-        lat,
-        lng,
-        provider: wellRegistryForm.provider || null,
-        centroControlRut: wellRegistryForm.centroControlRut || null,
-        aquiferSector: wellRegistryForm.aquiferSector || null,
-      });
+      const created = await createWellRegistryEntry(authIdToken, result.payload);
       await registryQuery.refetch();
       setWellRegistryForm((previous) => ({
-        ...previous,
-        aquiferSector: "",
-        centroControlRut: "",
-        codigoObra: "",
-        lat: "",
-        lng: "",
-        name: "",
-        provider: "",
+        ...emptyWellRegistryForm(),
+        casId: previous.casId,
       }));
       setWellRegistryStatus("ready");
       setWellRegistryMessage(
@@ -251,6 +422,50 @@ export function useWellsController({
     }
   };
 
+  const handleWellRegistryUpdate = async (
+    wellId: string,
+    event: FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+    if (!authIdToken) return;
+    const result = buildWellRegistryPayload(wellRegistryForm);
+    if ("error" in result) {
+      setWellRegistryStatus("error");
+      setWellRegistryMessage(result.error);
+      return;
+    }
+
+    setWellRegistryStatus("loading");
+    setWellRegistryMessage(null);
+    try {
+      const updated = await updateWellRegistryEntry(authIdToken, wellId, result.payload);
+      await registryQuery.refetch();
+      await refreshWells();
+      setWellRegistryStatus("ready");
+      setWellRegistryMessage(`Pozo ${updated.name} (${updated.codigoObra}) actualizado.`);
+    } catch (error) {
+      setWellRegistryStatus("error");
+      setWellRegistryMessage(getWellCreationErrorMessage(error));
+    }
+  };
+
+  const handleWellRegistryDelete = async (wellId: string) => {
+    if (!authIdToken) return;
+    setWellRegistryStatus("loading");
+    setWellRegistryMessage(null);
+    try {
+      await deleteWellRegistryEntry(authIdToken, wellId);
+      await registryQuery.refetch();
+      await refreshWells();
+      setWellRegistryForm(emptyWellRegistryForm());
+      setWellRegistryStatus("ready");
+      setWellRegistryMessage("Pozo eliminado del registro activo.");
+    } catch (error) {
+      setWellRegistryStatus("error");
+      setWellRegistryMessage(toRemoteErrorMessage(error, "No fue posible eliminar el pozo."));
+    }
+  };
+
   const handleWellMeasurementSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!authIdToken) return;
@@ -259,7 +474,16 @@ export function useWellsController({
     try {
       await ingestWellMeasurement(authIdToken, {
         ...wellMeasurementForm,
+        conductivity: wellMeasurementForm.conductivity || null,
+        isOperating:
+          wellMeasurementForm.isOperating === ""
+            ? null
+            : wellMeasurementForm.isOperating === "true",
+        observations: wellMeasurementForm.observations || null,
+        ph: wellMeasurementForm.ph || null,
+        pressure: wellMeasurementForm.pressure || null,
         waterTableDepth: wellMeasurementForm.waterTableDepth || null,
+        waterLevelCondition: toWaterLevelCondition(wellMeasurementForm.waterLevelCondition),
       });
       const nextWells = await refreshWells();
       if (nextWells.some((well) => well.id === wellMeasurementForm.codigoObra)) {
@@ -269,9 +493,15 @@ export function useWellsController({
       setWellMeasurementMessage("Medición guardada correctamente.");
       setWellMeasurementForm((previous) => ({
         ...previous,
+        conductivity: "",
         flowRate: "",
+        isOperating: "",
+        observations: "",
+        ph: "",
+        pressure: "",
         totalizer: "",
         waterTableDepth: "",
+        waterLevelCondition: "",
       }));
     } catch (error) {
       setWellMeasurementStatus("error");
@@ -312,7 +542,9 @@ export function useWellsController({
       setWellRegistryMessage(null);
       setWellRegistryStatus("ready");
     },
+    handleWellRegistryDelete,
     handleWellRegistrySubmit,
+    handleWellRegistryUpdate,
     selectedWellId,
     setSelectedWellId,
     wellMeasurementCsvMessage,

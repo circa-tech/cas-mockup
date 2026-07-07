@@ -1,4 +1,5 @@
 import {
+  CircleAlert,
   Download,
   Upload
 } from "lucide-react";
@@ -14,6 +15,13 @@ import type { RemoteLoadStatus } from "../../types/remote";
 
 
 import type { WellMeasurementFormState } from "./wellsView.types";
+
+const suggestedWaterLevelCondition = (isOperating: string) => {
+  if (isOperating === "true") return "dynamic";
+  if (isOperating === "false") return "static";
+  return "unknown";
+};
+
 export function WellMeasurementIngestPanel({
   csvMessage,
   csvStatus,
@@ -46,12 +54,16 @@ export function WellMeasurementIngestPanel({
         title="Agregar medicion"
         subtitle="Carga directa desde el mockup"
       >
-        {!hasRegistryEntries && (
-          <p role="status">
-            No hay pozos registrados. Crea un pozo antes de agregar mediciones.
-          </p>
-        )}
         <form className="manual-entry-form" onSubmit={onSubmit}>
+          {!hasRegistryEntries && (
+            <div className="measurement-empty-notice" role="status">
+              <CircleAlert aria-hidden="true" size={18} strokeWidth={2} />
+              <span>
+                No hay pozos registrados. Crea un pozo antes de agregar mediciones.
+              </span>
+            </div>
+          )}
+
           <label>
             <span>Pozo</span>
             <select
@@ -139,16 +151,95 @@ export function WellMeasurementIngestPanel({
             </label>
           </div>
 
+          <div className="manual-two-col">
+            <label>
+              <span>Presion</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.pressure}
+                onChange={(event) => onChange({ pressure: event.target.value })}
+              />
+            </label>
+            <label>
+              <span>pH</span>
+              <input
+                type="number"
+                min="0"
+                max="14"
+                step="0.01"
+                value={form.ph}
+                onChange={(event) => onChange({ ph: event.target.value })}
+              />
+            </label>
+          </div>
+
+          <div className="manual-two-col">
+            <label>
+              <span>Conductividad</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.conductivity}
+                onChange={(event) => onChange({ conductivity: event.target.value })}
+              />
+            </label>
+            <label>
+              <span>Totalizador</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={form.totalizer}
+                placeholder="1010"
+                onChange={(event) => onChange({ totalizer: event.target.value })}
+                required
+              />
+            </label>
+          </div>
+
+          <div className="manual-two-col">
+            <label>
+              <span>Estado operacional</span>
+              <select
+                value={form.isOperating}
+                onChange={(event) => {
+                  const isOperating = event.target.value;
+                  onChange({
+                    isOperating,
+                    ...(form.waterLevelCondition === ""
+                      ? { waterLevelCondition: suggestedWaterLevelCondition(isOperating) }
+                      : {}),
+                  });
+                }}
+              >
+                <option value="">Sin informar</option>
+                <option value="true">Encendido</option>
+                <option value="false">Apagado</option>
+              </select>
+            </label>
+            <label>
+              <span>Tipo de nivel</span>
+              <select
+                value={form.waterLevelCondition}
+                onChange={(event) => onChange({ waterLevelCondition: event.target.value })}
+              >
+                <option value="">Sin informar</option>
+                <option value="static">Estático</option>
+                <option value="dynamic">Dinámico</option>
+                <option value="unknown">Desconocido</option>
+              </select>
+            </label>
+          </div>
+
           <label>
-            <span>Totalizador</span>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={form.totalizer}
-              placeholder="1010"
-              onChange={(event) => onChange({ totalizer: event.target.value })}
-              required
+            <span>Observaciones</span>
+            <textarea
+              maxLength={1000}
+              value={form.observations}
+              onChange={(event) => onChange({ observations: event.target.value })}
             />
           </label>
 
