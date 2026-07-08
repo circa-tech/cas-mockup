@@ -17,6 +17,7 @@ export function WellsView({
   authIdToken,
   canAddMeasurements,
   canCreateWells,
+  canDeleteWells,
   canManageWells,
   canManageCas,
   errorMessage,
@@ -46,6 +47,7 @@ export function WellsView({
   authIdToken: string | null;
   canAddMeasurements: boolean;
   canCreateWells: boolean;
+  canDeleteWells: boolean;
   canManageWells: boolean;
   canManageCas: boolean;
   errorMessage: string | null;
@@ -138,6 +140,7 @@ export function WellsView({
 
         <WellRegistryAdminPanel
           authIdToken={authIdToken}
+          canDeleteWells={canDeleteWells}
           canManageCas={canManageCas}
           canManageWells={canManageWells}
           entries={wellRegistryEntries}

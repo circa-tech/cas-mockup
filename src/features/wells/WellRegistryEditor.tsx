@@ -91,6 +91,7 @@ const entryToForm = (entry: WellRegistryEntry): WellRegistryFormState => ({
 });
 
 type RegistryEditorProps = {
+  canDeleteWells: boolean;
   canManageWells: boolean;
   entries: WellRegistryEntry[];
   form: WellRegistryFormState;
@@ -105,6 +106,7 @@ type RegistryEditorProps = {
 };
 
 export function WellRegistryEditor({
+  canDeleteWells,
   canManageWells,
   entries,
   form,
@@ -638,31 +640,35 @@ export function WellRegistryEditor({
                   ? `${entry.authorizedFlowRate} L/s`
                   : entry.provider ?? "Sin proveedor"}
               </span>
-              {canManageWells && (
+              {(canManageWells || canDeleteWells) && (
                 <div className="registry-row-actions">
-                  <button
-                    type="button"
-                    className="icon-only-button"
-                    title="Editar pozo"
-                    aria-label={`Editar pozo ${entry.codigoObra}`}
-                    disabled={status === "loading"}
-                    onClick={() => {
-                      setEditingWellId(entry.id);
-                      onChange(entryToForm(entry));
-                    }}
-                  >
-                    <Pencil size={16} aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-only-button"
-                    title="Eliminar pozo"
-                    aria-label={`Eliminar pozo ${entry.codigoObra}`}
-                    disabled={status === "loading"}
-                    onClick={() => void handleWellDelete(entry)}
-                  >
-                    <Trash2 size={16} aria-hidden="true" />
-                  </button>
+                  {canManageWells && (
+                    <button
+                      type="button"
+                      className="icon-only-button"
+                      title="Editar pozo"
+                      aria-label={`Editar pozo ${entry.codigoObra}`}
+                      disabled={status === "loading"}
+                      onClick={() => {
+                        setEditingWellId(entry.id);
+                        onChange(entryToForm(entry));
+                      }}
+                    >
+                      <Pencil size={16} aria-hidden="true" />
+                    </button>
+                  )}
+                  {canDeleteWells && (
+                    <button
+                      type="button"
+                      className="icon-only-button"
+                      title="Eliminar pozo"
+                      aria-label={`Eliminar pozo ${entry.codigoObra}`}
+                      disabled={status === "loading"}
+                      onClick={() => void handleWellDelete(entry)}
+                    >
+                      <Trash2 size={16} aria-hidden="true" />
+                    </button>
+                  )}
                 </div>
               )}
             </div>
