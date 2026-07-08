@@ -178,6 +178,7 @@ export default function App() {
               authIdToken={app.authIdToken}
               canAddMeasurements={app.wellsCapabilities.canAddMeasurements}
               canCreateWells={app.wellsCapabilities.canCreateWells}
+              canDeleteWells={app.wellsCapabilities.canDeleteWells}
               canManageWells={app.wellsCapabilities.canManageWells}
               canManageCas={app.wellsCapabilities.canManageCas}
               isLoggedIn={app.hasAuthenticatedApiSession}

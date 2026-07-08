@@ -15,6 +15,7 @@ import type { WellRegistryFormState } from "./wellsView.types";
 
 export function WellRegistryAdminPanel({
   authIdToken,
+  canDeleteWells,
   canManageCas,
   canManageWells,
   entries,
@@ -27,6 +28,7 @@ export function WellRegistryAdminPanel({
   status,
 }: {
   authIdToken: string | null;
+  canDeleteWells: boolean;
   canManageCas: boolean;
   canManageWells: boolean;
   entries: WellRegistryEntry[];
@@ -94,6 +96,7 @@ export function WellRegistryAdminPanel({
 
       {activeAdminView === "registry" && (
         <WellRegistryEditor
+          canDeleteWells={canDeleteWells}
           canManageWells={canManageWells}
           entries={entries}
           form={form}
