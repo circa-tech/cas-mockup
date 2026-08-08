@@ -7,18 +7,23 @@ type EtrSubTabId = "sector" | "usage" | "downloads";
 
 export function EtrView({
   authIdToken,
+  canDownloadImages,
   isLoggedIn,
 }: {
   authIdToken: string | null;
+  canDownloadImages: boolean;
   isLoggedIn: boolean;
 }) {
   const [activeEtrTab, setActiveEtrTab] = useState<EtrSubTabId>("sector");
 
   useEffect(() => {
-    if (!isLoggedIn && activeEtrTab !== "sector") {
+    if (
+      (!isLoggedIn && activeEtrTab !== "sector") ||
+      (!canDownloadImages && activeEtrTab === "downloads")
+    ) {
       setActiveEtrTab("sector");
     }
-  }, [activeEtrTab, isLoggedIn]);
+  }, [activeEtrTab, canDownloadImages, isLoggedIn]);
 
   return (
     <div className="view-stack etr-page">
@@ -47,7 +52,7 @@ export function EtrView({
             Indicadores por uso
           </button>
         )}
-        {isLoggedIn && (
+        {canDownloadImages && (
           <button
             type="button"
             role="tab"
@@ -73,7 +78,7 @@ export function EtrView({
       {isLoggedIn && activeEtrTab === "usage" && (
         <EtrUsageTab authIdToken={authIdToken} isLoggedIn={isLoggedIn} />
       )}
-      {isLoggedIn && activeEtrTab === "downloads" && (
+      {canDownloadImages && activeEtrTab === "downloads" && (
         <EtrDownloadsTab authIdToken={authIdToken} isLoggedIn={isLoggedIn} />
       )}
     </div>

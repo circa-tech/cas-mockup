@@ -9,6 +9,7 @@ export function useAppController() {
   const [appScreen, setAppScreen] = useState<"dashboard" | "login">("dashboard");
   const auth = useAuthSession();
   const canManageUsers = auth.authPermissions.includes("users:manage");
+  const canDownloadEt = auth.authPermissions.includes("et:download");
   const hasAuthenticatedApiSession = auth.isLoggedIn && Boolean(auth.authIdToken);
   const dashboardNow = useMemo(() => {
     const timestamp = auth.authIdToken ? Date.now() : new Date(mockNowIso).getTime();
@@ -75,6 +76,7 @@ export function useAppController() {
     authUid: auth.authUid,
     authUserName: auth.authUserName,
     availableViews,
+    canDownloadEt,
     canManageUsers,
     dashboardNow,
     ...dashboard,

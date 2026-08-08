@@ -164,6 +164,7 @@ export default function App() {
           {app.activeView === "etr" && (
             <EtrView
               authIdToken={app.authIdToken}
+              canDownloadImages={app.canDownloadEt}
               isLoggedIn={app.hasAuthenticatedApiSession}
             />
           )}
