@@ -17,6 +17,7 @@ import { ModifierWheelZoom } from "./ModifierWheelZoom";
 
 export type StatusLeafletPoint = {
   id: string;
+  iconType?: "weather-station";
   lat: number;
   lastUpdate: string;
   lng: number;
@@ -93,9 +94,13 @@ const buildMarkerIcon = (
       isSelected ? "is-selected" : ""
     } ${
       hasSelection && !isSelected ? "is-dim" : ""
-    }"></span>`,
-    iconAnchor: [11, 11],
-    iconSize: [22, 22],
+    } ${point.iconType === "weather-station" ? "is-weather-station" : ""}">${
+      point.iconType === "weather-station"
+        ? '<svg viewBox="0 0 24 32" aria-hidden="true"><path class="status-map-marker-pin" d="M12 1.5A9.5 9.5 0 0 0 2.5 11c0 7.1 9.5 19.5 9.5 19.5S21.5 18.1 21.5 11A9.5 9.5 0 0 0 12 1.5Z"/><path class="status-map-marker-sensor" d="M7.8 12h8.4M12 7.8v8.4M9.1 9.1l5.8 5.8M14.9 9.1l-5.8 5.8"/></svg>'
+        : ""
+    }</span>`,
+    iconAnchor: point.iconType === "weather-station" ? [12, 31] : [11, 11],
+    iconSize: point.iconType === "weather-station" ? [24, 32] : [22, 22],
   });
 
 function FocusSelectedPoint({

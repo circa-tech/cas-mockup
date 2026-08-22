@@ -866,6 +866,45 @@ select:focus-visible {
   transform: scale(0.9);
 }
 
+.status-map-marker.is-weather-station {
+  width: 24px;
+  height: 32px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transform-origin: bottom center;
+}
+
+.status-map-marker.is-weather-station svg {
+  display: block;
+  width: 24px;
+  height: 32px;
+  overflow: visible;
+  filter: drop-shadow(0 1px 2px rgba(12, 24, 48, 0.36));
+}
+
+.status-map-marker.is-weather-station .status-map-marker-pin {
+  fill: var(--chart-2);
+  stroke: #1b4f9b;
+  stroke-width: 1.5;
+}
+
+.status-map-marker.is-weather-station.is-warning .status-map-marker-pin {
+  fill: var(--chart-7);
+}
+
+.status-map-marker.is-weather-station.is-stale .status-map-marker-pin {
+  fill: hsl(0 72% 56%);
+}
+
+.status-map-marker.is-weather-station .status-map-marker-sensor {
+  fill: none;
+  stroke: #ffffff;
+  stroke-linecap: round;
+  stroke-width: 1.8;
+}
+
 .map-legend {
   display: flex;
   flex-wrap: wrap;

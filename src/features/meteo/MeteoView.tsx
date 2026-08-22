@@ -134,6 +134,7 @@ export function MeteoView({
           <StatusLeafletMap
             points={stations.map((station) => ({
               id: station.id,
+              iconType: "weather-station",
               name: station.name,
               lat: station.lat,
               lng: station.lng,
@@ -142,6 +143,7 @@ export function MeteoView({
               lastUpdate: station.lastUpdate,
             }))}
             selectedPointId={selectedStationId}
+            selectedPointZoom={15}
             onSelect={onSelectStation}
           />
           <div className="map-legend">
