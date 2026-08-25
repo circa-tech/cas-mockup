@@ -2680,6 +2680,20 @@ body {
   text-transform: uppercase;
 }
 
+.admin-users-table th:nth-child(2),
+.admin-last-sign-in {
+  width: 132px;
+}
+
+.admin-last-sign-in {
+  color: hsl(215 14% 42%);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
 .admin-users-table tr.is-current-user {
   background: hsl(205 80% 98%);
 }

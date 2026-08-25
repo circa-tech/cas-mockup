@@ -7,6 +7,7 @@ export const queryKeys = {
   admin: {
     roles: (token: string | null) => ["admin", scope(token), "roles"] as const,
     users: (token: string | null) => ["admin", scope(token), "users"] as const,
+    dailyActivity: (token: string | null) => ["admin", scope(token), "daily-activity"] as const,
   },
   etr: {
     root: (token: string | null) => ["et-lat", scope(token)] as const,

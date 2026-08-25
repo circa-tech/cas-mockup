@@ -3,7 +3,9 @@ import { Save, UserRound } from "lucide-react";
 import { useState } from "react";
 import { Panel } from "../../components/Panel";
 import { RemoteDataState } from "../../components/RemoteDataState";
+import { SimpleLineChart } from "../../components/SimpleLineChart";
 import {
+  fetchDailyActiveUsers,
   fetchAdminRoles,
   fetchAdminUsers,
   updateAdminUserRole,
@@ -33,13 +35,24 @@ export function AdminView({ authIdToken, currentUserUid }: AdminViewProps) {
     enabled,
     staleTime: 2 * 60 * 1000,
   });
+  const dailyActivityQuery = useQuery({
+    queryKey: queryKeys.admin.dailyActivity(authIdToken),
+    queryFn: () => fetchDailyActiveUsers(authIdToken!),
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  });
   const roles = rolesQuery.data ?? [];
-  const users = usersQuery.data ?? [];
+  const users = [...(usersQuery.data ?? [])].sort((left, right) => {
+    const leftTimestamp = left.lastSignInAt ? Date.parse(left.lastSignInAt) : 0;
+    const rightTimestamp = right.lastSignInAt ? Date.parse(right.lastSignInAt) : 0;
+    return rightTimestamp - leftTimestamp;
+  });
+  const dailyActivity = dailyActivityQuery.data;
   const loadStatus = !enabled
     ? "error"
-    : rolesQuery.isPending || usersQuery.isPending
+    : rolesQuery.isPending || usersQuery.isPending || dailyActivityQuery.isPending
       ? "loading"
-      : rolesQuery.isError || usersQuery.isError
+      : rolesQuery.isError || usersQuery.isError || dailyActivityQuery.isError
         ? "error"
         : "ready";
   const roleMutation = useMutation({
@@ -58,6 +71,27 @@ export function AdminView({ authIdToken, currentUserUid }: AdminViewProps) {
     },
   });
   const savingUid = roleMutation.isPending ? roleMutation.variables?.uid ?? null : null;
+  const activeUsersToday = dailyActivity?.days.at(-1)?.activeUsers ?? 0;
+  const dailyActivityMax = Math.max(
+    1,
+    ...(dailyActivity?.days.map((day) => day.activeUsers) ?? []),
+  );
+  const activitySeries = dailyActivity
+    ? [
+        {
+          color: "hsl(205 62% 43%)",
+          label: "Usuarios activos",
+          points: dailyActivity.days.map((day) => ({
+            label: new Intl.DateTimeFormat("es-CL", {
+              day: "2-digit",
+              month: "2-digit",
+              timeZone: dailyActivity.timezone,
+            }).format(new Date(`${day.date}T12:00:00Z`)),
+            value: day.activeUsers,
+          })),
+        },
+      ]
+    : [];
 
   const handleRoleChange = async (uid: string, role: AdminRole["id"]) => {
     if (!authIdToken) {
@@ -121,6 +155,10 @@ export function AdminView({ authIdToken, currentUserUid }: AdminViewProps) {
                 {users.filter((user) => user.permissions.includes("users:manage")).length}
               </strong>
             </article>
+            <article className="admin-summary">
+              <span>Activos hoy</span>
+              <strong>{activeUsersToday}</strong>
+            </article>
           </div>
 
           {errorMessage ? (
@@ -129,12 +167,27 @@ export function AdminView({ authIdToken, currentUserUid }: AdminViewProps) {
             </div>
           ) : null}
 
+          <Panel
+            title="Uso diario de la aplicación"
+            subtitle={`Usuarios únicos con actividad autenticada · ${dailyActivity?.timezone}`}
+          >
+            <SimpleLineChart
+              labelEvery={5}
+              maxValue={dailyActivityMax}
+              minValue={0}
+              series={activitySeries}
+              unit="usuarios"
+              xAxisLabel="Día"
+            />
+          </Panel>
+
           <Panel title="Usuarios Firebase" subtitle="Cambio directo de rol por usuario">
             <div className="admin-users-table-wrap">
               <table className="admin-users-table">
                 <thead>
                   <tr>
                     <th>Usuario</th>
+                    <th>Último acceso</th>
                     <th>Rol</th>
                     <th>Permisos</th>
                   </tr>
@@ -155,6 +208,9 @@ export function AdminView({ authIdToken, currentUserUid }: AdminViewProps) {
                             <span>{user.email ?? "Sin email"}</span>
                           </div>
                         </div>
+                      </td>
+                      <td className="admin-last-sign-in">
+                        {formatLastSignIn(user.lastSignInAt)}
                       </td>
                       <td>
                         <div className="admin-role-control">
@@ -208,3 +264,22 @@ export function AdminView({ authIdToken, currentUserUid }: AdminViewProps) {
     </div>
   );
 }
+
+const formatLastSignIn = (value: string | null) => {
+  if (!value) return "Sin registros";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Sin registros";
+  const dateLabel = new Intl.DateTimeFormat("es-CL", {
+    day: "2-digit",
+    month: "short",
+    year: "2-digit",
+  })
+    .format(date)
+    .replace(".", "");
+  const timeLabel = new Intl.DateTimeFormat("es-CL", {
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit",
+  }).format(date);
+  return `${dateLabel} · ${timeLabel}`;
+};

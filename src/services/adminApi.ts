@@ -7,9 +7,15 @@ export type AdminRole = {
 export type AdminUser = {
   displayName: string | null;
   email: string | null;
+  lastSignInAt: string | null;
   permissions: string[];
   role: AdminRole["id"];
   uid: string;
+};
+
+export type DailyActiveUsersResponse = {
+  days: Array<{ activeUsers: number; date: string }>;
+  timezone: string;
 };
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
@@ -53,6 +59,9 @@ export const fetchAdminRoles = (idToken: string) =>
 
 export const fetchAdminUsers = (idToken: string) =>
   requestAdmin<AdminUser[]>("users", idToken);
+
+export const fetchDailyActiveUsers = (idToken: string) =>
+  requestAdmin<DailyActiveUsersResponse>("activity/daily", idToken);
 
 export const updateAdminUserRole = (
   idToken: string,
