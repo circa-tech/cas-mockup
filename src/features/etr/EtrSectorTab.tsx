@@ -307,7 +307,7 @@ export function EtrSectorTab({
             <EtrMap
               geoJson={isLoggedIn ? sectorMapData ?? undefined : undefined}
               selectedSectorId={selectedSector.sectorId}
-              selectedSummaryLabel={`${selectedSector.sectorName} · ${selectedSector.regionLabel}`}
+              selectedSummaryLabel={selectedSector.sectorName}
               onSelect={setSelectedSector}
             />
           ) : (
@@ -327,7 +327,7 @@ export function EtrSectorTab({
         <Panel
           className="panel-etr-bar"
           title="Distribución de ETR (mm) por clase de cultivo en la última fecha disponible"
-          subtitle={`${selectedSector.sectorName} · ${selectedRegion.label}`}
+          subtitle={selectedSector.sectorName}
         >
           {showSelectedSectorData ? (
             <SimpleBarChart
@@ -359,7 +359,7 @@ export function EtrSectorTab({
 
       <Panel
         title="Variación temporal de la ETR y ETmax"
-        subtitle={`${selectedSector.sectorName} · ${selectedRegion.label}`}
+        subtitle={selectedSector.sectorName}
         className="panel-accent-blue"
       >
         {showSelectedSectorData ? (
