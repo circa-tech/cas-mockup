@@ -12,7 +12,16 @@ export type ModisSnowCoveragePoint = {
 
 export type ModisSnowCoverageSeries = Record<ModisSnowBasinId, ModisSnowCoveragePoint[]>;
 
+export type ModisSnowImageBounds = {
+  east: number;
+  north: number;
+  south: number;
+  west: number;
+};
+
 export type ModisSnowLatestImage = {
+  bounds: ModisSnowImageBounds | null;
+  crs: string | null;
   imageDate: string | null;
   objectUrl: string;
 };
@@ -26,6 +35,30 @@ export type ModisSnowBasinsGeoJson = {
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
 const SNOW_CURRENT_COLOR = chartPalette.chart1;
 const SNOW_PREVIOUS_COLOR = chartPalette.chart3;
+
+const parseImageBounds = (rawBounds: string | null): ModisSnowImageBounds | null => {
+  if (!rawBounds) {
+    return null;
+  }
+
+  try {
+    const bounds: unknown = JSON.parse(rawBounds);
+    if (
+      typeof bounds !== "object" ||
+      bounds === null ||
+      Array.isArray(bounds) ||
+      !["south", "west", "north", "east"].every(
+        (key) => typeof (bounds as Record<string, unknown>)[key] === "number",
+      )
+    ) {
+      return null;
+    }
+
+    return bounds as ModisSnowImageBounds;
+  } catch {
+    return null;
+  }
+};
 
 const requestModisSnow = async (
   path: string,
@@ -62,6 +95,8 @@ export const fetchModisSnowLatestImage = async (
   const blob = await response.blob();
   const imageDate = response.headers.get("X-Image-Date");
   return {
+    bounds: parseImageBounds(response.headers.get("X-Image-Bounds")),
+    crs: response.headers.get("X-Image-CRS"),
     imageDate,
     objectUrl: URL.createObjectURL(blob),
   };

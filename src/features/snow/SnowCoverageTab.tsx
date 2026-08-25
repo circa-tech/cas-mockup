@@ -33,7 +33,12 @@ export function SnowCoverageTab({
   imageTone: "error" | "loading";
   isLoggedIn: boolean;
   jorqueraSeries: LineSeries[];
-  latestSnowImage: { date: string | null; url: string | null };
+  latestSnowImage: {
+    bounds: { east: number; north: number; south: number; west: number } | null;
+    crs: string | null;
+    date: string | null;
+    url: string | null;
+  };
   manflasSeries: LineSeries[];
   overviewSeries: LineSeries[];
   pulidoSeries: LineSeries[];
@@ -60,20 +65,7 @@ export function SnowCoverageTab({
             </div>
 
             <div className="snow-image-card">
-              {latestSnowImage.url ? (
-                <div className="snow-latest-image-shell">
-                  <img
-                    alt="Cobertura nival MODIS"
-                    className="snow-latest-image"
-                    src={latestSnowImage.url}
-                  />
-                  {latestSnowImage.date && (
-                    <span className="snow-latest-image-date">
-                      {latestSnowImage.date}
-                    </span>
-                  )}
-                </div>
-              ) : isLoggedIn && imageStatus !== "ready" && basinsStatus !== "ready" ? (
+              {isLoggedIn && imageStatus !== "ready" && basinsStatus !== "ready" ? (
                 <RemoteDataState
                   className="is-snow-image"
                   title={
@@ -91,6 +83,9 @@ export function SnowCoverageTab({
               ) : (
                 <SnowCoverageMap
                   featureCollection={isLoggedIn ? basinsGeoJson : undefined}
+                  imageBounds={latestSnowImage.bounds}
+                  imageCrs={latestSnowImage.crs}
+                  imageUrl={latestSnowImage.url}
                 />
               )}
             </div>

@@ -1,8 +1,10 @@
 import L from "leaflet";
 import { useEffect, useMemo } from "react";
 import {
+  ImageOverlay,
   LayersControl,
   MapContainer,
+  Pane,
   Polygon,
   TileLayer,
   Tooltip,
@@ -78,8 +80,14 @@ function FitSnowBounds({ bounds }: { bounds: L.LatLngBounds | null }) {
 
 export function SnowCoverageMap({
   featureCollection: remoteFeatureCollection,
+  imageBounds,
+  imageCrs,
+  imageUrl,
 }: {
   featureCollection?: SnowFeatureCollection | null;
+  imageBounds?: { east: number; north: number; south: number; west: number } | null;
+  imageCrs?: string | null;
+  imageUrl?: string | null;
 }) {
   const featureCollection =
     remoteFeatureCollection ?? (snowCoverageGeoJson as SnowFeatureCollection);
@@ -127,6 +135,19 @@ export function SnowCoverageMap({
     return bounds.isValid() ? bounds : null;
   }, [polygons]);
 
+  const rasterBounds = useMemo<L.LatLngBounds | null>(() => {
+    if (!imageBounds || imageCrs !== "EPSG:4326") {
+      return null;
+    }
+
+    return L.latLngBounds(
+      [imageBounds.south, imageBounds.west],
+      [imageBounds.north, imageBounds.east],
+    );
+  }, [imageBounds, imageCrs]);
+
+  const viewportBounds = rasterBounds ?? fitBounds;
+
   return (
     <div className="snow-coverage-map-shell">
       <MapContainer
@@ -151,11 +172,22 @@ export function SnowCoverageMap({
           </LayersControl.BaseLayer>
         </LayersControl>
 
-        <FitSnowBounds bounds={fitBounds} />
+        <FitSnowBounds bounds={viewportBounds} />
 
+        {imageUrl && rasterBounds && (
+          <ImageOverlay
+            bounds={rasterBounds}
+            opacity={0.9}
+            url={imageUrl}
+            zIndex={400}
+          />
+        )}
+
+        <Pane name="snow-boundaries" style={{ zIndex: 450 }} />
         {polygons.map((item) => (
           <Polygon
             key={item.id}
+            pane="snow-boundaries"
             pathOptions={{
               color: snowPolygonStyle.color,
               fillColor: snowPolygonStyle.fillColor,

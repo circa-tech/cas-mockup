@@ -63,8 +63,13 @@ export function SnowView({
     ? toModisSnowLineSeries(coverageQuery.data?.manflas ?? [])
     : snowManflasSeries;
   const latestSnowImage = imageQuery.data
-    ? { date: imageQuery.data.imageDate, url: imageQuery.data.objectUrl }
-    : { date: null, url: null };
+    ? {
+        bounds: imageQuery.data.bounds,
+        crs: imageQuery.data.crs,
+        date: imageQuery.data.imageDate,
+        url: imageQuery.data.objectUrl,
+      }
+    : { bounds: null, crs: null, date: null, url: null };
   const basinsGeoJson = basinsQuery.data ?? null;
   const availableBalanceYears = useMemo(() => {
     const [firstBasin, ...remainingBasins] = snowBalanceBasins;
