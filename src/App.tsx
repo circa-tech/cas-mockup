@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   Snowflake,
   Thermometer,
+  CirclePlay,
   UserRound,
   Waves,
 } from "lucide-react";
@@ -36,6 +37,11 @@ const SnowView = lazy(() =>
 const WellsView = lazy(() =>
   import("./features/wells/WellsView").then((module) => ({ default: module.WellsView })),
 );
+const TutorialsView = lazy(() =>
+  import("./features/tutorials/TutorialsView").then((module) => ({
+    default: module.TutorialsView,
+  })),
+);
 
 const navIconMap = {
   overview: Gauge,
@@ -44,6 +50,7 @@ const navIconMap = {
   wells: Waves,
   meteo: Thermometer,
   admin: ShieldCheck,
+  tutorials: CirclePlay,
 } as const;
 
 export default function App() {
@@ -221,6 +228,7 @@ export default function App() {
           {app.activeView === "admin" && app.canManageUsers && (
             <AdminView authIdToken={app.authIdToken} currentUserUid={app.authUid} />
           )}
+          {app.activeView === "tutorials" && <TutorialsView />}
         </Suspense>
       </main>
     </div>

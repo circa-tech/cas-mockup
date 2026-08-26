@@ -5,7 +5,14 @@ import { toZonedDateTimeIso } from "../utils/date";
 const mockSantiagoIso = (date: string, time: string) =>
   toZonedDateTimeIso(date, time) ?? `${date}T${time}`;
 
-export type ViewId = "overview" | "etr" | "snow" | "wells" | "meteo" | "admin";
+export type ViewId =
+  | "overview"
+  | "etr"
+  | "snow"
+  | "wells"
+  | "meteo"
+  | "admin"
+  | "tutorials";
 
 export const views: { id: ViewId; label: string }[] = [
   { id: "overview", label: "Resumen" },
@@ -14,6 +21,7 @@ export const views: { id: ViewId; label: string }[] = [
   { id: "wells", label: "Pozos" },
   { id: "meteo", label: "Meteo" },
   { id: "admin", label: "Admin" },
+  { id: "tutorials", label: "Tutoriales" },
 ];
 
 export const etrStats = [
