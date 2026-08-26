@@ -769,8 +769,11 @@ export type ComputeOverviewCardsInput = {
 };
 
 export const staleThresholdDaysDefault = 2;
-const etrStaleThresholdDays = 8;
-const snowStaleThresholdDays = 2;
+// ET-LAT is produced from a roughly weekly satellite cycle. Snow is daily, but
+// its temporal correction needs the two following observations before the date
+// is final. These limits distinguish the expected delay from a real backlog.
+const etrStaleThresholdDays = 14;
+const snowStaleThresholdDays = 5;
 export const mockNowIso = mockSantiagoIso("2026-03-22", "12:00:00");
 
 export const getFreshnessStatus = (

@@ -33,13 +33,13 @@ const freshnessCompactLabelMap = {
 } as const;
 
 const productFreshnessLabelMap = {
-  fresh: "Actualizado",
-  warning: "Actualizacion pendiente",
+  fresh: "Actualizado con desfase esperado",
+  warning: "Actualización pendiente",
   stale: "Sin actualizacion reciente",
 } as const;
 
 const etrFreshnessLabelMap = {
-  fresh: "Actualizado",
+  fresh: "Actualizado (ciclo semanal)",
   warning: "En ventana de actualizacion",
   stale: "Sin actualizacion reciente",
 } as const;
