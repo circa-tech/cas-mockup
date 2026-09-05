@@ -3214,3 +3214,95 @@ body {
     flex: 1;
   }
 }
+
+/* Forum follows the dashboard's existing panel, type and color tokens. */
+.forum-view { min-width: 0; }
+.forum-view button, .forum-empty button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+  color: var(--text); background: var(--panel); font: inherit; font-size: 13px;
+  cursor: pointer;
+}
+.forum-view button:hover:not(:disabled) { background: hsl(210 30% 97%); }
+.forum-view button:disabled { opacity: .55; cursor: not-allowed; }
+.forum-view button.forum-primary, .forum-empty button.forum-primary {
+  background: var(--blue); border-color: var(--blue); color: white;
+}
+.forum-view button.forum-primary:hover:not(:disabled) { filter: brightness(.93); background: var(--blue); }
+.forum-view button.forum-danger { color: var(--danger); }
+.forum-view button[aria-pressed="true"], .forum-pagination button[aria-current="page"] {
+  background: hsl(205 80% 95%); border-color: var(--blue); color: var(--blue);
+}
+.forum-toolbar, .forum-pagination, .forum-post header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.forum-toolbar { margin-bottom: 16px; }
+.forum-toolbar > span, .forum-pagination > span, .forum-post header > span {
+  font-size: 12px; color: var(--muted);
+}
+.forum-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.forum-form { display: grid; gap: 14px; padding: 18px 0; }
+.forum-form label { display: grid; gap: 7px; font-size: 13px; font-weight: 600; }
+.forum-form input, .forum-form textarea {
+  width: 100%; min-width: 0; font: inherit; font-weight: 400; color: var(--text);
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel);
+}
+.forum-form textarea { resize: vertical; line-height: 1.6; }
+.forum-view textarea:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.forum-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.forum-table th { background: hsl(210 30% 97%); text-transform: uppercase; font-size: 11px; color: var(--muted); }
+.forum-table th, .forum-table td { padding: 12px 14px; border-bottom: 1px solid var(--border); text-align: left; }
+.forum-table td:first-child { width: 45%; overflow-wrap: anywhere; }
+.forum-table time { font-size: 12px; }
+.forum-view .forum-thread-link { color: var(--blue); padding: 0; border: 0; background: none; text-align: left; font-weight: 600; }
+.forum-pagination { margin: 18px 0; }
+.forum-pagination > div { display: flex; gap: 5px; flex-wrap: wrap; }
+.forum-ellipsis { padding: 0 6px; }
+.forum-post { padding: 20px 0; border-top: 1px solid var(--border); min-width: 0; }
+.forum-post header { font-size: 13px; }
+.forum-body, .forum-quote p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; font-size: 14px; }
+.forum-quote { margin: 16px 0; padding: 12px 16px; border-left: 3px solid var(--blue); background: hsl(210 30% 97%); border-radius: 0 8px 8px 0; }
+.forum-quote strong { font-size: 12px; color: var(--muted); }
+.forum-quote p { margin: 6px 0 0; max-height: 180px; overflow: auto; }
+.forum-deleted { font-style: italic; color: var(--muted); }
+.forum-empty { display: grid; justify-items: center; padding: 32px 16px; color: var(--muted); text-align: center; }
+.forum-error { display: flex; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--danger); border-radius: 8px; color: var(--danger); }
+.forum-saving { font-size: 12px; color: var(--muted); }
+.forum-view .panel-header h3 { overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .forum-table thead { display: none; }
+  .forum-table, .forum-table tbody, .forum-table tr, .forum-table td { display: block; width: 100%; }
+  .forum-table tr { padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .forum-table td, .forum-table td:first-child { width: 100%; padding: 4px 0; border: 0; }
+  .forum-table td[data-label]::before { content: attr(data-label) ": "; color: var(--muted); }
+  .forum-view button { min-height: 40px; }
+  .forum-pagination { align-items: flex-start; flex-direction: column; }
+}
+
+.forum-view .panel-content { padding: 16px; }
+.forum-field { display: grid; gap: 7px; }
+@media (prefers-reduced-motion: reduce) {
+  .forum-view .panel { animation: none; }
+}
+
+.forum-notice { margin: 0; padding: 12px 16px; color: var(--good); background: var(--panel); border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
+.forum-post:focus { outline: 2px solid var(--blue); outline-offset: 4px; }
+
+/* Shared confirmation dialog, rendered above the dashboard shell. */
+.confirmation-dialog { width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); color: var(--text); box-shadow: 0 24px 80px rgba(15, 35, 65, .24); overflow-y: auto; }
+.confirmation-dialog::backdrop { background: rgba(19, 35, 55, .42); backdrop-filter: blur(3px); }
+.confirmation-content { position: relative; padding: 26px; }
+.confirmation-icon { display: flex; align-items: center; justify-content: center; width: 46px; height: 46px; margin-bottom: 18px; border-radius: 12px; background: hsl(205 80% 95%); color: var(--blue); }
+.confirmation-icon.is-destructive { color: var(--danger); background: hsl(350 80% 96%); }
+.confirmation-dialog h2 { margin: 0 0 10px; font-size: 20px; line-height: 1.3; letter-spacing: -.015em; }
+.confirmation-dialog p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.65; overflow-wrap: anywhere; }
+.confirmation-dialog button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 9px 15px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.confirmation-dialog button:hover { background: hsl(210 30% 97%); }
+.confirmation-dialog button:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.confirmation-dialog .confirmation-close { position: absolute; top: 15px; right: 15px; width: 36px; min-height: 36px; padding: 0; border: 0; color: var(--muted); }
+.confirmation-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+.confirmation-dialog .confirmation-actions button.is-primary { color: white; background: var(--blue); border-color: var(--blue); }
+.confirmation-dialog .confirmation-actions button.is-destructive { color: white; background: color-mix(in srgb, var(--danger) 90%, black); border-color: transparent; }
+.confirmation-dialog .confirmation-actions button.is-primary:hover { color: white; background: color-mix(in srgb, var(--blue) 82%, black); }
+.confirmation-dialog .confirmation-actions button.is-destructive:hover { color: white; background: color-mix(in srgb, var(--danger) 78%, black); }
+@media (max-width: 480px) { .confirmation-content { padding: 22px; } .confirmation-actions button { flex: 1 1 auto; } }

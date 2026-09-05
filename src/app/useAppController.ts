@@ -5,7 +5,15 @@ import { useAuthSession } from "./useAuthSession";
 import { useDashboardData } from "./useDashboardData";
 
 export function useAppController() {
-  const [activeView, setActiveView] = useState<ViewId>("overview");
+  const [activeView, setActiveView] = useState<ViewId>(() =>
+    new URLSearchParams(window.location.search).get("view") === "forum" ? "forum" : "overview",
+  );
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (activeView === "forum") url.searchParams.set("view", "forum");
+    else url.searchParams.delete("view");
+    window.history.replaceState(window.history.state, "", url);
+  }, [activeView]);
   const [appScreen, setAppScreen] = useState<"dashboard" | "login">("dashboard");
   const auth = useAuthSession();
   const canManageUsers = auth.authPermissions.includes("users:manage");

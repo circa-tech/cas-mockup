@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import {
   Droplets,
+  MessagesSquare,
   Gauge,
   LogIn,
   LogOut,
@@ -14,6 +15,9 @@ import {
 import { RemoteDataState } from "./components/RemoteDataState";
 import { useAppController } from "./app/useAppController";
 
+const ForumView = lazy(() =>
+  import("./features/forum/ForumView").then((module) => ({ default: module.ForumView })),
+);
 const AdminView = lazy(() =>
   import("./features/admin/AdminView").then((module) => ({ default: module.AdminView })),
 );
@@ -51,6 +55,7 @@ const navIconMap = {
   meteo: Thermometer,
   admin: ShieldCheck,
   tutorials: CirclePlay,
+  forum: MessagesSquare,
 } as const;
 
 export default function App() {
@@ -228,6 +233,7 @@ export default function App() {
           {app.activeView === "admin" && app.canManageUsers && (
             <AdminView authIdToken={app.authIdToken} currentUserUid={app.authUid} />
           )}
+          {app.activeView === "forum" && <ForumView authIdToken={app.authIdToken} authUid={app.authUid} onLogin={app.handleOpenLogin} />}
           {app.activeView === "tutorials" && <TutorialsView />}
         </Suspense>
       </main>

@@ -1,3 +1,4 @@
+import { useConfirmationDialog } from "../../components/useConfirmationDialog";
 import { MapPinned, Pencil, Plus, Trash2 } from "lucide-react";
 import { FormEvent, lazy, useState } from "react";
 import { RemoteDataState } from "../../components/RemoteDataState";
@@ -119,6 +120,7 @@ export function WellRegistryEditor({
   organizationsError,
   status,
 }: RegistryEditorProps) {
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const [editingWellId, setEditingWellId] = useState<string | null>(null);
   const previewLat = Number.parseFloat(form.lat);
   const previewLng = Number.parseFloat(form.lng);
@@ -129,13 +131,14 @@ export function WellRegistryEditor({
       : null;
 
   const handleWellDelete = async (entry: WellRegistryEntry) => {
-    if (!window.confirm(`Eliminar el pozo ${entry.codigoObra}?`)) return;
+    if (!(await confirm({ title: "¿Eliminar este pozo?", description: `Se eliminará el pozo ${entry.codigoObra} del registro activo.`, confirmLabel: "Eliminar pozo", destructive: true }))) return;
     await onDeleteWell(entry.id);
     if (editingWellId === entry.id) setEditingWellId(null);
   };
 
   return (
     <>
+      {confirmationDialog}
       <form
         className="manual-entry-form"
         onSubmit={(event) => {

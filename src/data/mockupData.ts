@@ -12,7 +12,8 @@ export type ViewId =
   | "wells"
   | "meteo"
   | "admin"
-  | "tutorials";
+  | "tutorials"
+  | "forum";
 
 export const views: { id: ViewId; label: string }[] = [
   { id: "overview", label: "Resumen" },
@@ -20,6 +21,7 @@ export const views: { id: ViewId; label: string }[] = [
   { id: "snow", label: "MODIS Snow" },
   { id: "wells", label: "Pozos" },
   { id: "meteo", label: "Meteo" },
+  { id: "forum", label: "Foro" },
   { id: "admin", label: "Admin" },
   { id: "tutorials", label: "Tutoriales" },
 ];

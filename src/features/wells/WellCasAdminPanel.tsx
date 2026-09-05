@@ -1,3 +1,4 @@
+import { useConfirmationDialog } from "../../components/useConfirmationDialog";
 import { useQuery } from "@tanstack/react-query";
 import { Save, Trash2 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
@@ -28,6 +29,7 @@ export function WellCasAdminPanel({
   organizations,
   refreshOrganizations,
 }: WellCasAdminPanelProps) {
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const [selectedCasId, setSelectedCasId] = useState("");
   const [membershipUid, setMembershipUid] = useState("");
   const [casCode, setCasCode] = useState("");
@@ -149,7 +151,7 @@ export function WellCasAdminPanel({
 
   const handleCasDelete = async () => {
     if (!authIdToken || !selectedCasId || !selectedOrganization) return;
-    if (!window.confirm(`Eliminar la CAS ${selectedOrganization.code}?`)) return;
+    if (!(await confirm({ title: "¿Eliminar esta CAS?", description: `Se eliminará la CAS ${selectedOrganization.code} del registro activo.`, confirmLabel: "Eliminar CAS", destructive: true }))) return;
     setCasStatus("loading");
     setCasMessage(null);
     try {
@@ -198,6 +200,7 @@ export function WellCasAdminPanel({
 
   return (
     <div className="well-access-admin">
+      {confirmationDialog}
       <div>
         <h4>Organizaciones y comuneros</h4>
       </div>

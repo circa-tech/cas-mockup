@@ -4,6 +4,12 @@ const scope = (idToken: string | null) =>
   idToken ? authQueryScope(idToken) : "anonymous";
 
 export const queryKeys = {
+  forum: {
+    root: (token: string | null) => ["forum", scope(token)] as const,
+    threads: (token: string | null, page: number) => ["forum", scope(token), "threads", page] as const,
+    thread: (token: string | null, id: string | null) => ["forum", scope(token), "thread", id] as const,
+    posts: (token: string | null, id: string | null, page: number) => ["forum", scope(token), "posts", id, page] as const,
+  },
   admin: {
     roles: (token: string | null) => ["admin", scope(token), "roles"] as const,
     users: (token: string | null) => ["admin", scope(token), "users"] as const,
