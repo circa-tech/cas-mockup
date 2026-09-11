@@ -67,6 +67,10 @@ const regionLabelById: Record<string, string> = {
   "valle-bajo": "Valle bajo",
 };
 
+// These sectors have no associated ET usage polygons, so the application
+// cannot provide series or crop-level data for them.
+const hiddenSectorIds = new Set([14, 17, 18]);
+
 const toLatLng = (position: number[]) => [position[1], position[0]] as [number, number];
 
 const toPolygonPositions = (geometry: EtrSectorFeature["geometry"]) => {
@@ -148,7 +152,7 @@ export function EtrMap({
           {etrFeatures.map((feature) => {
             const sectorId = Number(feature.properties.sector_id ?? feature.id);
             const regionId = sectorGroupById[sectorId];
-            if (!regionId) {
+            if (!regionId || hiddenSectorIds.has(sectorId)) {
               return null;
             }
 
