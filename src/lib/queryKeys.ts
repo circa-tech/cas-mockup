@@ -48,5 +48,7 @@ export const queryKeys = {
       ["wells", scope(token), "measurements"] as const,
     registry: (token: string | null, mine: boolean) =>
       ["wells", scope(token), mine ? "registry-mine" : "registry"] as const,
+    telemetryWriter: (token: string | null, wellId: string) =>
+      ["wells", scope(token), "telemetry-writer", wellId] as const,
   },
 };

@@ -9,15 +9,20 @@ import {
   deleteCasOrganization,
   fetchCasMemberships,
   fetchCasMembershipUsers,
+  fetchWellTelemetryWriter,
+  revokeWellTelemetryWriter,
   revokeCasMembership,
+  setWellTelemetryWriter,
   setCasMembership,
   updateCasOrganization,
   type CasOrganization,
+  type WellRegistryEntry,
 } from "../../services/wellsApi";
 import type { RemoteLoadStatus } from "../../types/remote";
 
 type WellCasAdminPanelProps = {
   authIdToken: string | null;
+  entries: WellRegistryEntry[];
   onDefaultCasChange: (casId: string) => void;
   organizations: CasOrganization[];
   refreshOrganizations: () => Promise<CasOrganization[]>;
@@ -25,6 +30,7 @@ type WellCasAdminPanelProps = {
 
 export function WellCasAdminPanel({
   authIdToken,
+  entries,
   onDefaultCasChange,
   organizations,
   refreshOrganizations,
@@ -32,6 +38,8 @@ export function WellCasAdminPanel({
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [selectedCasId, setSelectedCasId] = useState("");
   const [membershipUid, setMembershipUid] = useState("");
+  const [telemetryWellId, setTelemetryWellId] = useState("");
+  const [telemetryWriterUid, setTelemetryWriterUid] = useState("");
   const [casCode, setCasCode] = useState("");
   const [casName, setCasName] = useState("");
   const [editCasCode, setEditCasCode] = useState("");
@@ -54,13 +62,19 @@ export function WellCasAdminPanel({
     staleTime: 5 * 60 * 1000,
   });
   const membershipUsers = (usersQuery.data ?? []).filter(
-    (user) => user.role === "cas_user",
+    (user) => user.role === "cas_user" || user.role === "technical_admin",
   );
   const usersByUid = useMemo(
     () => new Map(membershipUsers.map((user) => [user.uid, user])),
     [membershipUsers],
   );
   const memberships = membershipsQuery.data ?? [];
+  const casWells = entries.filter((entry) => entry.casId === selectedCasId);
+  const writerQuery = useQuery({
+    queryKey: queryKeys.wells.telemetryWriter(authIdToken, telemetryWellId),
+    queryFn: () => fetchWellTelemetryWriter(authIdToken!, telemetryWellId),
+    enabled: Boolean(authIdToken && telemetryWellId),
+  });
 
   useEffect(() => {
     setSelectedCasId((current) => {
@@ -73,6 +87,16 @@ export function WellCasAdminPanel({
     const firstUser = membershipUsers[0];
     if (firstUser) setMembershipUid((current) => current || firstUser.uid);
   }, [membershipUsers]);
+
+  useEffect(() => {
+    setTelemetryWellId((current) =>
+      casWells.some((well) => well.id === current) ? current : (casWells[0]?.id ?? ""),
+    );
+  }, [selectedCasId, entries]);
+
+  useEffect(() => {
+    if (writerQuery.data?.firebaseUid) setTelemetryWriterUid(writerQuery.data.firebaseUid);
+  }, [writerQuery.data?.firebaseUid]);
 
   useEffect(() => {
     setEditCasCode(selectedOrganization?.code ?? "");
@@ -198,6 +222,36 @@ export function WellCasAdminPanel({
     }
   };
 
+  const handleTelemetryWriterSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!authIdToken || !telemetryWellId || !telemetryWriterUid) return;
+    setCasStatus("loading");
+    try {
+      await setWellTelemetryWriter(authIdToken, telemetryWellId, telemetryWriterUid);
+      await writerQuery.refetch();
+      setCasStatus("ready");
+      setCasMessage("Responsable de telemetría asignado.");
+    } catch (error) {
+      setCasStatus("error");
+      setCasMessage(toRemoteErrorMessage(error, "No fue posible asignar el responsable."));
+    }
+  };
+
+  const handleTelemetryWriterRevoke = async () => {
+    if (!authIdToken || !telemetryWellId) return;
+    setCasStatus("loading");
+    try {
+      await revokeWellTelemetryWriter(authIdToken, telemetryWellId);
+      await writerQuery.refetch();
+      setTelemetryWriterUid("");
+      setCasStatus("ready");
+      setCasMessage("Responsable de telemetría revocado.");
+    } catch (error) {
+      setCasStatus("error");
+      setCasMessage(toRemoteErrorMessage(error, "No fue posible revocar el responsable."));
+    }
+  };
+
   return (
     <div className="well-access-admin">
       {confirmationDialog}
@@ -286,7 +340,7 @@ export function WellCasAdminPanel({
       <form className="manual-entry-form" onSubmit={handleMembershipSubmit}>
         <div className="manual-two-col">
           <label>
-            <span>Comunero</span>
+            <span>Usuario</span>
             <select
               value={membershipUid}
               onChange={(event) => setMembershipUid(event.target.value)}
@@ -310,8 +364,27 @@ export function WellCasAdminPanel({
           type="submit"
           disabled={casStatus === "loading" || membershipUsers.length === 0}
         >
-          {casStatus === "loading" ? "Guardando..." : "Asignar comunero"}
+          {casStatus === "loading" ? "Guardando..." : "Asignar usuario"}
         </button>
+      </form>
+
+      <form className="manual-entry-form" onSubmit={handleTelemetryWriterSubmit}>
+        <h4>Responsable de telemetría</h4>
+        <div className="manual-two-col">
+          <label><span>Pozo</span><select value={telemetryWellId} onChange={(event) => setTelemetryWellId(event.target.value)} disabled={!casWells.length}>
+            {casWells.length === 0 && <option value="">Sin pozos en esta CAS</option>}
+            {casWells.map((well) => <option key={well.id} value={well.id}>{well.codigoObra} · {well.name}</option>)}
+          </select></label>
+          <label><span>Usuario autorizado</span><select value={telemetryWriterUid} onChange={(event) => setTelemetryWriterUid(event.target.value)} disabled={!memberships.length}>
+            <option value="">Seleccionar usuario</option>
+            {memberships.map((membership) => <option key={membership.firebaseUid} value={membership.firebaseUid}>{usersByUid.get(membership.firebaseUid)?.displayName || usersByUid.get(membership.firebaseUid)?.email || membership.firebaseUid}</option>)}
+          </select></label>
+        </div>
+        <div className="manual-two-col">
+          <button type="submit" disabled={casStatus === "loading" || !telemetryWriterUid || !telemetryWellId}>Asignar responsable</button>
+          <button type="button" disabled={casStatus === "loading" || !writerQuery.data} onClick={() => void handleTelemetryWriterRevoke()}>Revocar responsable</button>
+        </div>
+        {writerQuery.data && <p>Responsable actual: {usersByUid.get(writerQuery.data.firebaseUid)?.displayName || usersByUid.get(writerQuery.data.firebaseUid)?.email || writerQuery.data.firebaseUid}</p>}
       </form>
 
       {casMessage && <p className="login-error">{casMessage}</p>}
@@ -340,7 +413,7 @@ export function WellCasAdminPanel({
           </div>
         ))}
         {casStatus === "ready" && memberships.length === 0 && (
-          <p>Sin comuneros asignados a esta CAS.</p>
+          <p>Sin usuarios asignados a esta CAS.</p>
         )}
       </div>
     </div>
