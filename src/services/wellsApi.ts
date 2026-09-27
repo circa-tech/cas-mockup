@@ -158,6 +158,8 @@ export type CasMembershipUser = {
   uid: string;
 };
 
+export type WellTelemetryWriter = { firebaseUid: string };
+
 export type IngestWellMeasurementPayload = {
   codigoObra: string;
   companyRut: string;
@@ -336,6 +338,32 @@ export const revokeCasMembership = async (
   await requestWells(`cas/${casId}/memberships/${encodeURIComponent(firebaseUid)}`, idToken, {
     method: "DELETE",
   });
+  await invalidateWells(idToken);
+};
+
+export const fetchWellTelemetryWriter = async (
+  idToken: string,
+  wellId: string,
+): Promise<WellTelemetryWriter | null> => {
+  const response = await requestWells(`registry/${wellId}/telemetry-writer`, idToken);
+  if (response.status === 204) return null;
+  return response.json() as Promise<WellTelemetryWriter | null>;
+};
+
+export const setWellTelemetryWriter = async (
+  idToken: string,
+  wellId: string,
+  firebaseUid: string,
+): Promise<WellTelemetryWriter> => {
+  const response = await requestWells(`registry/${wellId}/telemetry-writer`, idToken, {
+    body: JSON.stringify({ firebaseUid }), method: "PUT",
+  });
+  await invalidateWells(idToken);
+  return response.json() as Promise<WellTelemetryWriter>;
+};
+
+export const revokeWellTelemetryWriter = async (idToken: string, wellId: string): Promise<void> => {
+  await requestWells(`registry/${wellId}/telemetry-writer`, idToken, { method: "DELETE" });
   await invalidateWells(idToken);
 };
 

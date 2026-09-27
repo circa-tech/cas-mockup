@@ -114,6 +114,7 @@ export function WellRegistryAdminPanel({
       {activeAdminView === "cas" && canManageCas && (
         <WellCasAdminPanel
           authIdToken={authIdToken}
+          entries={entries}
           onDefaultCasChange={(casId) => onChange({ casId })}
           organizations={organizations}
           refreshOrganizations={refreshOrganizations}
