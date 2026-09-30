@@ -3134,6 +3134,12 @@ body {
   cursor: help;
 }
 
+.etr-usage-map-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .etr-usage-top-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
