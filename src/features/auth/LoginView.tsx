@@ -25,7 +25,9 @@ export function LoginView({
     try {
       await onEmailPasswordLogin(email, password);
     } catch {
-      setErrorMessage("No fue posible iniciar sesión con email y contraseña.");
+      setErrorMessage(
+        "El correo o la contraseña no coinciden. Revísalos e inténtalo de nuevo.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -61,21 +63,21 @@ export function LoginView({
           </div>
           <div>
             <h1>Agua con Dato</h1>
-            <p>Mockup de acceso para usuarios y administradores.</p>
+            <p>Plataforma de información hídrica de las CAS del Valle de Copiapó</p>
           </div>
         </div>
 
         <div className="login-copy">
           <h2>Iniciar sesión</h2>
           <p>
-            Acceso con Google o email/contraseña para consultar los snapshots horarios
-            publicados desde la plataforma CAS.
+            Ingresa para ver los datos de tus pozos, los indicadores por parcela y
+            descargar imágenes. Usa el correo con que te registró tu CAS.
           </p>
         </div>
 
         <form className="login-form" onSubmit={handleEmailPasswordSubmit}>
           <label className="login-field">
-            <span>Email</span>
+            <span>Correo electrónico</span>
             <input
               type="email"
               value={email}
@@ -98,7 +100,7 @@ export function LoginView({
           </label>
           {errorMessage ? <p className="login-error">{errorMessage}</p> : null}
           <button type="submit" className="login-password-btn" disabled={isSubmitting}>
-            {isSubmitting ? "Ingresando..." : "Ingresar con email"}
+            {isSubmitting ? "Ingresando..." : "Ingresar"}
           </button>
         </form>
 
@@ -118,8 +120,12 @@ export function LoginView({
           Continuar con Google
         </button>
         <button type="button" className="login-back-btn" onClick={onBack}>
-          Volver al dashboard
+          Seguir sin iniciar sesión
         </button>
+        <p className="login-contact-note">
+          ¿No tienes cuenta? Pídela a contacto@cas123.cl o contacto@cas4.cl según
+          corresponda.
+        </p>
       </div>
     </div>
   );

@@ -3046,6 +3046,14 @@ body {
   color: hsl(215 14% 40%);
 }
 
+.login-contact-note {
+  margin: 0;
+  color: hsl(215 14% 50%);
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: center;
+}
+
 .etr-subnav {
   display: inline-flex;
   width: fit-content;
