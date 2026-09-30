@@ -19,6 +19,13 @@ export function useAppController() {
   const canManageUsers = auth.authPermissions.includes("users:manage");
   const canDownloadEt = auth.authPermissions.includes("et:download");
   const hasAuthenticatedApiSession = auth.isLoggedIn && Boolean(auth.authIdToken);
+  const canViewCommunity =
+    hasAuthenticatedApiSession &&
+    ["cas_user", "technical_admin", "general_admin"].includes(auth.authRole);
+  const visibleActiveView =
+    (activeView === "forum" || activeView === "tutorials") && !canViewCommunity
+      ? "overview"
+      : activeView;
   const dashboardNow = useMemo(() => {
     const timestamp = auth.authIdToken ? Date.now() : new Date(mockNowIso).getTime();
     return new Date(timestamp);
@@ -41,11 +48,13 @@ export function useAppController() {
       views.filter(
         (view) =>
           (view.id !== "admin" || canManageUsers) &&
+          ((view.id !== "forum" && view.id !== "tutorials") ||
+            canViewCommunity) &&
           (view.id !== "wells" ||
             !hasAuthenticatedApiSession ||
             auth.authRole !== "public_user"),
       ),
-    [auth.authRole, canManageUsers, hasAuthenticatedApiSession],
+    [auth.authRole, canManageUsers, canViewCommunity, hasAuthenticatedApiSession],
   );
 
   useEffect(() => {
@@ -54,10 +63,22 @@ export function useAppController() {
       activeView === "wells" &&
       hasAuthenticatedApiSession &&
       auth.authRole === "public_user";
-    if (cannotOpenAdmin || cannotOpenWells) {
+    const cannotOpenCommunity =
+      (activeView === "forum" || activeView === "tutorials") &&
+      !canViewCommunity &&
+      (!auth.isLoggedIn || Boolean(auth.authIdToken));
+    if (cannotOpenAdmin || cannotOpenWells || cannotOpenCommunity) {
       setActiveView("overview");
     }
-  }, [activeView, auth.authRole, canManageUsers, hasAuthenticatedApiSession]);
+  }, [
+    activeView,
+    auth.authIdToken,
+    auth.authRole,
+    auth.isLoggedIn,
+    canManageUsers,
+    canViewCommunity,
+    hasAuthenticatedApiSession,
+  ]);
 
   const finishLogin = () => {
     setActiveView("overview");
@@ -77,7 +98,7 @@ export function useAppController() {
   };
 
   return {
-    activeView,
+    activeView: visibleActiveView,
     appScreen,
     authIdToken: auth.authIdToken,
     authRole: auth.authRole,
