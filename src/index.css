@@ -396,8 +396,8 @@ select:focus-visible {
     border-color 0.2s ease,
     box-shadow 0.2s ease,
     transform 0.2s ease;
-  display: grid;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   box-shadow: var(--shadow-soft);
 }
@@ -437,6 +437,7 @@ select:focus-visible {
 .overview-card small {
   color: var(--muted);
   font-size: 12px;
+  margin-top: auto;
 }
 
 .overview-mini-chart {

@@ -861,22 +861,27 @@ export const computeOverviewCards = ({
     : meteoIsLoading
       ? 0
       : 0;
+  const hasEtrData = etrLastDate !== "Sin datos";
 
   return [
     {
       id: "overview-etr",
-      title: "ETR",
+      title: "Evapotranspiración",
       targetView: "etr",
-      primaryKpi: `ETR media ${etrMeanValue.toFixed(1)} mm/día`,
-      secondaryKpi: `Última fecha ${etrLastDate}`,
+      primaryKpi: hasEtrData
+        ? `${etrMeanValue.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} mm/día`
+        : "Sin datos de evapotranspiración",
+      secondaryKpi: hasEtrData ? "Consumo real promedio (ETR)" : "Sin datos disponibles",
       status: getFreshnessStatus(etrLastUpdate, now, etrStaleThresholdDays),
       lastUpdate: etrLastUpdate,
     },
     {
       id: "overview-snow",
-      title: "Snow",
+      title: "Nieve",
       targetView: "snow",
-      primaryKpi: hasSnowData ? `FSCA área ${snowCurrent.toFixed(0)}%` : "FSCA área Sin datos",
+      primaryKpi: hasSnowData
+        ? `${snowCurrent.toFixed(0)} % del área de la cuenca con nieve`
+        : "Sin datos de cobertura de nieve",
       secondaryKpi: hasSnowData
         ? `Vs año pasado ${snowDelta >= 0 ? "+" : ""}${snowDelta.toFixed(0)} pp`
         : "Sin datos disponibles",
@@ -887,16 +892,18 @@ export const computeOverviewCards = ({
       id: "overview-wells",
       title: "Pozos",
       targetView: "wells",
-      primaryKpi: `${wellsOnTime}/${wells.length} al día`,
+      primaryKpi: `${wellsOnTime} de ${wells.length} pozos reportando`,
       secondaryKpi: `${wellsStale} sin reporte > 48 h`,
       status: getNetworkStatus(wells),
       lastUpdate: getLatestUpdate(wells),
     },
     {
       id: "overview-meteo",
-      title: "Meteo",
+      title: "Clima",
       targetView: "meteo",
-      primaryKpi: `Temp media red ${stationsMeanTemp.toFixed(1)} °C`,
+      primaryKpi: hasMeteoData
+        ? `${stationsMeanTemp.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} °C promedio de ${stations.length} estaciones`
+        : "Temperatura promedio sin datos",
       secondaryKpi: `${stationsStale} sin reporte > 48 h`,
       status: hasMeteoData ? getNetworkStatus(stations) : "stale",
       lastUpdate: hasMeteoData ? getLatestUpdate(stations) : "Sin datos",

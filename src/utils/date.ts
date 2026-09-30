@@ -79,6 +79,42 @@ export const formatDateTime = (value: string) => {
   });
 };
 
+export const formatDate = (value: string) => {
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  const parts = new Intl.DateTimeFormat("es-CL", {
+    day: "numeric",
+    month: "long",
+    timeZone: chileTimeZone,
+    year: "numeric",
+  }).formatToParts(parsed);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+
+  return `${part("day")} de ${part("month").toLocaleLowerCase("es-CL")} ${part("year")}`;
+};
+
+export const formatDateTimeLong = (value: string) => {
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  const time = parsed.toLocaleTimeString("es-CL", {
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    timeZone: chileTimeZone,
+  });
+
+  return `${formatDate(value)}, ${time}`;
+};
+
 export const formatRelativeAge = (lastUpdate: string, now: Date) => {
   const diffMs = Math.max(0, now.getTime() - new Date(lastUpdate).getTime());
   const minute = 60 * 1000;

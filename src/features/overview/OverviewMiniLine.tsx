@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import {
   CartesianGrid,
+  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -18,6 +19,8 @@ export type OverviewMiniSeries = {
 type OverviewMiniLineProps = {
   labels?: string[];
   lines: OverviewMiniSeries[];
+  showLegend?: boolean;
+  showYAxisUnit?: boolean;
   unit: string;
 };
 
@@ -46,12 +49,18 @@ const buildOverviewMiniRows = (
   });
 };
 
-export function OverviewMiniLine({ labels, lines, unit }: OverviewMiniLineProps) {
+export function OverviewMiniLine({
+  labels,
+  lines,
+  showLegend = false,
+  showYAxisUnit = false,
+  unit,
+}: OverviewMiniLineProps) {
   const rows = useMemo(() => buildOverviewMiniRows(labels, lines), [labels, lines]);
 
   return (
     <div className="overview-mini-chart">
-      <ResponsiveContainer height={196} width="100%">
+      <ResponsiveContainer height={showLegend ? 218 : 196} width="100%">
         <LineChart data={rows} margin={{ bottom: 10, left: 8, right: 8, top: 6 }}>
           <CartesianGrid stroke="hsl(210 18% 91%)" strokeDasharray="3 3" vertical={false} />
           <XAxis
@@ -69,10 +78,33 @@ export function OverviewMiniLine({ labels, lines, unit }: OverviewMiniLineProps)
           />
           <YAxis
             axisLine={{ stroke: "hsl(210 18% 86%)" }}
+            label={
+              showYAxisUnit
+                ? {
+                    value: unit,
+                    angle: -90,
+                    position: "insideLeft",
+                    style: {
+                      fill: "hsl(215 14% 50%)",
+                      fontSize: 10,
+                      textAnchor: "middle",
+                    },
+                  }
+                : undefined
+            }
             tick={{ fill: "hsl(215 14% 50%)", fontSize: 10 }}
             tickLine={false}
-            width={42}
+            width={showYAxisUnit ? 50 : 42}
           />
+          {showLegend ? (
+            <Legend
+              align="center"
+              height={24}
+              iconType="plainline"
+              verticalAlign="bottom"
+              wrapperStyle={{ fontSize: 10 }}
+            />
+          ) : null}
           <RechartsTooltip
             animationDuration={120}
             contentStyle={{
