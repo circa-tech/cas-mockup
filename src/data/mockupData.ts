@@ -17,13 +17,13 @@ export type ViewId =
 
 export const views: { id: ViewId; label: string }[] = [
   { id: "overview", label: "Resumen" },
-  { id: "etr", label: "ET-LAT" },
-  { id: "snow", label: "MODIS Snow" },
+  { id: "etr", label: "Evapotranspiración" },
+  { id: "snow", label: "Nieve" },
   { id: "wells", label: "Pozos" },
-  { id: "meteo", label: "Meteo" },
+  { id: "meteo", label: "Clima" },
   { id: "forum", label: "Foro" },
   { id: "admin", label: "Admin" },
-  { id: "tutorials", label: "Tutoriales" },
+  { id: "tutorials", label: "Ayuda" },
 ];
 
 export const etrStats = [

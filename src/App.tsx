@@ -91,7 +91,7 @@ export default function App() {
           <div>
             <h1>Agua con Dato</h1>
             <p>
-              Mockup unificado para ET-LAT, MODIS-Snow, Pozos y Meteo
+              Nieve, cultivos, pozos y clima del Valle de Copiapó
             </p>
           </div>
         </div>
