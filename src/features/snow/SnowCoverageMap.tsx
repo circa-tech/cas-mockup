@@ -10,7 +10,6 @@ import {
   Tooltip,
   useMap,
 } from "react-leaflet";
-import { chartPalette } from "../../data/mockupData";
 import snowCoverageGeoJson from "../../data/snowCoverageGeoJson.json";
 import { ModifierWheelZoom } from "../../components/ModifierWheelZoom";
 
@@ -58,10 +57,11 @@ const toPolygonPositions = (geometry: SnowGeometry) => {
 };
 
 const snowPolygonStyle = {
-  color: chartPalette.chart1,
-  fillColor: chartPalette.chart7,
-  fillOpacity: 0.24,
-  weight: 2,
+  color: "#facc15",
+  fillColor: "#fde047",
+  fillOpacity: 0.13,
+  weight: 2.5,
+  className: "snow-basin-boundary",
 } as const;
 
 function FitSnowBounds({ bounds }: { bounds: L.LatLngBounds | null }) {
@@ -200,6 +200,18 @@ export function SnowCoverageMap({
           </Polygon>
         ))}
       </MapContainer>
+      <div
+        className="snow-coverage-legend"
+        role="group"
+        aria-label="Leyenda de cobertura nival"
+      >
+        <div className="snow-coverage-legend-scale">
+          <span className="snow-coverage-legend-swatch" aria-hidden="true" />
+          <strong>Nieve</strong>
+          <span>NDSI ≥ 40</span>
+        </div>
+        <p>Rango clasificado: NDSI de 40 a 100.</p>
+      </div>
     </div>
   );
 }

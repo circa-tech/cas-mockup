@@ -719,6 +719,49 @@ select:focus-visible {
   height: 320px;
 }
 
+.snow-coverage-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  padding: 10px 14px;
+  background: var(--panel);
+}
+
+.snow-coverage-legend-scale {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.snow-coverage-legend-scale strong {
+  margin-right: 2px;
+  font-weight: 600;
+}
+
+.snow-coverage-legend-swatch {
+  width: 18px;
+  height: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 3px;
+  background: #00bcd4;
+}
+
+.snow-coverage-legend p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.snow-basin-boundary {
+  filter: drop-shadow(0 0 1.5px rgba(15, 23, 42, 0.9));
+}
+
 .snow-chart-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
