@@ -188,7 +188,7 @@ export function EtrMap({
 
         <div className="etr-region-overlay">
           <strong>{selectedSummaryLabel}</strong>
-          <span>Seleccione un polígono</span>
+          <span>Selecciona un sector para ver sus datos</span>
         </div>
       </div>
     </div>

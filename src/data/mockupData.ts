@@ -27,9 +27,9 @@ export const views: { id: ViewId; label: string }[] = [
 ];
 
 export const etrStats = [
-  { label: "Última fecha disponible", value: "2025-10-09" },
-  { label: "ETR media", value: "1.2 mm/día" },
-  { label: "ETMAX media", value: "1.8 mm/día" },
+  { label: "Imagen satelital más reciente", value: "9 oct 2025" },
+  { label: "Consumo real (ETR)", value: "1,2 mm/día" },
+  { label: "Consumo máximo (ETmax)", value: "1,8 mm/día" },
 ];
 
 export const etrLastUpdateIso = mockSantiagoIso("2026-03-21", "07:15:00");
@@ -146,12 +146,12 @@ const toLinePoints = (values: number[]): LinePoint[] =>
 
 const buildEtrSeries = (etr: number[], etmax: number[]): LineSeries[] => [
   {
-    label: "ETR media",
+    label: "Consumo real (ETR)",
     color: ETR_COLOR,
     points: toLinePoints(etr),
   },
   {
-    label: "ETMAX media",
+    label: "Consumo máximo (ETmax)",
     color: ETMAX_COLOR,
     points: toLinePoints(etmax),
   },
@@ -373,7 +373,7 @@ const buildEtrUsoRecord = (sectorId: number): EtrUsoRecord => {
   const laiBase = 0.9 + ((sectorId * 3) % 5) * 0.4;
 
   const etrSeries: LineSeries = {
-    label: "ETR media",
+    label: "Consumo real (ETR)",
     color: ETR_COLOR,
     points: buildUsageSeriesPoints(sectorId, {
       base: etrBase,
@@ -383,7 +383,7 @@ const buildEtrUsoRecord = (sectorId: number): EtrUsoRecord => {
   };
 
   const etmaxSeries: LineSeries = {
-    label: "ETMAX media",
+    label: "Consumo máximo (ETmax)",
     color: ETMAX_COLOR,
     points: buildUsageSeriesPoints(sectorId, {
       base: etmaxBase,

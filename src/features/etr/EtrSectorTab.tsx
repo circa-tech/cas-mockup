@@ -1,6 +1,7 @@
 import {
   Droplets,
   Gauge,
+  Info,
   MapPinned,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -33,16 +34,33 @@ const EtrMap = lazy(() =>
   import("./EtrMap").then((module) => ({ default: module.EtrMap })),
 );
 const etrLoadingStats = [
-  { label: "Última fecha disponible", value: "Cargando..." },
-  { label: "ETR media", value: "Cargando..." },
-  { label: "ETMAX media", value: "Cargando..." },
+  { label: "Imagen satelital más reciente", value: "Cargando..." },
+  { label: "Consumo real (ETR)", value: "Cargando..." },
+  { label: "Consumo máximo (ETmax)", value: "Cargando..." },
 ];
 
 const etrUnavailableStats = [
-  { label: "Última fecha disponible", value: "Sin datos" },
-  { label: "ETR media", value: "Sin datos" },
-  { label: "ETMAX media", value: "Sin datos" },
+  { label: "Imagen satelital más reciente", value: "Sin datos" },
+  { label: "Consumo real (ETR)", value: "Sin datos" },
+  { label: "Consumo máximo (ETmax)", value: "Sin datos" },
 ];
+
+const formatEtrDate = (value: string) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return value;
+
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  const parts = new Intl.DateTimeFormat("es-CL", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+    year: "numeric",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((datePart) => datePart.type === type)?.value ?? "";
+
+  return `${part("day")} ${part("month").replace(/\.$/, "")} ${part("year")}`;
+};
 
 
 const defaultEtrSectorSelection: EtrSectorSelection = {
@@ -132,9 +150,15 @@ export function EtrSectorTab({
         map,
         seasonSeries: toEtrEtmaxSeries(series),
         stats: [
-          { label: "Última fecha disponible", value: summary.fecha },
-          { label: "ETR media", value: `${(summary.etr ?? 0).toFixed(1)} mm/día` },
-          { label: "ETMAX media", value: `${(summary.etmax ?? 0).toFixed(1)} mm/día` },
+          { label: "Imagen satelital más reciente", value: formatEtrDate(summary.fecha) },
+          {
+            label: "Consumo real (ETR)",
+            value: `${(summary.etr ?? 0).toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} mm/día`,
+          },
+          {
+            label: "Consumo máximo (ETmax)",
+            value: `${(summary.etmax ?? 0).toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} mm/día`,
+          },
         ],
       };
     },
@@ -210,6 +234,8 @@ export function EtrSectorTab({
         ? etrUnavailableStats
         : etrLoadingStats
     : stats;
+  const hasLatestEtrDate = /^\d{1,2} [a-z.]+ \d{4}$/i.test(statsForCards[0].value);
+  const overviewDateLabel = hasLatestEtrDate ? statsForCards[0].value : null;
   const showOverviewData = !isLoggedIn || overviewStatus === "ready";
   const showSelectedSectorData = !isLoggedIn || selectedSectorStatus === "ready";
   const overviewStateTone = overviewStatus === "error" ? "error" : "loading";
@@ -223,7 +249,7 @@ export function EtrSectorTab({
           icon={Gauge}
           title={statsForCards[0].label}
           value={statsForCards[0].value}
-          note="Disponibilidad ET-LAT"
+          note={hasLatestEtrDate ? "Próxima en ~7 días" : undefined}
           noteTone="neutral"
         />
         <KpiCard
@@ -231,22 +257,23 @@ export function EtrSectorTab({
           icon={Droplets}
           title={statsForCards[1].label}
           value={statsForCards[1].value}
-          note="Balance hídrico base"
-          noteTone="positive"
+          note="Consumo promedio real"
+          noteTone="neutral"
         />
         <KpiCard
           delayMs={160}
           icon={MapPinned}
           title={statsForCards[2].label}
           value={statsForCards[2].value}
-          note="Potencial atmosférico"
+          note="Lo que consumirían sin falta de agua"
           noteTone="neutral"
         />
       </div>
 
+      <h3 className="etr-block-heading">Todo el valle</h3>
       <div className="etr-summary-grid">
         <Panel
-          title="Distribución de ETR (mm) por clase de cultivo en la última fecha disponible"
+          title={`Consumo por tipo de cultivo${overviewDateLabel ? ` · ${overviewDateLabel}` : ""}`}
         >
           {showOverviewData ? (
             <SimpleBarChart
@@ -272,7 +299,7 @@ export function EtrSectorTab({
         </Panel>
 
         <Panel
-          title="Comportamiento de ETR y ETmax en la temporada (mm)"
+          title="Consumo durante la temporada (mm/día)"
         >
           {showOverviewData ? (
             <SimpleLineChart
@@ -280,7 +307,7 @@ export function EtrSectorTab({
               maxValue={1.8}
               minValue={0}
               series={overviewSeasonSeries}
-              unit="mm"
+              unit="mm/día"
               xLabelAngle={-45}
             />
           ) : (
@@ -298,10 +325,20 @@ export function EtrSectorTab({
         </Panel>
       </div>
 
+      <div className="etr-block-heading-row">
+        <h3 className="etr-block-heading">Detalle por sector: elige un sector en el mapa</h3>
+        <span
+          className="etr-block-tooltip"
+          title="Áreas en que se divide el valle para comparar el consumo de agua entre zonas. Toca una para ver su detalle."
+          aria-label="Información sobre los sectores del valle"
+        >
+          <Info aria-hidden="true" size={16} />
+        </span>
+      </div>
       <div className="etr-top-grid">
         <Panel
           className="panel-etr-map"
-          title="Mapa sectores y áreas de gestión CAS Copiapó"
+          title="Sectores del valle"
         >
           {showOverviewData ? (
             <EtrMap
@@ -326,8 +363,7 @@ export function EtrSectorTab({
 
         <Panel
           className="panel-etr-bar"
-          title="Distribución de ETR (mm) por clase de cultivo en la última fecha disponible"
-          subtitle={selectedSector.sectorName}
+          title={`Consumo por tipo de cultivo en ${selectedSector.sectorName}`}
         >
           {showSelectedSectorData ? (
             <SimpleBarChart
@@ -358,8 +394,7 @@ export function EtrSectorTab({
       </div>
 
       <Panel
-        title="Variación temporal de la ETR y ETmax"
-        subtitle={selectedSector.sectorName}
+        title={`Consumo durante la temporada en ${selectedSector.sectorName}`}
         className="panel-accent-blue"
       >
         {showSelectedSectorData ? (

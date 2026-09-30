@@ -153,7 +153,7 @@ const buildEtrUsoRecordFromSelection = (selection: EtrUsoSelection): EtrUsoRecor
     etrEtmaxSeries: [
       {
         color: chartPalette.chart2,
-        label: "ETR media",
+        label: "Consumo real (ETR)",
         points: labels.map((label, index) => ({
           label,
           value: etrSeriesValues[index] ?? etrValue,
@@ -161,7 +161,7 @@ const buildEtrUsoRecordFromSelection = (selection: EtrUsoSelection): EtrUsoRecor
       },
       {
         color: chartPalette.chart4,
-        label: "ETMAX media",
+        label: "Consumo máximo (ETmax)",
         points: labels.map((label, index) => ({
           label,
           value: etmaxSeriesValues[index] ?? etmaxValue,

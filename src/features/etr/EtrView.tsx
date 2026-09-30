@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { LockKeyhole } from "lucide-react";
 import { EtrDownloadsTab } from "./EtrDownloadsTab";
 import { EtrSectorTab } from "./EtrSectorTab";
 import { EtrUsageTab } from "./EtrUsageTab";
@@ -9,10 +10,12 @@ export function EtrView({
   authIdToken,
   canDownloadImages,
   isLoggedIn,
+  onLogin,
 }: {
   authIdToken: string | null;
   canDownloadImages: boolean;
   isLoggedIn: boolean;
+  onLogin: () => void;
 }) {
   const [activeEtrTab, setActiveEtrTab] = useState<EtrSubTabId>("sector");
 
@@ -28,7 +31,12 @@ export function EtrView({
   return (
     <div className="view-stack etr-page">
       <div className="view-intro">
-        <h2>Monitoreo de Evapotranspiración en el Valle de Copiapó</h2>
+        <h2>Consumo de agua de los cultivos</h2>
+        <p>
+          Estimamos con imágenes satelitales cuánta agua consumen los cultivos
+          (ETR) y cuánta consumirían sin falta de agua (ETmax). Fuente: modelo
+          ET-LAT.
+        </p>
       </div>
 
       <div className="etr-subnav" role="tablist" aria-label="Secciones de ETR">
@@ -39,9 +47,9 @@ export function EtrView({
           className={activeEtrTab === "sector" ? "is-active" : ""}
           onClick={() => setActiveEtrTab("sector")}
         >
-          Indicadores por sector
+          Por sector
         </button>
-        {isLoggedIn && (
+        {isLoggedIn ? (
           <button
             type="button"
             role="tab"
@@ -49,10 +57,15 @@ export function EtrView({
             className={activeEtrTab === "usage" ? "is-active" : ""}
             onClick={() => setActiveEtrTab("usage")}
           >
-            Indicadores por uso
+            Por parcela
+          </button>
+        ) : (
+          <button type="button" role="tab" aria-selected="false" onClick={onLogin}>
+            <LockKeyhole aria-hidden="true" size={14} />
+            Por parcela
           </button>
         )}
-        {canDownloadImages && (
+        {canDownloadImages ? (
           <button
             type="button"
             role="tab"
@@ -60,15 +73,22 @@ export function EtrView({
             className={activeEtrTab === "downloads" ? "is-active" : ""}
             onClick={() => setActiveEtrTab("downloads")}
           >
-            Descarga de imágenes
+            Descargar imágenes
           </button>
-        )}
+        ) : !isLoggedIn ? (
+          <button type="button" role="tab" aria-selected="false" onClick={onLogin}>
+            <LockKeyhole aria-hidden="true" size={14} />
+            Descargar imágenes
+          </button>
+        ) : null}
       </div>
 
       {!isLoggedIn && (
         <p className="etr-access-note">
-          Inicia sesión para habilitar <strong>Indicadores por uso</strong> y{" "}
-          <strong>Descarga de imágenes</strong>.
+          Disponible al iniciar sesión.{" "}
+          <button type="button" onClick={onLogin}>
+            Iniciar sesión
+          </button>
         </p>
       )}
 

@@ -178,6 +178,7 @@ export default function App() {
               authIdToken={app.authIdToken}
               canDownloadImages={app.canDownloadEt}
               isLoggedIn={app.hasAuthenticatedApiSession}
+              onLogin={app.handleOpenLogin}
             />
           )}
           {app.activeView === "snow" && (

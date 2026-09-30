@@ -63,6 +63,12 @@ const getSeriesColors = (groups: BarGroup[]) => {
   return palette;
 };
 
+const getLegendLabel = (label: string) => {
+  if (label === "ETR") return "Consumo real (ETR)";
+  if (label === "ETMAX") return "Consumo máximo (ETmax)";
+  return label;
+};
+
 type LegendItem = {
   color?: string;
   value?: string | number;
@@ -157,7 +163,7 @@ export function SimpleBarChart({
                 fill={colors.get(label) ?? "rgb(59, 169, 206)"}
                 isAnimationActive
                 maxBarSize={30}
-                name={label}
+                name={getLegendLabel(label)}
                 radius={[4, 4, 0, 0]}
               />
             ))}
