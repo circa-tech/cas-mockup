@@ -445,15 +445,15 @@ export type EtrDownloadVariable = "ETR" | "ETMAX" | "KC" | "LAI";
 export type EtrDownloadFormat = "TIFF" | "PNG";
 
 export const etrDownloadVariables: { label: string; value: EtrDownloadVariable }[] = [
-  { label: "ETR", value: "ETR" },
-  { label: "ETMAX", value: "ETMAX" },
-  { label: "Kc", value: "KC" },
-  { label: "LAI", value: "LAI" },
+  { label: "ETR: consumo real", value: "ETR" },
+  { label: "ETmax: consumo máximo", value: "ETMAX" },
+  { label: "Kc: coeficiente de cultivo", value: "KC" },
+  { label: "LAI: follaje", value: "LAI" },
 ];
 
 export const etrDownloadFormats: { label: string; value: EtrDownloadFormat }[] = [
-  { label: "GeoTIFF (.tif)", value: "TIFF" },
-  { label: "PNG (.png)", value: "PNG" },
+  { label: "Imagen PNG: para ver o compartir", value: "PNG" },
+  { label: "GeoTIFF: para QGIS o ArcGIS", value: "TIFF" },
 ];
 
 export const etrDownloadMonthLabels = [
