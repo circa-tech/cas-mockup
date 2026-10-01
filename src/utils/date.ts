@@ -79,8 +79,36 @@ export const formatDateTime = (value: string) => {
   });
 };
 
-export const formatDate = (value: string) => {
+export const formatShortDateTimeParts = (value: string) => {
   const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return { date: value, time: "" };
+  }
+
+  const parts = new Intl.DateTimeFormat("es-CL", {
+    day: "numeric",
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    month: "short",
+    timeZone: chileTimeZone,
+  }).formatToParts(parsed);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+
+  return {
+    date: `${part("day")} ${part("month").replace(/\.$/, "")}`,
+    time: `${part("hour")}:${part("minute")}`,
+  };
+};
+
+export const formatShortDateTime = (value: string) => {
+  const { date, time } = formatShortDateTimeParts(value);
+  return time ? `${date}, ${time}` : date;
+};
+
+export const formatDate = (value: string) => {
+  const parsed = new Date(toZonedDateTimeIso(value) ?? value);
 
   if (Number.isNaN(parsed.getTime())) {
     return value;

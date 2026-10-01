@@ -225,10 +225,10 @@ export default function App() {
               isLoggedIn={app.hasAuthenticatedApiSession}
               now={app.dashboardNow}
               onSelectStation={app.setSelectedStationId}
+              onRetry={app.retryMeteo}
               selectedStationId={app.selectedStationId}
               stations={app.stations}
               status={app.meteoStatus}
-              errorMessage={app.meteoErrorMessage}
             />
           )}
           {app.activeView === "admin" && app.canManageUsers && (

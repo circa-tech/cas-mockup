@@ -130,7 +130,7 @@ export function SnowView({
           className={activeSnowTab === "coverage" ? "is-active" : ""}
           onClick={() => setActiveSnowTab("coverage")}
         >
-          Cobertura MODIS
+          Cobertura de nieve
         </button>
         <button
           type="button"
@@ -139,7 +139,7 @@ export function SnowView({
           className={activeSnowTab === "balance" ? "is-active" : ""}
           onClick={() => setActiveSnowTab("balance")}
         >
-          Balance de Masas
+          Balance de nieve
         </button>
       </div>
 

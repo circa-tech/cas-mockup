@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 type RemoteDataStateProps = {
   className?: string;
   icon?: ReactNode;
-  message: string;
+  message?: string;
   title: string;
   tone?: "loading" | "error";
 };
@@ -36,7 +36,7 @@ export function RemoteDataState({
         {icon ?? <Icon size={18} />}
       </span>
       <strong>{title}</strong>
-      <p>{message}</p>
+      {message && <p>{message}</p>}
     </div>
   );
 }

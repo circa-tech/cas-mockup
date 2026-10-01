@@ -119,7 +119,7 @@ export function WellsView({
           className={activeWellsTab === "admin" ? "is-active" : ""}
           onClick={() => setActiveWellsTab("admin")}
         >
-          Administracion de pozos
+          Administrar pozos
         </button>
       )}
     </div>
@@ -131,8 +131,8 @@ export function WellsView({
         <div className="view-intro">
           <h2>Pozos y calidad de agua</h2>
           <p>
-            Mapa operativo con estado por frescura de dato, fuente de captura y panel
-            de detalle por pozo.
+            Revisa a qué profundidad está el agua en tus pozos, cómo ha cambiado y
+            si están enviando datos.
           </p>
         </div>
 
@@ -162,14 +162,15 @@ export function WellsView({
         <div className="view-intro">
           <h2>Pozos y calidad de agua</h2>
           <p>
-            Mapa operativo con estado por frescura de dato, fuente de captura y panel
-            de detalle por pozo.
+            Revisa a qué profundidad está el agua en tus pozos, cómo ha cambiado y
+            si están enviando datos.
           </p>
         </div>
 
         {wellsSubnav}
 
         <WellMeasurementIngestPanel
+          canManageCas={canManageCas}
           csvMessage={wellMeasurementCsvMessage}
           csvStatus={wellMeasurementCsvStatus}
           entries={wellRegistryEntries}

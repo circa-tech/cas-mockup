@@ -4,18 +4,27 @@ import { RemoteDataState } from "../../components/RemoteDataState";
 import { StatusLeafletMap } from "../../components/StatusLeafletMap";
 import type { MeteoStationPoint } from "../../data/mockupData";
 import type { RemoteLoadStatus } from "../../types/remote";
-import { formatDateTime, formatRelativeAge } from "../../utils/date";
+import { formatRelativeAge, formatShortDateTimeParts } from "../../utils/date";
 import { freshnessClassMap, freshnessLabelMap } from "../../utils/freshness";
 
 type MeteoViewProps = {
-  errorMessage: string | null;
   isLoggedIn: boolean;
   now: Date;
+  onRetry: () => void;
   onSelectStation: (stationId: string) => void;
   selectedStationId: string;
   stations: MeteoStationPoint[];
   status: RemoteLoadStatus;
 };
+
+const formatOneDecimal = (value: number) =>
+  new Intl.NumberFormat("es-CL", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(value);
+
+const formatInteger = (value: number) =>
+  new Intl.NumberFormat("es-CL", { maximumFractionDigits: 0 }).format(value);
 
 const getStationWeatherSummary = (station: MeteoStationPoint) => {
   if (
@@ -45,9 +54,9 @@ const getStationWeatherSummary = (station: MeteoStationPoint) => {
 };
 
 export function MeteoView({
-  errorMessage,
   isLoggedIn,
   now,
+  onRetry,
   onSelectStation,
   selectedStationId,
   stations,
@@ -59,36 +68,35 @@ export function MeteoView({
     return (
       <div className="view-stack">
         <div className="view-intro">
-          <h2>Estaciones meteorológicas</h2>
-          <p>Estaciones con datos individuales y estado de actualización por punto.</p>
+          <h2>Clima en el valle</h2>
+          <p>Últimas mediciones de las estaciones meteorológicas del valle. Toca una estación para ver su detalle.</p>
         </div>
 
-        <Panel
-          title={isLoading ? "Cargando estaciones" : "Meteo sin datos"}
-          subtitle="Lectura del snapshot meteorologico"
-        >
+        <section className="panel">
           <RemoteDataState
-            message={
-              isLoading
-                ? "Consultando datos reales de estaciones meteorologicas."
-                : errorMessage ?? "La API no entrego estaciones meteorologicas disponibles."
-            }
-            title={isLoading ? "Cargando datos reales" : "Sin datos disponibles"}
+            message={isLoading ? undefined : "Inténtalo de nuevo en unos minutos."}
+            title={isLoading ? "Cargando estaciones…" : "No pudimos cargar las estaciones."}
             tone={isLoading ? "loading" : "error"}
           />
-        </Panel>
+          {!isLoading && (
+            <div className="meteo-retry-action">
+              <button type="button" onClick={onRetry}>Reintentar</button>
+            </div>
+          )}
+        </section>
       </div>
     );
   }
 
   const selectedStation =
     stations.find((station) => station.id === selectedStationId) ?? stations[0];
+  const selectedStationUpdate = formatShortDateTimeParts(selectedStation.lastUpdate);
 
   return (
     <div className="view-stack">
       <div className="view-intro">
-        <h2>Estaciones meteorológicas</h2>
-        <p>Estaciones con datos individuales y estado de actualización por punto.</p>
+        <h2>Clima en el valle</h2>
+        <p>Últimas mediciones de las estaciones meteorológicas del valle. Toca una estación para ver su detalle.</p>
       </div>
 
       <div className="station-card-grid">
@@ -116,10 +124,10 @@ export function MeteoView({
                 </span>
               </div>
               <div className="station-card-metrics">
-                <span>Temp {station.temperatureValue.toFixed(1)}°C</span>
-                <span>HR {station.humidityValue.toFixed(0)}%</span>
-                <span>Viento {station.windValue.toFixed(1)} km/h</span>
-                <span>Presión {station.pressureValue.toFixed(0)} hPa</span>
+                <span>Temperatura {formatOneDecimal(station.temperatureValue)} °C</span>
+                <span>Humedad {formatInteger(station.humidityValue)} %</span>
+                <span>Viento {formatOneDecimal(station.windValue)} km/h</span>
+                <span>Presión {formatInteger(station.pressureValue)} hPa</span>
               </div>
             </button>
           );
@@ -128,8 +136,8 @@ export function MeteoView({
 
       <div className="map-detail-grid">
         <Panel
-          title="Mapa de estaciones (Copiapó)"
-          subtitle="Semáforo de frescura: verde <24 h · amarillo 24-48 h · rojo >48 h"
+          title="Mapa de estaciones"
+          subtitle="Color = antigüedad del último dato"
         >
           <StatusLeafletMap
             points={stations.map((station) => ({
@@ -147,32 +155,32 @@ export function MeteoView({
             onSelect={onSelectStation}
           />
           <div className="map-legend">
-            <span><i className="legend-dot fresh" /> Actualizado &lt; 24 h</span>
-            <span><i className="legend-dot warning" /> Actualizado 24-48 h</span>
-            <span><i className="legend-dot stale" /> Sin reporte &gt; 48 h</span>
+            <span><i className="legend-dot fresh" /> Al día (menos de 24 h)</span>
+            <span><i className="legend-dot warning" /> Atrasado (1 a 2 días)</span>
+            <span><i className="legend-dot stale" /> Sin datos (más de 2 días)</span>
           </div>
         </Panel>
 
         <Panel
           title={selectedStation.name}
-          subtitle={`${formatRelativeAge(selectedStation.lastUpdate, now)} · ${formatDateTime(selectedStation.lastUpdate)}`}
+          subtitle={`Medición de las ${selectedStationUpdate.time} del ${selectedStationUpdate.date} (${formatRelativeAge(selectedStation.lastUpdate, now).toLocaleLowerCase("es-CL")})`}
         >
           <div className="detail-kpi-grid">
             <article className="detail-kpi">
               <span>Temperatura</span>
-              <strong>{selectedStation.temperatureValue.toFixed(1)}°C</strong>
+              <strong>{formatOneDecimal(selectedStation.temperatureValue)} °C</strong>
             </article>
             <article className="detail-kpi">
               <span>Humedad</span>
-              <strong>{selectedStation.humidityValue.toFixed(0)}%</strong>
+              <strong>{formatInteger(selectedStation.humidityValue)} %</strong>
             </article>
             <article className="detail-kpi">
               <span>Viento</span>
-              <strong>{selectedStation.windValue.toFixed(1)} km/h</strong>
+              <strong>{formatOneDecimal(selectedStation.windValue)} km/h</strong>
             </article>
             <article className="detail-kpi">
               <span>Presión</span>
-              <strong>{selectedStation.pressureValue.toFixed(0)} hPa</strong>
+              <strong>{formatInteger(selectedStation.pressureValue)} hPa</strong>
             </article>
           </div>
 

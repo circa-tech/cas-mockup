@@ -23,6 +23,7 @@ const suggestedWaterLevelCondition = (isOperating: string) => {
 };
 
 export function WellMeasurementIngestPanel({
+  canManageCas,
   csvMessage,
   csvStatus,
   entries,
@@ -33,6 +34,7 @@ export function WellMeasurementIngestPanel({
   onCsvUpload,
   onSubmit,
 }: {
+  canManageCas: boolean;
   csvMessage: string | null;
   csvStatus: RemoteLoadStatus;
   entries: WellRegistryEntry[];
@@ -65,7 +67,7 @@ export function WellMeasurementIngestPanel({
           )}
 
           <label>
-            <span>Pozo</span>
+            <span>Pozo *</span>
             <select
               value={form.codigoObra}
               onChange={(event) => onChange({ codigoObra: event.target.value })}
@@ -79,11 +81,14 @@ export function WellMeasurementIngestPanel({
                 </option>
               ))}
             </select>
+            {!canManageCas && (
+              <small className="field-help">Solo aparecen los pozos de tu CAS.</small>
+            )}
           </label>
 
           <div className="manual-two-col">
             <label>
-              <span>RUT empresa</span>
+              <span>RUT del titular *</span>
               <input
                 type="text"
                 value={form.companyRut}
@@ -91,9 +96,12 @@ export function WellMeasurementIngestPanel({
                 onChange={(event) => onChange({ companyRut: event.target.value })}
                 required
               />
+              <small className="field-help">
+                RUT de la empresa o persona titular del derecho de agua.
+              </small>
             </label>
             <label>
-              <span>RUT usuario</span>
+              <span>RUT de quien mide *</span>
               <input
                 type="text"
                 value={form.userRut}
@@ -101,12 +109,15 @@ export function WellMeasurementIngestPanel({
                 onChange={(event) => onChange({ userRut: event.target.value })}
                 required
               />
+              <small className="field-help">
+                RUT de la persona que hizo la medición.
+              </small>
             </label>
           </div>
 
           <div className="manual-two-col">
             <label>
-              <span>Fecha medicion</span>
+              <span>Fecha de medición *</span>
               <input
                 type="date"
                 value={form.measurementDate}
@@ -115,13 +126,14 @@ export function WellMeasurementIngestPanel({
               />
             </label>
             <label>
-              <span>Hora medicion</span>
+              <span>Hora de medición *</span>
               <input
                 type="time"
                 value={form.measurementTime}
                 onChange={(event) => onChange({ measurementTime: event.target.value })}
                 required
               />
+              <small className="field-help">Hora de Chile continental.</small>
             </label>
           </div>
 
@@ -235,12 +247,15 @@ export function WellMeasurementIngestPanel({
           </div>
 
           <label>
-            <span>Observaciones</span>
+            <span>Observaciones (opcional)</span>
             <textarea
               maxLength={1000}
               value={form.observations}
               onChange={(event) => onChange({ observations: event.target.value })}
             />
+            <small className="field-help">
+              Por ejemplo: bomba en mantención, sensor con falla. Máximo 1.000 caracteres.
+            </small>
           </label>
 
           {message && (

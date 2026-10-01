@@ -174,11 +174,11 @@ export function WellRegistryEditor({
 
         <div className="manual-two-col">
           <label>
-            <span>Codigo obra</span>
+            <span>Código de obra DGA * (ej. OB-0101-11)</span>
             <input
               type="text"
               value={form.codigoObra}
-              placeholder="OB-0101-114"
+              placeholder="OB-0101-11"
               onChange={(event) => onChange({ codigoObra: event.target.value })}
               aria-describedby={workCodeError ? "well-code-error" : undefined}
               aria-invalid={Boolean(workCodeError)}
@@ -229,7 +229,7 @@ export function WellRegistryEditor({
 
         <div className="manual-two-col">
           <label>
-            <span>Proveedor</span>
+            <span>Proveedor de telemetría</span>
             <input
               type="text"
               value={form.provider}
@@ -238,7 +238,7 @@ export function WellRegistryEditor({
             />
           </label>
           <label>
-            <span>Centro control RUT</span>
+            <span>RUT del centro de control</span>
             <input
               type="text"
               value={form.centroControlRut}
@@ -295,7 +295,7 @@ export function WellRegistryEditor({
         </section>
 
         <label>
-          <span>Caudal autorizado</span>
+          <span>Caudal autorizado (L/s)</span>
           <input
             type="number"
             min="0"
@@ -310,7 +310,7 @@ export function WellRegistryEditor({
 
         <div className="manual-two-col">
           <label>
-            <span>Volumen autorizado</span>
+            <span>Volumen anual autorizado (m³/año)</span>
             <input
               type="number"
               min="0"
@@ -335,7 +335,7 @@ export function WellRegistryEditor({
 
         <div className="manual-two-col">
           <label>
-            <span>Profundidad pozo</span>
+            <span>Profundidad del pozo (m)</span>
             <input
               type="number"
               min="0"
@@ -346,7 +346,7 @@ export function WellRegistryEditor({
             />
           </label>
           <label>
-            <span>Profundidad bomba</span>
+            <span>Profundidad de la bomba (m)</span>
             <input
               type="number"
               min="0"
@@ -370,62 +370,15 @@ export function WellRegistryEditor({
           />
         </label>
 
-        <section className="metadata-fieldset" aria-labelledby="utm-heading">
-          <h4 id="utm-heading">Coordenadas UTM</h4>
-          <div className="manual-two-col">
-            <label>
-              <span>Este</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.utmEasting}
-                placeholder="368000.00"
-                onChange={(event) => onChange({ utmEasting: event.target.value })}
-              />
-            </label>
-            <label>
-              <span>Norte</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.utmNorthing}
-                placeholder="6972000.00"
-                onChange={(event) => onChange({ utmNorthing: event.target.value })}
-              />
-            </label>
-          </div>
-          <div className="manual-two-col">
-            <label>
-              <span>Huso</span>
-              <input
-                type="text"
-                value={form.huso}
-                placeholder="19S"
-                onChange={(event) => onChange({ huso: event.target.value })}
-              />
-            </label>
-            <label>
-              <span>Datum</span>
-              <input
-                type="text"
-                value={form.datum}
-                placeholder="WGS84"
-                onChange={(event) => onChange({ datum: event.target.value })}
-              />
-            </label>
-          </div>
-          <label>
-            <span>Referencia ubicación</span>
-            <input
-              type="text"
-              value={form.locationReference}
-              placeholder="Sector norte del predio"
-              onChange={(event) => onChange({ locationReference: event.target.value })}
-            />
-          </label>
-        </section>
+        <label>
+          <span>Referencia ubicación</span>
+          <input
+            type="text"
+            value={form.locationReference}
+            placeholder="Sector norte del predio"
+            onChange={(event) => onChange({ locationReference: event.target.value })}
+          />
+        </label>
 
         <section className="metadata-fieldset" aria-labelledby="flowmeter-heading">
           <h4 id="flowmeter-heading">Caudalímetro</h4>
@@ -571,7 +524,36 @@ export function WellRegistryEditor({
           />
         </label>
 
-        <div className="manual-two-col">
+        <div className="registry-map-preview">
+          {hasPreviewLocation ? (
+            <StatusLeafletMap
+              className="is-registry-preview"
+              points={[
+                {
+                  id: "new-well-preview",
+                  lat: previewLat,
+                  lastUpdate: new Date().toISOString(),
+                  lng: previewLng,
+                  name: form.name || form.codigoObra || "Nuevo pozo",
+                  sourceType: "manual",
+                  status: "fresh",
+                },
+              ]}
+              selectedPointId="new-well-preview"
+              selectedPointZoom={16}
+            />
+          ) : (
+            <RemoteDataState
+              className="is-compact"
+              icon={<MapPinned size={18} />}
+              message="Ingresa latitud y longitud para ver el punto en el mapa."
+              title="Sin ubicación"
+              tone="loading"
+            />
+          )}
+        </div>
+
+        <div className="registry-form-actions">
           <button type="submit" disabled={status === "loading"}>
             {status === "loading"
               ? "Guardando..."
@@ -600,35 +582,6 @@ export function WellRegistryEditor({
           </p>
         )}
       </form>
-
-      <div className="registry-map-preview">
-        {hasPreviewLocation ? (
-          <StatusLeafletMap
-            className="is-registry-preview"
-            points={[
-              {
-                id: "new-well-preview",
-                lat: previewLat,
-                lastUpdate: new Date().toISOString(),
-                lng: previewLng,
-                name: form.name || form.codigoObra || "Nuevo pozo",
-                sourceType: "manual",
-                status: "fresh",
-              },
-            ]}
-            selectedPointId="new-well-preview"
-            selectedPointZoom={16}
-          />
-        ) : (
-          <RemoteDataState
-            className="is-compact"
-            icon={<MapPinned size={18} />}
-            message="Ingresa latitud y longitud para previsualizar el punto."
-            title="Sin ubicacion"
-            tone="loading"
-          />
-        )}
-      </div>
 
       {entries.length > 0 && (
         <div className="registry-list">
@@ -701,7 +654,7 @@ function WaterRightsEditor({
           }
         >
           <Plus size={16} aria-hidden="true" />
-          Agregar
+          Agregar derecho
         </button>
       </div>
       {form.waterRights.map((right, index) => (
@@ -760,7 +713,7 @@ function OwnerContactsEditor({
           }
         >
           <Plus size={16} aria-hidden="true" />
-          Agregar
+          Agregar contacto
         </button>
       </div>
       {form.ownerContacts.map((contact, index) => (
