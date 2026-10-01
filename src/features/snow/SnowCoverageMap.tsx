@@ -208,9 +208,7 @@ export function SnowCoverageMap({
         <div className="snow-coverage-legend-scale">
           <span className="snow-coverage-legend-swatch" aria-hidden="true" />
           <strong>Nieve</strong>
-          <span>NDSI ≥ 40</span>
         </div>
-        <p>Rango clasificado: NDSI de 40 a 100.</p>
       </div>
     </div>
   );

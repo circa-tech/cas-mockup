@@ -752,13 +752,6 @@ select:focus-visible {
   background: #00bcd4;
 }
 
-.snow-coverage-legend p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.35;
-}
-
 .snow-basin-boundary {
   filter: drop-shadow(0 0 1.5px rgba(15, 23, 42, 0.9));
 }
