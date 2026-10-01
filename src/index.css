@@ -396,8 +396,8 @@ select:focus-visible {
     border-color 0.2s ease,
     box-shadow 0.2s ease,
     transform 0.2s ease;
-  display: grid;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   box-shadow: var(--shadow-soft);
 }
@@ -437,6 +437,7 @@ select:focus-visible {
 .overview-card small {
   color: var(--muted);
   font-size: 12px;
+  margin-top: auto;
 }
 
 .overview-mini-chart {
@@ -1186,6 +1187,30 @@ select:focus-visible {
   font-weight: 600;
 }
 
+.field-help {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.meteo-retry-action {
+  display: flex;
+  justify-content: center;
+  padding: 0 24px 24px;
+}
+
+.meteo-retry-action button {
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  padding: 0 18px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .manual-entry-form input,
 .manual-entry-form select,
 .manual-entry-form textarea {
@@ -1227,6 +1252,11 @@ select:focus-visible {
 .manual-two-col {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.registry-form-actions {
+  display: grid;
   gap: 10px;
 }
 
@@ -1463,6 +1493,10 @@ select:focus-visible {
 .registry-map-preview {
   border-top: 1px solid var(--border);
   padding: 14px;
+}
+
+.manual-entry-form > .registry-map-preview {
+  padding: 12px 0 0;
 }
 
 .status-leaflet-map.is-registry-preview {
@@ -3046,6 +3080,14 @@ body {
   color: hsl(215 14% 40%);
 }
 
+.login-contact-note {
+  margin: 0;
+  color: hsl(215 14% 50%);
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: center;
+}
+
 .etr-subnav {
   display: inline-flex;
   width: fit-content;
@@ -3093,6 +3135,42 @@ body {
   background: hsl(205 70% 96%);
   color: hsl(205 45% 30%);
   font-size: 13px;
+}
+
+.etr-access-note button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.etr-block-heading-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.etr-block-heading {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 630;
+}
+
+.etr-block-tooltip {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  cursor: help;
+}
+
+.etr-usage-map-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .etr-usage-top-grid {

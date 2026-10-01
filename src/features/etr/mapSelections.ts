@@ -57,5 +57,5 @@ export const defaultEtrUsoMapSelection: EtrUsoSelection = {
 
 export const defaultEtrQuadrantSelection: EtrQuadrantSelection = {
   quadrantId: "273",
-  quadrantLabel: "Cuadrante 273",
+  quadrantLabel: "Zona 273",
 };

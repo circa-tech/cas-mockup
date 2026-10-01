@@ -68,10 +68,10 @@ export function WellRegistryAdminPanel({
 
   return (
     <Panel
-      title="Administracion de pozos"
-      subtitle={`${entries.length} pozos en registry`}
+      title="Administrar pozos"
+      subtitle={`${entries.length} ${entries.length === 1 ? "pozo registrado" : "pozos registrados"}`}
     >
-      <div className="well-admin-view-nav" role="tablist" aria-label="Administracion de pozos">
+      <div className="well-admin-view-nav" role="tablist" aria-label="Administrar pozos">
         <button
           type="button"
           role="tab"

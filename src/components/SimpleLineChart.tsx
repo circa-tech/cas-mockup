@@ -56,26 +56,6 @@ const buildRows = (series: LineSeries[]): ChartRow[] => {
   });
 };
 
-type LegendItem = {
-  color?: string;
-  value?: string | number;
-};
-
-const renderLegend = ({ payload }: { payload?: readonly LegendItem[] }) => (
-  <div className="chart-legend">
-    {(payload ?? []).map((entry) => (
-      <span key={String(entry.value ?? "")} className="legend-item">
-        <span
-          className="legend-swatch"
-          style={{ backgroundColor: entry.color ?? "rgb(59, 169, 206)" }}
-          aria-hidden="true"
-        />
-        {String(entry.value ?? "")}
-      </span>
-    ))}
-  </div>
-);
-
 export function SimpleLineChart({
   xAxisLabel = "Fecha",
   labelEvery = 1,
@@ -149,7 +129,13 @@ export function SimpleLineChart({
               formatter={(value, name) => [`${Number(value ?? 0).toFixed(2)} ${unit}`, String(name)]}
               labelStyle={{ color: "hsl(215 14% 40%)", fontWeight: 600 }}
             />
-            <Legend content={renderLegend} verticalAlign="top" />
+            <Legend
+              align="center"
+              height={24}
+              iconType="plainline"
+              verticalAlign="bottom"
+              wrapperStyle={{ bottom: 0, fontSize: 10, transform: "translateY(12px)" }}
+            />
             {series.map((item, index) => (
               <Line
                 key={item.label}

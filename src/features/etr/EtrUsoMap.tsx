@@ -171,7 +171,7 @@ export function EtrUsoMap({
             onEachFeature={(feature, layer) => {
               const usoFeature = feature as unknown as EtrUsoFeature;
               const selection = buildEtrUsoSelection(usoFeature);
-              layer.bindTooltip(`${selection.cultivo} · Uso ${selection.usoId}`, {
+              layer.bindTooltip(`${selection.cultivo} · parcela ${selection.usoId}`, {
                 opacity: 0.95,
                 sticky: true,
               });
@@ -194,7 +194,7 @@ export function EtrUsoMap({
 
         <div className="etr-region-overlay">
           <strong>{selectedSummaryLabel}</strong>
-          <span>Seleccione un polígono</span>
+          <span>Toca otra parcela para cambiar</span>
         </div>
       </div>
     </div>

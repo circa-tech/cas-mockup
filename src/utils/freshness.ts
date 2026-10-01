@@ -5,7 +5,7 @@ export const freshnessClassMap = {
 } as const;
 
 export const freshnessLabelMap = {
-  fresh: "Actualizado < 24 h",
-  warning: "Actualizado 24-48 h",
-  stale: "Sin reporte > 48 h",
+  fresh: "Al día (menos de 24 h)",
+  warning: "Atrasado (1 a 2 días)",
+  stale: "Sin datos (más de 2 días)",
 } as const;

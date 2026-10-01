@@ -217,7 +217,7 @@ export function EtrDownloadsTab({
             URL.revokeObjectURL(overlayUrl);
           }
         }
-        setDownloadFeedback(`Exportacion visual solicitada: ${filename}`);
+        setDownloadFeedback(`Listo: se descargó ${filename}`);
         return;
       }
 
@@ -234,16 +234,13 @@ export function EtrDownloadsTab({
           throw new Error("El servicio no retornó una URL de descarga.");
         }
         window.location.assign(response.url);
-        setDownloadFeedback(`Descarga solicitada: ${filename}`);
+        setDownloadFeedback(`Listo: se descargó ${filename}`);
         return;
       }
-
+    } catch {
       setDownloadFeedback(
-        `Solicitud TIFF simulada: ${filename}. Esta descarga se habilitará con un servicio raster real.`,
+        "No pudimos generar el archivo. Prueba con otra fecha o inténtalo en unos minutos.",
       );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Error inesperado al exportar PNG.";
-      setDownloadFeedback(message);
     } finally {
       setIsDownloading(false);
     }
@@ -252,7 +249,7 @@ export function EtrDownloadsTab({
   return (
     <div className="view-stack">
       <div className="etr-download-grid">
-        <Panel className="panel-etr-map" title="Cuadrantes disponibles para descarga">
+        <Panel className="panel-etr-map" title="1. Elige la zona">
           {showQuadrantMapData ? (
             <EtrQuadrantMap
               geoJson={isLoggedIn ? quadrantMapData ?? undefined : undefined}
@@ -268,13 +265,13 @@ export function EtrDownloadsTab({
               className="is-map"
               title={
                 quadrantMapTone === "error"
-                  ? "Cuadrantes no disponibles"
-                  : "Cargando cuadrantes"
+                  ? "Zonas no disponibles"
+                  : "Cargando zonas"
               }
               message={
                 quadrantMapTone === "error"
-                  ? "No se pudo obtener la grilla real de cuadrantes desde GCP."
-                  : "Esperando la grilla real de cuadrantes."
+                  ? "No se pudo obtener la grilla real de zonas desde GCP."
+                  : "Esperando la grilla real de zonas."
               }
               tone={quadrantMapTone}
             />
@@ -300,9 +297,9 @@ export function EtrDownloadsTab({
             <>
               <div className="etr-download-copy">
                 <p>
-                  En la plataforma original los cuadrados corresponden a cuadrantes de
-                  descarga sobre base satelital. Aquí simulamos descarga raster por
-                  cuadrante, variable, fecha y formato.
+                  Descarga el mapa de una zona para verlo o analizarlo en tu computador:
+                  1) elige el cuadrado en el mapa, 2) elige variable, fecha y formato,
+                  3) descarga.
                 </p>
               </div>
 
@@ -390,10 +387,6 @@ export function EtrDownloadsTab({
                 Selección actual: {selectedQuadrant.quadrantLabel} · {selectedVariable} ·{" "}
                 {selectedFormat} · {selectedYear} · {selectedMonthLabel} ·{" "}
                 {String(selectedDay).padStart(2, "0")}
-              </p>
-              <p className="etr-download-note">
-                Nota mockup: la descarga PNG compone un recorte satelital por cuadrante
-                con la capa raster disponible. TIFF usa el servicio raster real.
               </p>
               {downloadFeedback && (
                 <p className="etr-download-feedback">{downloadFeedback}</p>

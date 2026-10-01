@@ -91,7 +91,7 @@ export default function App() {
           <div>
             <h1>Agua con Dato</h1>
             <p>
-              Mockup unificado para ET-LAT, MODIS-Snow, Pozos y Meteo
+              Nieve, cultivos, pozos y clima del Valle de Copiapó
             </p>
           </div>
         </div>
@@ -178,6 +178,7 @@ export default function App() {
               authIdToken={app.authIdToken}
               canDownloadImages={app.canDownloadEt}
               isLoggedIn={app.hasAuthenticatedApiSession}
+              onLogin={app.handleOpenLogin}
             />
           )}
           {app.activeView === "snow" && (
@@ -224,10 +225,10 @@ export default function App() {
               isLoggedIn={app.hasAuthenticatedApiSession}
               now={app.dashboardNow}
               onSelectStation={app.setSelectedStationId}
+              onRetry={app.retryMeteo}
               selectedStationId={app.selectedStationId}
               stations={app.stations}
               status={app.meteoStatus}
-              errorMessage={app.meteoErrorMessage}
             />
           )}
           {app.activeView === "admin" && app.canManageUsers && (

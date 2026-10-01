@@ -159,6 +159,7 @@ export function useDashboardData({
     etrOverviewSeries,
     meteoErrorMessage,
     meteoStatus,
+    retryMeteo: () => meteoQuery.refetch(),
     overviewCards,
     selectedStationId,
     setSelectedStationId,

@@ -45,7 +45,7 @@ const buildSelection = (feature: EtrQuadrantFeature | undefined): EtrQuadrantSel
   const quadrantId = String(getQuadrantId(feature));
   return {
     quadrantId,
-    quadrantLabel: `Cuadrante ${quadrantId}`,
+    quadrantLabel: `Zona ${quadrantId}`,
   };
 };
 
@@ -157,7 +157,7 @@ export function EtrQuadrantMap({
                 url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
               />
             </LayersControl.BaseLayer>
-            <LayersControl.Overlay checked name="Cuadrantes">
+            <LayersControl.Overlay checked name="Zonas">
               <GeoJSON
                 key={geoJson === localEtrQuadrantsGeoJson ? "local-quadrants" : "remote-quadrants"}
                 data={geoJson as GeoJSON.GeoJsonObject}
@@ -203,7 +203,7 @@ export function EtrQuadrantMap({
 
         <div className="etr-region-overlay">
           <strong>{selectedSummaryLabel}</strong>
-          <span>Seleccione un cuadrante</span>
+          <span>Toca un cuadrado para elegirlo</span>
         </div>
       </div>
     </div>

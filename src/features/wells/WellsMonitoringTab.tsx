@@ -4,7 +4,7 @@ import { KpiCard } from "../../components/KpiCard";
 import { MiniSparkline } from "../../components/MiniSparkline";
 import { Panel } from "../../components/Panel";
 import { RemoteDataState } from "../../components/RemoteDataState";
-import { SimpleLineChart, type LineSeries } from "../../components/SimpleLineChart";
+import { SimpleLineChart, type LinePoint, type LineSeries } from "../../components/SimpleLineChart";
 import { StatusLeafletMap } from "../../components/StatusLeafletMap";
 import {
   chartPalette,
@@ -13,7 +13,7 @@ import {
   type WellMapPoint,
 } from "../../data/mockupData";
 import type { RemoteLoadStatus } from "../../types/remote";
-import { formatDateTime, formatRelativeAge } from "../../utils/date";
+import { formatRelativeAge, formatShortDateTime } from "../../utils/date";
 import { freshnessClassMap, freshnessLabelMap } from "../../utils/freshness";
 import {
   getCurrentValue,
@@ -45,20 +45,54 @@ const qualityLabelMap: Record<WaterQualityStatus, string> = {
 };
 
 const sourceLabelMap = {
-  telemetry: "Telemetría",
-  manual: "Manual",
+  telemetry: "Telemetría (automática)",
+  manual: "Medición manual",
 } as const;
+
+const formatMeters = (value: number) =>
+  `${new Intl.NumberFormat("es-CL", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)} m`;
+
+const monthLabels = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"];
+const englishMonths = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+const parseSeriesDate = (label: string) => {
+  const numeric = /^(\d{1,2})\/(\d{1,2})/.exec(label);
+  if (numeric) return { day: Number(numeric[1]), month: Number(numeric[2]) };
+
+  const iso = /^\d{4}-(\d{2})-(\d{2})/.exec(label);
+  if (iso) return { day: Number(iso[2]), month: Number(iso[1]) };
+
+  const short = /^([A-Za-z]{3})\s+(\d{1,2})/.exec(label);
+  if (short) return { day: Number(short[2]), month: englishMonths.indexOf(short[1]) + 1 };
+
+  return null;
+};
+
+const formatSeriesPeriod = (points: LinePoint[]) => {
+  const first = parseSeriesDate(points[0]?.label ?? "");
+  const last = parseSeriesDate(points.at(-1)?.label ?? "");
+  if (!first || !last || !monthLabels[first.month - 1] || !monthLabels[last.month - 1]) {
+    return "Variación en el período";
+  }
+  const range = first.month === last.month
+    ? `${first.day} al ${last.day} ${monthLabels[last.month - 1]}`
+    : `${first.day} ${monthLabels[first.month - 1]} al ${last.day} ${monthLabels[last.month - 1]}`;
+  return `Variación en el período (${range})`;
+};
 
 const toLevelChartSeries = (well: WellMapPoint): LineSeries[] => {
   const manualSeries = well.levelSeriesBySource?.manual ?? [];
   const telemetrySeries = well.levelSeriesBySource?.telemetry ?? [];
   const separatedSeries = [
     ...(manualSeries.length > 0
-      ? [{ label: "Manual", color: chartPalette.chart5, points: manualSeries }]
+      ? [{ label: "Medición manual", color: chartPalette.chart5, points: manualSeries }]
       : []),
     ...(telemetrySeries.length > 0
       ? [{
-          label: "API / Telemetría",
+          label: "Telemetría (automática)",
           color: chartPalette.chart6,
           points: telemetrySeries,
         }]
@@ -70,7 +104,7 @@ const toLevelChartSeries = (well: WellMapPoint): LineSeries[] => {
   }
 
   return [{
-    label: well.name,
+    label: sourceLabelMap[well.sourceType],
     color: chartPalette.chart6,
     points: well.levelSeries,
   }];
@@ -133,8 +167,8 @@ export function WellsMonitoringTab({
   const wellsFreshCount = wells.filter((well) => well.status !== "stale").length;
   const wellsStaleCount = wells.filter((well) => well.status === "stale").length;
   const manualWells = wells.filter((well) => well.sourceType === "manual").length;
-  const waterAlerts = waterQualityRecords.filter(
-    (record) => record.qualityStatus === "alert",
+  const waterAlerts = wells.filter(
+    (well) => waterByWell.get(well.id)?.qualityStatus === "alert",
   ).length;
   const maxUpdate = wells.reduce((latest, well) => {
     if (!latest) {
@@ -151,6 +185,11 @@ export function WellsMonitoringTab({
   const minSeriesValue = seriesValues.length > 0 ? Math.min(...seriesValues) - 0.1 : -0.1;
   const maxSeriesValue = seriesValues.length > 0 ? Math.max(...seriesValues) + 0.1 : 0.1;
   const dailyChange = getDailyChangeValue(selectedWell.levelSeries);
+  const dailyChangeDescription = dailyChange > 0
+    ? `el agua subió ${formatMeters(dailyChange)}`
+    : dailyChange < 0
+      ? `el agua bajó ${formatMeters(Math.abs(dailyChange))}`
+      : "sin cambio";
   return (
     <div className="view-stack">
       <WellsIntro />
@@ -160,41 +199,43 @@ export function WellsMonitoringTab({
         <KpiCard
           delayMs={0}
           icon={Waves}
-          title="Pozos al día"
-          value={`${wellsFreshCount}/${wells.length}`}
-          note={`${wellsStaleCount} sin reporte en las últimas 48 h`}
+          title="Pozos reportando"
+          value={`${wellsFreshCount} de ${wells.length}`}
+          note={`${wellsStaleCount} sin datos hace más de 48 h`}
           noteTone={wellsStaleCount > 0 ? "negative" : "positive"}
         />
         <KpiCard
           delayMs={80}
           icon={Radio}
-          title="Pozos con carga manual"
+          title="Pozos con lectura manual"
           value={String(manualWells)}
-          note="Lecturas diarias desde mobile/tablet"
+          note="Datos ingresados a mano desde celular o tablet"
           noteTone="neutral"
         />
         <KpiCard
           delayMs={160}
           icon={Droplets}
-          title="Calidad en alerta"
+          title="Pozos con alerta de calidad"
           value={String(waterAlerts)}
-          note="Muestras de calidad de agua fuera de rango"
+          note={waterAlerts > 0
+            ? "Última muestra fuera del rango de referencia"
+            : "Sin muestras fuera del rango de referencia"}
           noteTone={waterAlerts > 0 ? "negative" : "positive"}
         />
         <KpiCard
           delayMs={240}
           icon={Gauge}
-          title="Última sincronización global"
-          value={formatDateTime(maxUpdate)}
-          note={formatRelativeAge(maxUpdate, now)}
+          title="Último dato recibido"
+          value={formatShortDateTime(maxUpdate)}
+          note={formatRelativeAge(maxUpdate, now).toLocaleLowerCase("es-CL")}
           noteTone="neutral"
         />
       </div>
 
       <div className="map-detail-grid">
         <Panel
-          title="Mapa de pozos (Copiapó)"
-          subtitle="Semáforo de frescura: verde <24 h · amarillo 24-48 h · rojo >48 h"
+          title="Mapa de pozos"
+          subtitle="Color = antigüedad del último dato (no el estado del agua)"
         >
           <StatusLeafletMap
             points={wellRows.map((well) => ({
@@ -211,41 +252,40 @@ export function WellsMonitoringTab({
             onSelect={onSelectWell}
           />
           <div className="map-legend">
-            <span><i className="legend-dot fresh" /> Actualizado &lt; 24 h</span>
-            <span><i className="legend-dot warning" /> Actualizado 24-48 h</span>
-            <span><i className="legend-dot stale" /> Sin reporte &gt; 48 h</span>
-            <span><i className="legend-dot quality-alert" /> Urgencia calidad de agua</span>
+            <span><i className="legend-dot fresh" /> Al día (menos de 24 h)</span>
+            <span><i className="legend-dot warning" /> Atrasado (1 a 2 días)</span>
+            <span><i className="legend-dot stale" /> Sin datos (más de 2 días)</span>
+            <span><i className="legend-dot quality-alert" /> ! Alerta de calidad</span>
           </div>
         </Panel>
 
         <Panel
-          title={`Detalle: ${selectedWell.name}`}
-          subtitle={`${selectedWell.provider} · ${selectedWell.aquiferSector}`}
+          title={`${selectedWell.name} · ${selectedWell.aquiferSector.replace(/^Acuífero\s+/i, "Sector ")} · datos de ${selectedWell.provider}`}
         >
           <div className="detail-kpi-grid">
             <article className="detail-kpi">
-              <span>Nivel actual</span>
-              <strong>{getCurrentValue(selectedWell.levelSeries).toFixed(2)} m</strong>
+              <span>Profundidad del agua</span>
+              <strong>{formatMeters(getCurrentValue(selectedWell.levelSeries))}</strong>
             </article>
             <article className="detail-kpi">
-              <span>Cambio diario</span>
-              <strong>{dailyChange >= 0 ? "+" : ""}{dailyChange.toFixed(2)} m</strong>
+              <span>Desde la medición anterior</span>
+              <strong>{dailyChangeDescription}</strong>
             </article>
             <article className="detail-kpi">
-              <span>Rango del período</span>
-              <strong>{getRangeValue(selectedWell.levelSeries).toFixed(2)} m</strong>
+              <span>{formatSeriesPeriod(selectedWell.levelSeries)}</span>
+              <strong>{formatMeters(getRangeValue(selectedWell.levelSeries))}</strong>
             </article>
           </div>
 
           <div className="status-row">
             <span className={`status-pill ${freshnessClassMap[selectedWell.status]}`}>
-              {freshnessLabelMap[selectedWell.status]}
+              {selectedWell.status === "fresh" ? "Reportando" : freshnessLabelMap[selectedWell.status]}
             </span>
             <span className="status-pill is-neutral">
-              Fuente: {sourceLabelMap[selectedWell.sourceType]}
+              {sourceLabelMap[selectedWell.sourceType]}
             </span>
             <span className="status-pill is-neutral">
-              {formatRelativeAge(selectedWell.lastUpdate, now)}
+              último dato {formatRelativeAge(selectedWell.lastUpdate, now).toLocaleLowerCase("es-CL")}
             </span>
           </div>
 
@@ -270,8 +310,8 @@ export function WellsMonitoringTab({
 
       <div className="detail-grid">
         <Panel
-          title="Comparación rápida de pozos"
-          subtitle="Seleccione un pozo para ver su serie y detalle"
+          title="Todos los pozos"
+          subtitle="Toca un pozo para ver su detalle"
         >
           <div className="comparison-list">
             {wellRows.map((well) => (
@@ -286,10 +326,10 @@ export function WellsMonitoringTab({
                   <span>{well.provider}</span>
                 </div>
                 <div className="comparison-metrics">
-                  <div><span>Nivel</span><strong>{well.currentLevel.toFixed(2)} m</strong></div>
+                  <div><span>Profundidad</span><strong>{formatMeters(well.currentLevel)}</strong></div>
                   <div>
-                    <span>Cambio diario</span>
-                    <strong>{well.dailyChange >= 0 ? "+" : ""}{well.dailyChange.toFixed(2)} m</strong>
+                    <span>Variación</span>
+                    <strong>{well.dailyChange >= 0 ? "+" : ""}{formatMeters(well.dailyChange)}</strong>
                   </div>
                 </div>
                 <MiniSparkline
@@ -306,8 +346,7 @@ export function WellsMonitoringTab({
       </div>
 
       <Panel
-        title={`Variación temporal: ${selectedWell.name}`}
-        subtitle={`Cambio diario ${dailyChange >= 0 ? "+" : ""}${dailyChange.toFixed(2)} m`}
+        title={`Profundidad del agua en el tiempo · ${selectedWell.name}`}
       >
         <SimpleLineChart
           labelEvery={1}
@@ -328,8 +367,8 @@ function WellsIntro() {
     <div className="view-intro">
       <h2>Pozos y calidad de agua</h2>
       <p>
-        Mapa operativo con estado por frescura de dato, fuente de captura y panel
-        de detalle por pozo.
+        Revisa a qué profundidad está el agua en tus pozos, cómo ha cambiado y
+        si están enviando datos.
       </p>
     </div>
   );

@@ -17,19 +17,19 @@ export type ViewId =
 
 export const views: { id: ViewId; label: string }[] = [
   { id: "overview", label: "Resumen" },
-  { id: "etr", label: "ET-LAT" },
-  { id: "snow", label: "MODIS Snow" },
+  { id: "etr", label: "Evapotranspiración" },
+  { id: "snow", label: "Nieve" },
   { id: "wells", label: "Pozos" },
-  { id: "meteo", label: "Meteo" },
+  { id: "meteo", label: "Clima" },
   { id: "forum", label: "Foro" },
   { id: "admin", label: "Admin" },
-  { id: "tutorials", label: "Tutoriales" },
+  { id: "tutorials", label: "Ayuda" },
 ];
 
 export const etrStats = [
-  { label: "Última fecha disponible", value: "2025-10-09" },
-  { label: "ETR media", value: "1.2 mm/día" },
-  { label: "ETMAX media", value: "1.8 mm/día" },
+  { label: "Imagen satelital más reciente", value: "9 oct 2025" },
+  { label: "Consumo real (ETR)", value: "1,2 mm/día" },
+  { label: "Consumo máximo (ETmax)", value: "1,8 mm/día" },
 ];
 
 export const etrLastUpdateIso = mockSantiagoIso("2026-03-21", "07:15:00");
@@ -146,12 +146,12 @@ const toLinePoints = (values: number[]): LinePoint[] =>
 
 const buildEtrSeries = (etr: number[], etmax: number[]): LineSeries[] => [
   {
-    label: "ETR media",
+    label: "Consumo real (ETR)",
     color: ETR_COLOR,
     points: toLinePoints(etr),
   },
   {
-    label: "ETMAX media",
+    label: "Consumo máximo (ETmax)",
     color: ETMAX_COLOR,
     points: toLinePoints(etmax),
   },
@@ -373,7 +373,7 @@ const buildEtrUsoRecord = (sectorId: number): EtrUsoRecord => {
   const laiBase = 0.9 + ((sectorId * 3) % 5) * 0.4;
 
   const etrSeries: LineSeries = {
-    label: "ETR media",
+    label: "Consumo real (ETR)",
     color: ETR_COLOR,
     points: buildUsageSeriesPoints(sectorId, {
       base: etrBase,
@@ -383,7 +383,7 @@ const buildEtrUsoRecord = (sectorId: number): EtrUsoRecord => {
   };
 
   const etmaxSeries: LineSeries = {
-    label: "ETMAX media",
+    label: "Consumo máximo (ETmax)",
     color: ETMAX_COLOR,
     points: buildUsageSeriesPoints(sectorId, {
       base: etmaxBase,
@@ -445,15 +445,15 @@ export type EtrDownloadVariable = "ETR" | "ETMAX" | "KC" | "LAI";
 export type EtrDownloadFormat = "TIFF" | "PNG";
 
 export const etrDownloadVariables: { label: string; value: EtrDownloadVariable }[] = [
-  { label: "ETR", value: "ETR" },
-  { label: "ETMAX", value: "ETMAX" },
-  { label: "Kc", value: "KC" },
-  { label: "LAI", value: "LAI" },
+  { label: "ETR: consumo real", value: "ETR" },
+  { label: "ETmax: consumo máximo", value: "ETMAX" },
+  { label: "Kc: coeficiente de cultivo", value: "KC" },
+  { label: "LAI: follaje", value: "LAI" },
 ];
 
 export const etrDownloadFormats: { label: string; value: EtrDownloadFormat }[] = [
-  { label: "GeoTIFF (.tif)", value: "TIFF" },
-  { label: "PNG (.png)", value: "PNG" },
+  { label: "Imagen PNG: para ver o compartir", value: "PNG" },
+  { label: "GeoTIFF: para QGIS o ArcGIS", value: "TIFF" },
 ];
 
 export const etrDownloadMonthLabels = [
@@ -861,22 +861,27 @@ export const computeOverviewCards = ({
     : meteoIsLoading
       ? 0
       : 0;
+  const hasEtrData = etrLastDate !== "Sin datos";
 
   return [
     {
       id: "overview-etr",
-      title: "ETR",
+      title: "Evapotranspiración",
       targetView: "etr",
-      primaryKpi: `ETR media ${etrMeanValue.toFixed(1)} mm/día`,
-      secondaryKpi: `Última fecha ${etrLastDate}`,
+      primaryKpi: hasEtrData
+        ? `${etrMeanValue.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} mm/día`
+        : "Sin datos de evapotranspiración",
+      secondaryKpi: hasEtrData ? "Consumo real promedio (ETR)" : "Sin datos disponibles",
       status: getFreshnessStatus(etrLastUpdate, now, etrStaleThresholdDays),
       lastUpdate: etrLastUpdate,
     },
     {
       id: "overview-snow",
-      title: "Snow",
+      title: "Nieve",
       targetView: "snow",
-      primaryKpi: hasSnowData ? `FSCA área ${snowCurrent.toFixed(0)}%` : "FSCA área Sin datos",
+      primaryKpi: hasSnowData
+        ? `${snowCurrent.toFixed(0)} % del área de la cuenca con nieve`
+        : "Sin datos de cobertura de nieve",
       secondaryKpi: hasSnowData
         ? `Vs año pasado ${snowDelta >= 0 ? "+" : ""}${snowDelta.toFixed(0)} pp`
         : "Sin datos disponibles",
@@ -887,16 +892,18 @@ export const computeOverviewCards = ({
       id: "overview-wells",
       title: "Pozos",
       targetView: "wells",
-      primaryKpi: `${wellsOnTime}/${wells.length} al día`,
+      primaryKpi: `${wellsOnTime} de ${wells.length} pozos reportando`,
       secondaryKpi: `${wellsStale} sin reporte > 48 h`,
       status: getNetworkStatus(wells),
       lastUpdate: getLatestUpdate(wells),
     },
     {
       id: "overview-meteo",
-      title: "Meteo",
+      title: "Clima",
       targetView: "meteo",
-      primaryKpi: `Temp media red ${stationsMeanTemp.toFixed(1)} °C`,
+      primaryKpi: hasMeteoData
+        ? `${stationsMeanTemp.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} °C promedio de ${stations.length} estaciones`
+        : "Temperatura promedio sin datos",
       secondaryKpi: `${stationsStale} sin reporte > 48 h`,
       status: hasMeteoData ? getNetworkStatus(stations) : "stale",
       lastUpdate: hasMeteoData ? getLatestUpdate(stations) : "Sin datos",

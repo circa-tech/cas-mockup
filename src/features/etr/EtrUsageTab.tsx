@@ -1,3 +1,4 @@
+import { Info } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { lazy, useEffect, useMemo, useState } from "react";
 import { Panel } from "../../components/Panel";
@@ -153,7 +154,7 @@ const buildEtrUsoRecordFromSelection = (selection: EtrUsoSelection): EtrUsoRecor
     etrEtmaxSeries: [
       {
         color: chartPalette.chart2,
-        label: "ETR media",
+        label: "Consumo real (ETR)",
         points: labels.map((label, index) => ({
           label,
           value: etrSeriesValues[index] ?? etrValue,
@@ -161,7 +162,7 @@ const buildEtrUsoRecordFromSelection = (selection: EtrUsoSelection): EtrUsoRecor
       },
       {
         color: chartPalette.chart4,
-        label: "ETMAX media",
+        label: "Consumo máximo (ETmax)",
         points: labels.map((label, index) => ({
           label,
           value: etmaxSeriesValues[index] ?? etmaxValue,
@@ -172,7 +173,7 @@ const buildEtrUsoRecordFromSelection = (selection: EtrUsoSelection): EtrUsoRecor
     kcSeries: [
       {
         color: chartPalette.chart5,
-        label: "Kc media",
+        label: "Kc promedio de la parcela",
         points: labels.map((label, index) => ({
           label,
           value: kcSeriesValues[index] ?? kcValue,
@@ -182,7 +183,7 @@ const buildEtrUsoRecordFromSelection = (selection: EtrUsoSelection): EtrUsoRecor
     laiSeries: [
       {
         color: chartPalette.chart1,
-        label: "LAI media",
+        label: "LAI promedio de la parcela",
         points: labels.map((label, index) => ({
           label,
           value: laiSeriesValues[index] ?? laiValue,
@@ -225,7 +226,7 @@ export function EtrUsageTab({
         fetchKcPoly(authIdToken!, selectedUso.usoId),
         fetchLaiPoly(authIdToken!, selectedUso.usoId),
       ]);
-      if (!etPoly.length) throw new Error("ET-LAT no entregó datos para el uso.");
+      if (!etPoly.length) throw new Error("ET-LAT no entregó datos para la parcela.");
       const lastEtPoint = etPoly.at(-1)!;
       return {
         cultivo: selectedUso.cultivo,
@@ -234,12 +235,12 @@ export function EtrUsageTab({
         etrValue: lastEtPoint.etr ?? fallbackUsageRecord.etrValue,
         kcSeries: toSingleMetricSeries(
           kcPoly.map((point) => ({ fecha: point.fecha, value: point.kc })),
-          "Kc media",
+          "Kc promedio de la parcela",
           chartPalette.chart5,
         ),
         laiSeries: toSingleMetricSeries(
           laiPoly.map((point) => ({ fecha: point.fecha, value: point.lai })),
-          "LAI media",
+          "LAI promedio de la parcela",
           chartPalette.chart1,
         ),
         lastDate: lastEtPoint.fecha,
@@ -313,12 +314,23 @@ export function EtrUsageTab({
       <div className="etr-usage-top-grid">
         <Panel
           className="panel-etr-map"
-          title="Mapa de uso de suelo agrícola Valle de Copiapó"
+          title={
+            <span className="etr-usage-map-title">
+              Elige una parcela en el mapa
+              <span
+                className="etr-block-tooltip"
+                title="Puedes utilizar los botones de zoom y desplazarte por el mapa"
+                aria-label="Ayuda para navegar por el mapa"
+              >
+                <Info aria-hidden="true" size={16} />
+              </span>
+            </span>
+          }
         >
           {showMapData ? (
             <EtrUsoMap
               geoJson={isLoggedIn ? usoMapData ?? undefined : undefined}
-              selectedSummaryLabel={`${selectedUso.cultivo} · Uso ${selectedUso.usoId}`}
+              selectedSummaryLabel={`${selectedUso.cultivo} · parcela ${selectedUso.usoId}`}
               selectedUsoId={selectedUso.usoId}
               onSelect={setSelectedUso}
             />
@@ -327,13 +339,13 @@ export function EtrUsageTab({
               className="is-map"
               title={
                 mapStateTone === "error"
-                  ? "Mapa de usos no disponible"
-                  : "Cargando mapa de usos"
+                  ? "Mapa de parcelas no disponible"
+                  : "Cargando mapa de parcelas"
               }
               message={
                 mapStateTone === "error"
-                  ? "No se pudo obtener la geometría real de usos agrícolas desde GCP."
-                  : "Esperando la geometría real de usos agrícolas."
+                  ? "No se pudo obtener la geometría real de las parcelas agrícolas desde GCP."
+                  : "Esperando la geometría real de las parcelas agrícolas."
               }
               tone={mapStateTone}
             />
@@ -342,7 +354,7 @@ export function EtrUsageTab({
 
         <Panel
           title="Variables para el polígono seleccionado"
-          subtitle={`Uso ${selectedUso.usoId} · ${usageRecord.cultivo}`}
+          subtitle={`Parcela ${selectedUso.usoId} · ${usageRecord.cultivo}`}
         >
           {showUsageData ? (
             <div className="etr-usage-cards">
@@ -369,8 +381,8 @@ export function EtrUsageTab({
               }
               message={
                 usageStateTone === "error"
-                  ? "No se pudo obtener la serie real para el uso seleccionado."
-                  : "Consultando variables reales para el uso seleccionado."
+                  ? "No se pudo obtener la serie real para la parcela seleccionada."
+                  : "Consultando variables reales para la parcela seleccionada."
               }
               tone={usageStateTone}
             />
@@ -380,7 +392,7 @@ export function EtrUsageTab({
 
       <Panel
         title="Variación temporal de la ETR y ETmax"
-        subtitle={`Uso ${selectedUso.usoId} · ${usageRecord.cultivo}`}
+        subtitle={`Parcela ${selectedUso.usoId} · ${usageRecord.cultivo}`}
         className="panel-accent-blue"
       >
         {showUsageData ? (
@@ -411,7 +423,7 @@ export function EtrUsageTab({
       </Panel>
 
       <div className="etr-usage-chart-grid">
-        <Panel title="Variación temporal del Kc">
+        <Panel title="Coeficiente de cultivo (Kc) en la temporada">
           {showUsageData ? (
             <SimpleLineChart
               labelEvery={3}
@@ -436,7 +448,7 @@ export function EtrUsageTab({
             />
           )}
         </Panel>
-        <Panel title="Variación temporal del LAI">
+        <Panel title="Follaje del cultivo (LAI) en la temporada">
           {showUsageData ? (
             <SimpleLineChart
               labelEvery={3}

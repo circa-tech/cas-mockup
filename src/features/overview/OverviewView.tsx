@@ -6,7 +6,7 @@ import type {
   WellMapPoint,
 } from "../../data/mockupData";
 import type { RemoteLoadStatus } from "../../types/remote";
-import { formatDateTime } from "../../utils/date";
+import { formatDate, formatDateTimeLong } from "../../utils/date";
 import { freshnessClassMap } from "../../utils/freshness";
 import { getCurrentValue, getDailyChangeValue } from "../wells/wellMetrics";
 import { OverviewMiniLine } from "./OverviewMiniLine";
@@ -32,16 +32,16 @@ const freshnessCompactLabelMap = {
   stale: "Alerta",
 } as const;
 
-const productFreshnessLabelMap = {
-  fresh: "Actualizado con desfase esperado",
-  warning: "Actualización pendiente",
-  stale: "Sin actualizacion reciente",
+const freshnessLabelMap = {
+  fresh: "Actualizado",
+  warning: "En ventana de actualización",
+  stale: "Desactualizado",
 } as const;
 
-const etrFreshnessLabelMap = {
-  fresh: "Actualizado (ciclo semanal)",
-  warning: "En ventana de actualizacion",
-  stale: "Sin actualizacion reciente",
+const freshnessTooltipMap = {
+  fresh: "Estamos recibiendo datos constantemente.",
+  warning: "Un nuevo dato llegará próximamente.",
+  stale: "Estamos trabajando en solucionar un problema con la actualización de datos.",
 } as const;
 
 export function OverviewView({
@@ -58,9 +58,9 @@ export function OverviewView({
   wellsStatus,
   wells,
 }: OverviewViewProps) {
-  const etrMiniLines = etrSeries.map((line) => ({
+  const etrMiniLines = etrSeries.map((line, index) => ({
     color: line.color,
-    label: line.label,
+    label: index === 0 ? "Consumo real (ETR)" : "Consumo máximo (ETmax)",
     values: line.points.slice(-12).map((point) => point.value),
   }));
   const etrMiniLabels =
@@ -98,26 +98,19 @@ export function OverviewView({
   return (
     <div className="view-stack">
       <div className="view-intro">
-        <h2>Resumen operativo</h2>
-        <p>Acceso rápido a ET-LAT, MODIS-Snow, Pozos y Meteo.</p>
+        <h2>Resumen del valle</h2>
+        <p>
+          Lo más reciente de evapotranspiración, nieve, pozos y clima. Toca una
+          tarjeta para ver el detalle.
+        </p>
       </div>
       <div className="overview-grid">
         {cards.map((card) => {
-          const isNetworkCard =
-            card.targetView === "wells" || card.targetView === "meteo";
           const wellsHasNoData = card.targetView === "wells" && wells.length === 0;
           const wellsIsLoading = wellsHasNoData && wellsStatus === "loading";
           const meteoHasNoData = card.targetView === "meteo" && stations.length === 0;
           const meteoIsLoading = meteoHasNoData && meteoStatus === "loading";
-          const cardStatusLabel = isNetworkCard
-            ? card.status === "stale"
-              ? "Red con alertas"
-              : card.status === "warning"
-                ? "Red en seguimiento"
-                : "Red estable"
-            : card.targetView === "etr"
-              ? etrFreshnessLabelMap[card.status]
-              : productFreshnessLabelMap[card.status];
+          const cardStatusLabel = freshnessLabelMap[card.status];
 
           const cardSecondaryKpi =
             card.targetView === "wells"
@@ -144,8 +137,8 @@ export function OverviewView({
                 : "Pozos Sin datos"
               : card.targetView === "meteo" && meteoHasNoData
                 ? meteoIsLoading
-                  ? "Temp media red Cargando..."
-                  : "Temp media red Sin datos"
+                  ? "Temperatura promedio: cargando…"
+                  : "Temperatura promedio sin datos"
                 : card.primaryKpi;
 
           return (
@@ -157,14 +150,23 @@ export function OverviewView({
             >
               <div className="overview-card-header">
                 <h3>{card.title}</h3>
-                <span className={`status-pill ${freshnessClassMap[card.status]}`}>
+                <span
+                  className={`status-pill ${freshnessClassMap[card.status]}`}
+                  title={freshnessTooltipMap[card.status]}
+                >
                   {cardStatusLabel}
                 </span>
               </div>
               <strong>{cardPrimaryKpi}</strong>
               <p>{cardSecondaryKpi}</p>
               {card.targetView === "etr" && (
-                <OverviewMiniLine labels={etrMiniLabels} lines={etrMiniLines} unit="mm" />
+                <OverviewMiniLine
+                  labels={etrMiniLabels}
+                  lines={etrMiniLines}
+                  showLegend
+                  showYAxisUnit
+                  unit="mm/día"
+                />
               )}
               {card.targetView === "snow" && (
                 <OverviewMiniLine labels={snowMiniLabels} lines={snowMiniLines} unit="%" />
@@ -214,7 +216,11 @@ export function OverviewView({
                   ))}
                 </div>
               )}
-              <small>Última actualización: {formatDateTime(card.lastUpdate)}</small>
+              <small>
+                Última actualización: {card.targetView === "etr" || card.targetView === "snow"
+                  ? formatDate(card.lastUpdate)
+                  : formatDateTimeLong(card.lastUpdate)}
+              </small>
             </button>
           );
         })}

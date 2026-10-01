@@ -3,6 +3,7 @@ import { Panel } from "../../components/Panel";
 import { RemoteDataState } from "../../components/RemoteDataState";
 import { SimpleLineChart, type LineSeries } from "../../components/SimpleLineChart";
 import type { ModisSnowBasinsGeoJson } from "../../services/modisSnowApi";
+import { formatDate } from "../../utils/date";
 
 const SnowCoverageMap = lazy(() =>
   import("./SnowCoverageMap").then((module) => ({
@@ -47,20 +48,15 @@ export function SnowCoverageTab({
   snowChartsTone: "error" | "loading";
 }) {
   const latestImageSubtitle = latestSnowImage.date
-    ? `Última imagen disponible (${latestSnowImage.date})`
-    : "Última imagen disponible";
+    ? `imagen del ${formatDate(latestSnowImage.date)}`
+    : undefined;
 
   return (
         <div className="snow-grid">
-          <Panel title="Cobertura nival" subtitle={latestImageSubtitle}>
+          <Panel title="Mapa de nieve" subtitle={latestImageSubtitle}>
             <div className="snow-copy">
               <p>
-                La imagen de cobertura nival muestra la presencia o ausencia de nieve
-                en la cuenca para una fecha dada.
-              </p>
-              <p>
-                La vista usa la imagen MODIS publicada y las series de evolución anual
-                por cuenca disponibles en el servicio.
+                El mapa muestra dónde hay nieve el día de la imagen.
               </p>
             </div>
 
@@ -93,16 +89,15 @@ export function SnowCoverageTab({
 
           <div className="snow-charts">
             <div className="snow-description">
-              <h3>Gráficas de evolución diaria de FSCA.</h3>
+              <h3>Cobertura de nieve día a día (% del área)</h3>
               <p>
-                Los gráficos de evolución diaria de cobertura de nieve (FSCA)
-                muestran el porcentaje del área de estudio y de cada cuenca que
-                está cubierta con nieve durante los días correspondientes al período
-                húmedo (abril-septiembre) del año actual y el anterior.
+                Estos gráficos muestran qué porcentaje del área tiene nieve cada día.
+                Si la línea de este año va sobre la del año anterior, hay más nieve
+                que el año pasado a la misma fecha.
               </p>
             </div>
 
-            <Panel title="Evolución diaria de la cobertura de nieve en el área de estudio (%)">
+            <Panel title="Toda el área de estudio">
               {showSnowCharts ? (
                 <SimpleLineChart
                   labelEvery={snowChartLabelEvery}
@@ -130,7 +125,7 @@ export function SnowCoverageTab({
               )}
             </Panel>
 
-            <Panel title="Evolución diaria de FSCA de la cuenca de Jorquera">
+            <Panel title="Cuenca del río Jorquera">
               {showSnowCharts ? (
                 <SimpleLineChart
                   labelEvery={snowChartLabelEvery}
@@ -158,7 +153,7 @@ export function SnowCoverageTab({
               )}
             </Panel>
 
-            <Panel title="Evolución diaria de FSCA de la cuenca de Pulido">
+            <Panel title="Cuenca del río Pulido">
               {showSnowCharts ? (
                 <SimpleLineChart
                   labelEvery={snowChartLabelEvery}
@@ -186,7 +181,7 @@ export function SnowCoverageTab({
               )}
             </Panel>
 
-            <Panel title="Evolución diaria de FSCA de la cuenca de Manflas">
+            <Panel title="Cuenca del río Manflas">
               {showSnowCharts ? (
                 <SimpleLineChart
                   labelEvery={snowChartLabelEvery}
