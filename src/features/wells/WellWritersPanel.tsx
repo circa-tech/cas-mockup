@@ -5,8 +5,7 @@ import { useConfirmationDialog } from "../../components/useConfirmationDialog";
 import { queryKeys } from "../../lib/queryKeys";
 import {
   addWellWriter,
-  fetchCasMemberships,
-  fetchCasMembershipUsers,
+  fetchWellWriterCandidates,
   fetchWellWriters,
   fetchWritableWellIds,
   revokeWellWriter,
@@ -45,32 +44,20 @@ export function WellWritersPanel({
     enabled: Boolean(authIdToken && selectedWell),
   });
   const usersQuery = useQuery({
-    queryKey: queryKeys.wells.casUsers(authIdToken),
-    queryFn: () => fetchCasMembershipUsers(authIdToken!),
-    enabled: Boolean(authIdToken && canManageCas),
-  });
-  const membershipsQuery = useQuery({
-    queryKey: queryKeys.wells.casMemberships(authIdToken, selectedWell?.casId ?? ""),
-    queryFn: () => fetchCasMemberships(authIdToken!, selectedWell!.casId),
-    enabled: Boolean(authIdToken && canManageCas && selectedWell),
+    queryKey: queryKeys.wells.writerCandidates(authIdToken, selectedWellId),
+    queryFn: () => fetchWellWriterCandidates(authIdToken!, selectedWellId),
+    enabled: Boolean(authIdToken && selectedWell),
   });
   const usersByUid = useMemo(
     () => new Map((usersQuery.data ?? []).map((user) => [user.uid, user])),
     [usersQuery.data],
-  );
-  const casMemberIds = useMemo(
-    () => new Set((membershipsQuery.data ?? []).map((member) => member.firebaseUid)),
-    [membershipsQuery.data],
   );
   const assignedIds = useMemo(
     () => new Set((writersQuery.data ?? []).map((writer) => writer.firebaseUid)),
     [writersQuery.data],
   );
   const candidates = (usersQuery.data ?? []).filter(
-    (user) =>
-      !assignedIds.has(user.uid) &&
-      (user.role === "general_admin" ||
-        (user.role === "technical_admin" && casMemberIds.has(user.uid))),
+    (user) => !assignedIds.has(user.uid),
   );
 
   useEffect(() => {
@@ -85,7 +72,7 @@ export function WellWritersPanel({
 
   const handleAdd = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!authIdToken || !selectedWellId || !newWriterUid) return;
+    if (!authIdToken || !selectedWellId || !candidates.some((user) => user.uid === newWriterUid)) return;
     setBusy(true);
     setMessage(null);
     try {
@@ -132,12 +119,12 @@ export function WellWritersPanel({
       {writableQuery.isError && <p className="login-error">No fue posible cargar los permisos de pozos.</p>}
       <label>
         <span>Pozo</span>
-        <select value={selectedWellId} onChange={(event) => setSelectedWellId(event.target.value)} disabled={!availableWells.length}>
+        <select value={selectedWellId} onChange={(event) => { setSelectedWellId(event.target.value); setNewWriterUid(""); }} disabled={!availableWells.length}>
           {!availableWells.length && <option value="">Sin pozos disponibles</option>}
           {availableWells.map((well) => <option key={well.id} value={well.id}>{well.codigoObra} · {well.name}</option>)}
         </select>
       </label>
-      {canManageCas && selectedWell && (
+      {selectedWell && (
         <form className="manual-entry-form" onSubmit={handleAdd}>
           <label>
             <span>Agregar usuario</span>
@@ -146,9 +133,10 @@ export function WellWritersPanel({
               {candidates.map((user) => <option key={user.uid} value={user.uid}>{user.displayName || user.email || user.uid} · {user.role}</option>)}
             </select>
           </label>
-          <button type="submit" disabled={busy || !newWriterUid}>Agregar acceso</button>
+          <button type="submit" disabled={busy || !candidates.some((user) => user.uid === newWriterUid)}>Agregar acceso</button>
         </form>
       )}
+      {usersQuery.isError && <p className="login-error">No fue posible cargar los usuarios disponibles para este pozo.</p>}
       {writersQuery.isError && <p className="login-error">No fue posible cargar los usuarios autorizados.</p>}
       <div className="registry-list">
         {(writersQuery.data ?? []).map((writer) => (
