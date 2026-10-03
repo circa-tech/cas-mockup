@@ -158,7 +158,11 @@ export type CasMembershipUser = {
   uid: string;
 };
 
-export type WellTelemetryWriter = { firebaseUid: string };
+export type WellWriter = {
+  firebaseUid: string;
+  email?: string | null;
+  displayName?: string | null;
+};
 
 export type IngestWellMeasurementPayload = {
   codigoObra: string;
@@ -267,6 +271,13 @@ export const fetchCasOrganizations = async (
   return response.json() as Promise<CasOrganization[]>;
 };
 
+export const fetchMyCasOrganizations = async (
+  idToken: string,
+): Promise<CasOrganization[]> => {
+  const response = await requestWells("cas/mine", idToken);
+  return response.json() as Promise<CasOrganization[]>;
+};
+
 export const createCasOrganization = async (
   idToken: string,
   payload: { code: string; name: string },
@@ -341,29 +352,39 @@ export const revokeCasMembership = async (
   await invalidateWells(idToken);
 };
 
-export const fetchWellTelemetryWriter = async (
-  idToken: string,
-  wellId: string,
-): Promise<WellTelemetryWriter | null> => {
-  const response = await requestWells(`registry/${wellId}/telemetry-writer`, idToken);
-  if (response.status === 204) return null;
-  return response.json() as Promise<WellTelemetryWriter | null>;
+export const fetchWritableWellIds = async (idToken: string): Promise<string[]> => {
+  const response = await requestWells("registry/writable", idToken);
+  return response.json() as Promise<string[]>;
 };
 
-export const setWellTelemetryWriter = async (
+export const fetchWellWriters = async (
+  idToken: string,
+  wellId: string,
+): Promise<WellWriter[]> => {
+  const response = await requestWells(`registry/${wellId}/writers`, idToken);
+  return response.json() as Promise<WellWriter[]>;
+};
+
+export const addWellWriter = async (
   idToken: string,
   wellId: string,
   firebaseUid: string,
-): Promise<WellTelemetryWriter> => {
-  const response = await requestWells(`registry/${wellId}/telemetry-writer`, idToken, {
-    body: JSON.stringify({ firebaseUid }), method: "PUT",
+): Promise<WellWriter> => {
+  const response = await requestWells(`registry/${wellId}/writers`, idToken, {
+    body: JSON.stringify({ firebaseUid }), method: "POST",
   });
   await invalidateWells(idToken);
-  return response.json() as Promise<WellTelemetryWriter>;
+  return response.json() as Promise<WellWriter>;
 };
 
-export const revokeWellTelemetryWriter = async (idToken: string, wellId: string): Promise<void> => {
-  await requestWells(`registry/${wellId}/telemetry-writer`, idToken, { method: "DELETE" });
+export const revokeWellWriter = async (
+  idToken: string,
+  wellId: string,
+  firebaseUid: string,
+): Promise<void> => {
+  await requestWells(`registry/${wellId}/writers/${encodeURIComponent(firebaseUid)}`, idToken, {
+    method: "DELETE",
+  });
   await invalidateWells(idToken);
 };
 

@@ -1,5 +1,17 @@
 export const chileTimeZone = "America/Santiago";
 
+export const dateInChile = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: chileTimeZone,
+    year: "numeric",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+};
+
 const createZonedPartsFormatter = (timeZone: string) =>
   new Intl.DateTimeFormat("en-CA", {
     day: "2-digit",

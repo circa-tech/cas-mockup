@@ -190,6 +190,7 @@ export default function App() {
           {app.activeView === "wells" && (
             <WellsView
               authIdToken={app.authIdToken}
+              authUid={app.authUid}
               canAddMeasurements={app.wellsCapabilities.canAddMeasurements}
               canCreateWells={app.wellsCapabilities.canCreateWells}
               canDeleteWells={app.wellsCapabilities.canDeleteWells}

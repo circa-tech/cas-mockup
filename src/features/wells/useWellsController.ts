@@ -10,6 +10,7 @@ import {
   fetchWellMapPoints,
   fetchWellRegistryEntries,
   fetchWellsAdminStatus,
+  fetchWritableWellIds,
   ingestWellMeasurement,
   ingestWellMeasurementsBatch,
   updateWellRegistryEntry,
@@ -20,6 +21,7 @@ import {
 } from "../../services/wellsApi";
 import type { RemoteLoadStatus } from "../../types/remote";
 import { toRemoteErrorMessage } from "../../app/remoteError";
+import { dateInChile } from "../../utils/date";
 import { parseMeasurementCsv } from "./measurementCsv";
 import type { WellMeasurementFormState, WellRegistryFormState } from "./WellsView";
 
@@ -98,6 +100,23 @@ const emptyWellRegistryForm = (): WellRegistryFormState => ({
   utmNorthing: "",
   waterRights: [emptyWaterRight()],
   wellDepth: "",
+});
+
+const emptyWellMeasurementForm = (): WellMeasurementFormState => ({
+  codigoObra: "",
+  companyRut: "",
+  conductivity: "",
+  flowRate: "",
+  isOperating: "",
+  measurementDate: dateInChile(),
+  measurementTime: "10:00",
+  observations: "",
+  ph: "",
+  pressure: "",
+  totalizer: "",
+  userRut: "",
+  waterTableDepth: "",
+  waterLevelCondition: "",
 });
 
 const getWellCreationErrorMessage = (error: unknown) => {
@@ -253,10 +272,12 @@ const buildWellRegistryPayload = (
 
 export function useWellsController({
   authIdToken,
+  authUid,
   hasAuthenticatedApiSession,
   now,
 }: {
   authIdToken: string | null;
+  authUid: string | null;
   hasAuthenticatedApiSession: boolean;
   now: Date;
 }) {
@@ -273,22 +294,12 @@ export function useWellsController({
   const [wellRegistryForm, setWellRegistryForm] =
     useState<WellRegistryFormState>(emptyWellRegistryForm);
   const [wellMeasurementForm, setWellMeasurementForm] =
-    useState<WellMeasurementFormState>({
-      codigoObra: "",
-      companyRut: "",
-      conductivity: "",
-      flowRate: "",
-      isOperating: "",
-      measurementDate: new Date().toISOString().slice(0, 10),
-      measurementTime: "10:00",
-      observations: "",
-      ph: "",
-      pressure: "",
-      totalizer: "",
-      userRut: "",
-      waterTableDepth: "",
-      waterLevelCondition: "",
-    });
+    useState<WellMeasurementFormState>(emptyWellMeasurementForm);
+
+  useEffect(() => {
+    setWellRegistryForm(emptyWellRegistryForm());
+    setWellMeasurementForm(emptyWellMeasurementForm());
+  }, [authUid]);
 
   const measurementsQuery = useQuery({
     queryKey: queryKeys.wells.measurements(authIdToken),
@@ -516,7 +527,12 @@ export function useWellsController({
     setWellMeasurementCsvStatus("loading");
     setWellMeasurementCsvMessage(null);
     try {
-      const allowed = new Set(wellRegistryEntries.map((entry) => entry.codigoObra));
+      const writableIds = new Set(await fetchWritableWellIds(authIdToken));
+      const allowed = new Set(
+        wellRegistryEntries
+          .filter((entry) => writableIds.has(entry.id))
+          .map((entry) => entry.codigoObra),
+      );
       const payloads = parseMeasurementCsv(await file.text(), allowed);
       const result = await ingestWellMeasurementsBatch(authIdToken, payloads);
       await refreshWells();
