@@ -1253,25 +1253,133 @@ select:focus-visible {
   gap: 10px;
 }
 
-.metadata-fieldset {
-  display: grid;
-  gap: 10px;
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
+.registry-editor-form {
+  gap: 16px;
 }
 
-.metadata-fieldset h4 {
+.registry-primary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 16px;
+}
+
+.registry-required-card,
+.registry-map-card {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  padding: 16px;
+}
+
+.registry-required-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.registry-map-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.registry-required-card h4,
+.registry-map-card h4 {
   margin: 0;
   color: #202733;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
 }
 
-.water-rights-head {
+.registry-optional-section,
+.registry-optional-category {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.registry-optional-section > summary,
+.registry-optional-category > summary {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
+  list-style: none;
+  cursor: pointer;
+  color: #202733;
+  font-weight: 700;
+}
+
+.registry-optional-section > summary::-webkit-details-marker,
+.registry-optional-category > summary::-webkit-details-marker {
+  display: none;
+}
+
+.registry-optional-section > summary::after,
+.registry-optional-category > summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 150ms ease;
+}
+
+.registry-optional-section[open] > summary::after,
+.registry-optional-category[open] > summary::after {
+  transform: rotate(225deg);
+}
+
+.registry-optional-section > summary:focus-visible,
+.registry-optional-category > summary:focus-visible {
+  outline: 2px solid hsl(205 78% 42%);
+  outline-offset: -3px;
+}
+
+.registry-optional-section > summary {
+  padding: 16px;
+  font-size: 15px;
+}
+
+.registry-optional-section > summary small {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.registry-optional-content {
+  display: grid;
+  gap: 8px;
+  padding: 0 16px 16px;
+}
+
+.registry-optional-category > summary {
+  justify-content: space-between;
+  padding: 13px 14px;
+  font-size: 13px;
+}
+
+.registry-category-fields {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding: 14px;
+}
+
+.registry-repeatable-fields {
+  display: grid;
+  gap: 12px;
+}
+
+.registry-repeatable-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .water-right-row {
@@ -1484,16 +1592,27 @@ select:focus-visible {
 }
 
 .registry-map-preview {
-  border-top: 1px solid var(--border);
-  padding: 14px;
+  display: flex;
+  flex: 1;
+  min-height: 300px;
+  min-width: 0;
 }
 
-.manual-entry-form > .registry-map-preview {
-  padding: 12px 0 0;
+.registry-map-preview > .data-state {
+  flex: 1;
 }
 
 .status-leaflet-map.is-registry-preview {
-  height: 320px;
+  flex: 1;
+  min-height: 300px;
+  height: auto;
+}
+
+.registry-map-hint {
+  margin: 0;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .measurement-upload-grid {
@@ -1986,6 +2105,17 @@ select:focus-visible {
   }
 }
 
+@media (max-width: 900px) {
+  .registry-primary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .registry-map-preview,
+  .status-leaflet-map.is-registry-preview {
+    min-height: 300px;
+  }
+}
+
 @media (max-width: 760px) {
   .page-shell {
     padding: 14px;
@@ -2023,6 +2153,29 @@ select:focus-visible {
 
   .water-right-row .icon-only-button {
     width: 100%;
+  }
+
+  .registry-required-card,
+  .registry-map-card {
+    padding: 14px;
+  }
+
+  .registry-optional-section > summary {
+    flex-wrap: wrap;
+  }
+
+  .registry-optional-section > summary small {
+    order: 2;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .registry-optional-section > summary::after {
+    margin-left: auto;
+  }
+
+  .registry-optional-content {
+    padding: 0 12px 12px;
   }
 
   .status-leaflet-map {
