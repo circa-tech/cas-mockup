@@ -365,6 +365,14 @@ export const fetchWellWriters = async (
   return response.json() as Promise<WellWriter[]>;
 };
 
+export const fetchWellWriterCandidates = async (
+  idToken: string,
+  wellId: string,
+): Promise<CasMembershipUser[]> => {
+  const response = await requestWells(`registry/${wellId}/writer-candidates`, idToken);
+  return response.json() as Promise<CasMembershipUser[]>;
+};
+
 export const addWellWriter = async (
   idToken: string,
   wellId: string,

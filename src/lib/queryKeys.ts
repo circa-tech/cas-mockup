@@ -54,5 +54,7 @@ export const queryKeys = {
       ["wells", scope(token), "writable"] as const,
     writers: (token: string | null, wellId: string) =>
       ["wells", scope(token), "writers", wellId] as const,
+    writerCandidates: (token: string | null, wellId: string) =>
+      ["wells", scope(token), "writer-candidates", wellId] as const,
   },
 };
