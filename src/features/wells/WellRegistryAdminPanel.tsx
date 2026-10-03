@@ -5,16 +5,19 @@ import { Panel } from "../../components/Panel";
 import { queryKeys } from "../../lib/queryKeys";
 import {
   fetchCasOrganizations,
+  fetchMyCasOrganizations,
   type CasOrganization,
   type WellRegistryEntry,
 } from "../../services/wellsApi";
 import type { RemoteLoadStatus } from "../../types/remote";
 import { WellCasAdminPanel } from "./WellCasAdminPanel";
 import { WellRegistryEditor } from "./WellRegistryEditor";
+import { WellWritersPanel } from "./WellWritersPanel";
 import type { WellRegistryFormState } from "./wellsView.types";
 
 export function WellRegistryAdminPanel({
   authIdToken,
+  authUid,
   canDeleteWells,
   canManageCas,
   canManageWells,
@@ -28,6 +31,7 @@ export function WellRegistryAdminPanel({
   status,
 }: {
   authIdToken: string | null;
+  authUid: string | null;
   canDeleteWells: boolean;
   canManageCas: boolean;
   canManageWells: boolean;
@@ -41,10 +45,14 @@ export function WellRegistryAdminPanel({
   status: RemoteLoadStatus;
 }) {
   const [activeAdminView, setActiveAdminView] =
-    useState<"registry" | "cas">("registry");
+    useState<"registry" | "writers" | "cas">("registry");
   const organizationsQuery = useQuery({
-    queryKey: queryKeys.wells.casOrganizations(authIdToken),
-    queryFn: () => fetchCasOrganizations(authIdToken!),
+    queryKey: canManageCas
+      ? queryKeys.wells.casOrganizations(authIdToken)
+      : queryKeys.wells.myCasOrganizations(authIdToken),
+    queryFn: () => canManageCas
+      ? fetchCasOrganizations(authIdToken!)
+      : fetchMyCasOrganizations(authIdToken!),
     enabled: Boolean(authIdToken),
     staleTime: 5 * 60 * 1000,
   });
@@ -81,6 +89,15 @@ export function WellRegistryAdminPanel({
         >
           Pozos
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeAdminView === "writers"}
+          className={activeAdminView === "writers" ? "is-active" : ""}
+          onClick={() => setActiveAdminView("writers")}
+        >
+          Accesos de carga
+        </button>
         {canManageCas && (
           <button
             type="button"
@@ -114,10 +131,18 @@ export function WellRegistryAdminPanel({
       {activeAdminView === "cas" && canManageCas && (
         <WellCasAdminPanel
           authIdToken={authIdToken}
-          entries={entries}
           onDefaultCasChange={(casId) => onChange({ casId })}
           organizations={organizations}
           refreshOrganizations={refreshOrganizations}
+        />
+      )}
+
+      {activeAdminView === "writers" && (
+        <WellWritersPanel
+          authIdToken={authIdToken}
+          authUid={authUid}
+          canManageCas={canManageCas}
+          entries={entries}
         />
       )}
     </Panel>

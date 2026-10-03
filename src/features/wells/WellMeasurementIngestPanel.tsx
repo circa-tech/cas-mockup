@@ -23,7 +23,6 @@ const suggestedWaterLevelCondition = (isOperating: string) => {
 };
 
 export function WellMeasurementIngestPanel({
-  canManageCas,
   csvMessage,
   csvStatus,
   entries,
@@ -34,7 +33,6 @@ export function WellMeasurementIngestPanel({
   onCsvUpload,
   onSubmit,
 }: {
-  canManageCas: boolean;
   csvMessage: string | null;
   csvStatus: RemoteLoadStatus;
   entries: WellRegistryEntry[];
@@ -61,7 +59,7 @@ export function WellMeasurementIngestPanel({
             <div className="measurement-empty-notice" role="status">
               <CircleAlert aria-hidden="true" size={18} strokeWidth={2} />
               <span>
-                No hay pozos registrados. Crea un pozo antes de agregar mediciones.
+                No tienes pozos asignados para cargar mediciones.
               </span>
             </div>
           )}
@@ -81,9 +79,7 @@ export function WellMeasurementIngestPanel({
                 </option>
               ))}
             </select>
-            {!canManageCas && (
-              <small className="field-help">Solo aparecen los pozos de tu CAS.</small>
-            )}
+            <small className="field-help">Solo aparecen pozos donde tienes permiso de carga.</small>
           </label>
 
           <div className="manual-two-col">

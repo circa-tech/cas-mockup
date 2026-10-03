@@ -40,6 +40,8 @@ export const queryKeys = {
       ["wells", scope(token), "cas-memberships", casId] as const,
     casOrganizations: (token: string | null) =>
       ["wells", scope(token), "cas"] as const,
+    myCasOrganizations: (token: string | null) =>
+      ["wells", scope(token), "cas-mine"] as const,
     casUsers: (token: string | null) =>
       ["wells", scope(token), "cas-users"] as const,
     capabilities: (token: string | null) =>
@@ -48,7 +50,9 @@ export const queryKeys = {
       ["wells", scope(token), "measurements"] as const,
     registry: (token: string | null, mine: boolean) =>
       ["wells", scope(token), mine ? "registry-mine" : "registry"] as const,
-    telemetryWriter: (token: string | null, wellId: string) =>
-      ["wells", scope(token), "telemetry-writer", wellId] as const,
+    writable: (token: string | null) =>
+      ["wells", scope(token), "writable"] as const,
+    writers: (token: string | null, wellId: string) =>
+      ["wells", scope(token), "writers", wellId] as const,
   },
 };

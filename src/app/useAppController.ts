@@ -33,6 +33,7 @@ export function useAppController() {
 
   const wells = useWellsController({
     authIdToken: auth.authIdToken,
+    authUid: auth.authUid,
     hasAuthenticatedApiSession,
     now: dashboardNow,
   });

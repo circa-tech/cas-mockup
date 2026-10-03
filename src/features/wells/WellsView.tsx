@@ -1,6 +1,8 @@
 import { type FormEvent, lazy, useEffect, useState } from "react";
 import type { WellMapPoint } from "../../data/mockupData";
-import type { WellRegistryEntry } from "../../services/wellsApi";
+import { fetchWritableWellIds, type WellRegistryEntry } from "../../services/wellsApi";
+import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "../../lib/queryKeys";
 import type { RemoteLoadStatus } from "../../types/remote";
 import { WellMeasurementIngestPanel } from "./WellMeasurementIngestPanel";
 import { WellRegistryAdminPanel } from "./WellRegistryAdminPanel";
@@ -15,6 +17,7 @@ const WellsMonitoringTab = lazy(() =>
 
 export function WellsView({
   authIdToken,
+  authUid,
   canAddMeasurements,
   canCreateWells,
   canDeleteWells,
@@ -45,6 +48,7 @@ export function WellsView({
   wells,
 }: {
   authIdToken: string | null;
+  authUid: string | null;
   canAddMeasurements: boolean;
   canCreateWells: boolean;
   canDeleteWells: boolean;
@@ -80,6 +84,13 @@ export function WellsView({
   const [activeWellsTab, setActiveWellsTab] =
     useState<"monitoring" | "measurement" | "admin">("monitoring");
   const canUseMeasurementForm = canAddMeasurements;
+  const writableQuery = useQuery({
+    queryKey: queryKeys.wells.writable(authIdToken),
+    queryFn: () => fetchWritableWellIds(authIdToken!),
+    enabled: Boolean(authIdToken && canAddMeasurements),
+  });
+  const writableIds = new Set(writableQuery.data ?? []);
+  const writableEntries = wellRegistryEntries.filter((entry) => writableIds.has(entry.id));
   useEffect(() => {
     if (
       (activeWellsTab === "admin" && !canCreateWells) ||
@@ -140,6 +151,7 @@ export function WellsView({
 
         <WellRegistryAdminPanel
           authIdToken={authIdToken}
+          authUid={authUid}
           canDeleteWells={canDeleteWells}
           canManageCas={canManageCas}
           canManageWells={canManageWells}
@@ -170,10 +182,9 @@ export function WellsView({
         {wellsSubnav}
 
         <WellMeasurementIngestPanel
-          canManageCas={canManageCas}
           csvMessage={wellMeasurementCsvMessage}
           csvStatus={wellMeasurementCsvStatus}
-          entries={wellRegistryEntries}
+          entries={writableEntries}
           form={wellMeasurementForm}
           individualStatus={wellMeasurementStatus}
           message={wellMeasurementMessage}
