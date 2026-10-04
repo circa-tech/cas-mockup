@@ -1,5 +1,6 @@
 import {
   CircleAlert,
+  ClipboardPlus,
   Download,
   Upload
 } from "lucide-react";
@@ -51,10 +52,16 @@ export function WellMeasurementIngestPanel({
   return (
     <div className="measurement-upload-grid">
       <Panel
-        title="Agregar medicion"
-        subtitle="Carga directa desde el mockup"
+        title="Medición individual"
       >
-        <form className="manual-entry-form" onSubmit={onSubmit}>
+        <form className="manual-entry-form measurement-entry-form" onSubmit={onSubmit}>
+          <div className="well-admin-intro">
+            <span className="well-admin-intro-icon" aria-hidden="true"><ClipboardPlus size={22} /></span>
+            <div>
+              <h4>Agregar medición</h4>
+              <p>Registra los valores medidos en un pozo donde tienes permiso de carga.</p>
+            </div>
+          </div>
           {!hasRegistryEntries && (
             <div className="measurement-empty-notice" role="status">
               <CircleAlert aria-hidden="true" size={18} strokeWidth={2} />
@@ -111,7 +118,7 @@ export function WellMeasurementIngestPanel({
             </label>
           </div>
 
-          <div className="manual-two-col">
+          <div className="manual-two-col measurement-datetime-row">
             <label>
               <span>Fecha de medición *</span>
               <input

@@ -1,5 +1,5 @@
 import { useConfirmationDialog } from "../../components/useConfirmationDialog";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { MapPinned, Pencil, Plus, Trash2 } from "lucide-react";
 import { FormEvent, ReactNode, lazy, useState } from "react";
 import type { CasOrganization, WellRegistryEntry } from "../../services/wellsApi";
 import type { RemoteLoadStatus } from "../../types/remote";
@@ -158,6 +158,13 @@ export function WellRegistryEditor({
           onSubmit(event);
         }}
       >
+        <div className="well-admin-intro">
+          <span className="well-admin-intro-icon" aria-hidden="true"><MapPinned size={22} /></span>
+          <div>
+            <h4>Registro de pozos</h4>
+            <p>Completa los datos del pozo, revisa su ubicación en el mapa y guárdalo.</p>
+          </div>
+        </div>
         <div className="registry-primary-grid">
           <section className="registry-required-card" aria-labelledby="registry-required-heading">
             <h4 id="registry-required-heading">Datos obligatorios</h4>
@@ -266,14 +273,14 @@ export function WellRegistryEditor({
             <p className="registry-map-hint">
               {hasPreviewLocation
                 ? "El marcador muestra las coordenadas ingresadas."
-                : "Vista de referencia: zona de Copiapó. Ingresa las coordenadas reales; esta vista no se guarda como ubicación del pozo."}
+                : "Ingresa la latitud y longitud del pozo para marcar su ubicación en el mapa."}
             </p>
           </section>
         </div>
 
         <details className="registry-optional-section">
           <summary>
-            <span>Datos no obligatorios</span>
+            <span>Datos opcionales</span>
             <small>Completa los que tengas disponibles</small>
           </summary>
           <div className="registry-optional-content">
