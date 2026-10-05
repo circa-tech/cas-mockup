@@ -87,7 +87,7 @@ export function WellRegistryAdminPanel({
           className={activeAdminView === "registry" ? "is-active" : ""}
           onClick={() => setActiveAdminView("registry")}
         >
-          Pozos
+          Registro
         </button>
         <button
           type="button"
@@ -96,7 +96,7 @@ export function WellRegistryAdminPanel({
           className={activeAdminView === "writers" ? "is-active" : ""}
           onClick={() => setActiveAdminView("writers")}
         >
-          Accesos de carga
+          Accesos
         </button>
         {canManageCas && (
           <button
@@ -106,7 +106,7 @@ export function WellRegistryAdminPanel({
             className={activeAdminView === "cas" ? "is-active" : ""}
             onClick={() => setActiveAdminView("cas")}
           >
-            Organizaciones CAS
+            Gestion CAS
           </button>
         )}
       </div>

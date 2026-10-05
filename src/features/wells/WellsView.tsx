@@ -119,7 +119,7 @@ export function WellsView({
           className={activeWellsTab === "measurement" ? "is-active" : ""}
           onClick={() => setActiveWellsTab("measurement")}
         >
-          Agregar medicion
+          Agregar medición
         </button>
       )}
       {canCreateWells && (

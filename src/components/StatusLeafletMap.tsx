@@ -29,6 +29,8 @@ export type StatusLeafletPoint = {
 
 type StatusLeafletMapProps = {
   className?: string;
+  initialCenter?: L.LatLngTuple;
+  initialZoom?: number;
   points: StatusLeafletPoint[];
   selectedPointId?: string;
   selectedPointZoom?: number;
@@ -104,24 +106,33 @@ const buildMarkerIcon = (
   });
 
 function FocusSelectedPoint({
+  fallbackCenter,
+  fallbackZoom,
   point,
   zoom,
 }: {
+  fallbackCenter?: L.LatLngTuple;
+  fallbackZoom?: number;
   point?: StatusLeafletPoint;
   zoom?: number;
 }) {
   const map = useMap();
 
   useEffect(() => {
-    if (!point || zoom === undefined) return;
-    map.setView([point.lat, point.lng], zoom);
-  }, [map, point, zoom]);
+    if (point && zoom !== undefined) {
+      map.setView([point.lat, point.lng], zoom);
+    } else if (fallbackCenter && fallbackZoom !== undefined) {
+      map.setView(fallbackCenter, fallbackZoom);
+    }
+  }, [fallbackCenter, fallbackZoom, map, point, zoom]);
 
   return null;
 }
 
 export function StatusLeafletMap({
   className,
+  initialCenter,
+  initialZoom,
   onSelect,
   points,
   selectedPointId,
@@ -132,13 +143,20 @@ export function StatusLeafletMap({
 
   return (
     <MapContainer
-      bounds={copiapoBounds}
+      bounds={initialCenter ? undefined : copiapoBounds}
+      center={initialCenter}
       className={`status-leaflet-map ${className ?? ""}`.trim()}
       scrollWheelZoom={false}
+      zoom={initialZoom}
       zoomControl
     >
       <ModifierWheelZoom />
-      <FocusSelectedPoint point={selectedPoint} zoom={selectedPointZoom} />
+      <FocusSelectedPoint
+        fallbackCenter={initialCenter}
+        fallbackZoom={initialZoom}
+        point={selectedPoint}
+        zoom={selectedPointZoom}
+      />
       <LayersControl position="topright">
         <LayersControl.BaseLayer name="OpenStreetMap">
           <TileLayer

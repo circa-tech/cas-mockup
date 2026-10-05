@@ -200,8 +200,8 @@ export function AdminView({ authIdToken, currentUserUid }: AdminViewProps) {
                     >
                       <td>
                         <div className="admin-user-cell">
-                          <span className="admin-user-icon">
-                            <UserRound size={16} />
+                          <span className="user-avatar" aria-hidden="true">
+                            <UserRound size={19} />
                           </span>
                           <div>
                             <strong>{user.displayName || user.email || "Sin nombre"}</strong>
