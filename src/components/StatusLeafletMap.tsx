@@ -117,14 +117,16 @@ function FocusSelectedPoint({
   zoom?: number;
 }) {
   const map = useMap();
+  const pointLat = point?.lat;
+  const pointLng = point?.lng;
 
   useEffect(() => {
-    if (point && zoom !== undefined) {
-      map.setView([point.lat, point.lng], zoom);
+    if (pointLat !== undefined && pointLng !== undefined && zoom !== undefined) {
+      map.setView([pointLat, pointLng], zoom);
     } else if (fallbackCenter && fallbackZoom !== undefined) {
       map.setView(fallbackCenter, fallbackZoom);
     }
-  }, [fallbackCenter, fallbackZoom, map, point, zoom]);
+  }, [fallbackCenter, fallbackZoom, map, pointLat, pointLng, zoom]);
 
   return null;
 }

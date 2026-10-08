@@ -711,6 +711,14 @@ type GeoPointBase = {
   status: GeoPointStatus;
 };
 
+export type WellMeasurementVariable =
+  | "waterTableDepth"
+  | "flowRate"
+  | "pressure"
+  | "ph"
+  | "conductivity"
+  | "totalizer";
+
 export type WellMapPoint = GeoPointBase & {
   aquiferSector: string;
   levelSeries: LinePoint[];
@@ -718,6 +726,11 @@ export type WellMapPoint = GeoPointBase & {
     manual?: LinePoint[];
     telemetry?: LinePoint[];
   };
+  measurementSeriesByVariable?: Partial<Record<WellMeasurementVariable, {
+    all: LinePoint[];
+    manual: LinePoint[];
+    telemetry: LinePoint[];
+  }>>;
   provider: string;
 };
 

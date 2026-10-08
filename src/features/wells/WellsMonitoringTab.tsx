@@ -1,5 +1,5 @@
 import { Droplets, Gauge, Radio, Waves } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { KpiCard } from "../../components/KpiCard";
 import { MiniSparkline } from "../../components/MiniSparkline";
 import { Panel } from "../../components/Panel";
@@ -11,6 +11,7 @@ import {
   waterQualityRecords,
   type WaterQualityStatus,
   type WellMapPoint,
+  type WellMeasurementVariable,
 } from "../../data/mockupData";
 import type { RemoteLoadStatus } from "../../types/remote";
 import { formatRelativeAge, formatShortDateTime } from "../../utils/date";
@@ -48,6 +49,15 @@ const sourceLabelMap = {
   telemetry: "Telemetría (automática)",
   manual: "Medición manual",
 } as const;
+
+const chartVariables: { value: WellMeasurementVariable; label: string; unit: string }[] = [
+  { value: "waterTableDepth", label: "Nivel freático", unit: "m" },
+  { value: "flowRate", label: "Caudal", unit: "L/s" },
+  { value: "pressure", label: "Presión", unit: "" },
+  { value: "ph", label: "pH", unit: "" },
+  { value: "conductivity", label: "Conductividad", unit: "" },
+  { value: "totalizer", label: "Totalizador", unit: "" },
+];
 
 const formatMeters = (value: number) =>
   `${new Intl.NumberFormat("es-CL", {
@@ -103,11 +113,34 @@ const toLevelChartSeries = (well: WellMapPoint): LineSeries[] => {
     return separatedSeries;
   }
 
+  if (well.levelSeries.length === 0) return [];
+
   return [{
     label: sourceLabelMap[well.sourceType],
     color: chartPalette.chart6,
     points: well.levelSeries,
   }];
+};
+
+const toVariableChartSeries = (well: WellMapPoint, variable: WellMeasurementVariable): LineSeries[] => {
+  if (variable === "waterTableDepth") return toLevelChartSeries(well);
+
+  const points = well.measurementSeriesByVariable?.[variable];
+  if (!points) return [];
+
+  const separatedSeries: LineSeries[] = [
+    ...(points.manual.length > 0
+      ? [{ label: "Medición manual", color: chartPalette.chart5, points: points.manual }]
+      : []),
+    ...(points.telemetry.length > 0
+      ? [{ label: "Telemetría (automática)", color: chartPalette.chart6, points: points.telemetry }]
+      : []),
+  ];
+  return separatedSeries.length > 0
+    ? separatedSeries
+    : points.all.length > 0
+      ? [{ label: sourceLabelMap[well.sourceType], color: chartPalette.chart6, points: points.all }]
+      : [];
 };
 
 export function WellsMonitoringTab({
@@ -120,6 +153,8 @@ export function WellsMonitoringTab({
   subnav,
   wells,
 }: WellsMonitoringTabProps) {
+  const [selectedChartVariable, setSelectedChartVariable] = useState<WellMeasurementVariable>("waterTableDepth");
+
   if (isLoggedIn && (status === "loading" || status === "error" || wells.length === 0)) {
     const isLoading = status === "loading";
     return (
@@ -178,8 +213,9 @@ export function WellsMonitoringTab({
       ? well.lastUpdate
       : latest;
   }, "");
-  const levelChartSeries = toLevelChartSeries(selectedWell);
-  const seriesValues = levelChartSeries.flatMap((series) =>
+  const chartVariable = chartVariables.find((item) => item.value === selectedChartVariable)!;
+  const selectedChartSeries = toVariableChartSeries(selectedWell, selectedChartVariable);
+  const seriesValues = selectedChartSeries.flatMap((series) =>
     series.points.map((point) => point.value),
   );
   const minSeriesValue = seriesValues.length > 0 ? Math.min(...seriesValues) - 0.1 : -0.1;
@@ -346,17 +382,34 @@ export function WellsMonitoringTab({
       </div>
 
       <Panel
-        title={`Profundidad del agua en el tiempo · ${selectedWell.name}`}
+        title={`${chartVariable.label} en el tiempo · ${selectedWell.name}`}
       >
-        <SimpleLineChart
-          labelEvery={1}
-          maxValue={maxSeriesValue}
-          minValue={minSeriesValue}
-          mode="linear"
-          series={levelChartSeries}
-          unit="m"
-          xLabelAngle={-40}
-        />
+        <label className="well-chart-variable-selector">
+          <span>Variable del gráfico</span>
+          <select
+            value={selectedChartVariable}
+            onChange={(event) => setSelectedChartVariable(event.target.value as WellMeasurementVariable)}
+          >
+            {chartVariables.map((variable) => (
+              <option key={variable.value} value={variable.value}>{variable.label}</option>
+            ))}
+          </select>
+        </label>
+        {selectedChartSeries.length > 0 ? (
+          <SimpleLineChart
+            labelEvery={1}
+            maxValue={maxSeriesValue}
+            minValue={minSeriesValue}
+            mode="linear"
+            series={selectedChartSeries}
+            unit={chartVariable.unit}
+            xLabelAngle={-40}
+          />
+        ) : (
+          <p className="well-chart-no-data" role="status">
+            No hay mediciones de {chartVariable.label.toLocaleLowerCase("es-CL")} para este pozo.
+          </p>
+        )}
       </Panel>
     </div>
   );

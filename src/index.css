@@ -1293,6 +1293,36 @@ select:focus-visible {
   gap: 12px;
 }
 
+.registry-coordinate-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.registry-location-intro {
+  display: grid;
+  gap: 4px;
+}
+
+.registry-location-intro h5 {
+  margin: 0;
+  color: #4e5460;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.registry-location-intro p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.registry-geographic-fields {
+  display: grid;
+  gap: 10px;
+}
+
 .registry-map-card {
   display: flex;
   flex-direction: column;
@@ -1384,6 +1414,26 @@ select:focus-visible {
   gap: 12px;
   border-top: 1px solid var(--border);
   padding: 14px;
+}
+
+.registry-utm-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.registry-utm-fields h5 {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #4e5460;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+@media (max-width: 1180px) {
+  .registry-utm-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .registry-repeatable-fields {
@@ -2229,6 +2279,32 @@ select:focus-visible {
   color: #2f8152;
 }
 
+.well-chart-variable-selector {
+  display: grid;
+  gap: 6px;
+  width: min(100%, 260px);
+  margin: 14px 14px 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.well-chart-variable-selector select {
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  padding: 0 10px;
+  font: inherit;
+}
+
+.well-chart-no-data {
+  margin: 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .simple-chart {
   padding: 10px 14px 14px;
   background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
@@ -2544,7 +2620,8 @@ select:focus-visible {
 
   .snow-chart-summary,
   .detail-kpi-grid,
-  .manual-two-col {
+  .manual-two-col,
+  .registry-coordinate-row {
     grid-template-columns: 1fr;
   }
 

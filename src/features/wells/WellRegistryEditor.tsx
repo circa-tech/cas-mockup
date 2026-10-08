@@ -4,6 +4,7 @@ import { FormEvent, ReactNode, lazy, useState } from "react";
 import type { CasOrganization, WellRegistryEntry } from "../../services/wellsApi";
 import type { RemoteLoadStatus } from "../../types/remote";
 import type { WellRegistryFormState } from "./wellsView.types";
+import { geographicToUtm, parseUtmZone, utmToGeographic } from "./coordinateConversion";
 
 const StatusLeafletMap = lazy(() =>
   import("../../components/StatusLeafletMap").then((module) => ({
@@ -15,6 +16,9 @@ const emptyWaterRight = () => ({ anio: "", cbr: "", fojas: "", numero: "" });
 
 // Solo centra la vista inicial del mapa; nunca se copia al formulario ni al payload.
 const COPIAPO_MAP_CENTER: [number, number] = [-27.3668, -70.3323];
+const COPIAPO_UTM_ZONE = 19;
+const COPIAPO_UTM_HUSO = "19S";
+const COPIAPO_DATUM = "WGS84";
 
 const emptyOwnerContact = () => ({
   email: "",
@@ -43,7 +47,7 @@ const entryToForm = (entry: WellRegistryEntry): WellRegistryFormState => ({
   catchmentStatus: entry.catchmentStatus ?? "",
   centroControlRut: entry.centroControlRut ?? "",
   codigoObra: entry.codigoObra,
-  datum: entry.datum ?? "",
+  datum: COPIAPO_DATUM,
   fieldContactEmail: entry.fieldContactEmail ?? "",
   fieldContactPhone: entry.fieldContactPhone ?? "",
   fieldContactRepresentative: entry.fieldContactRepresentative ?? "",
@@ -52,7 +56,7 @@ const entryToForm = (entry: WellRegistryEntry): WellRegistryFormState => ({
   flowmeterInstallationDate: dateValue(entry.flowmeterInstallationDate),
   flowmeterModel: entry.flowmeterModel ?? "",
   habilitationDiameter: stringValue(entry.habilitationDiameter),
-  huso: entry.huso ?? "",
+  huso: COPIAPO_UTM_HUSO,
   lat: stringValue(entry.lat),
   levelProbeBrand: entry.levelProbeBrand ?? "",
   levelProbeDiameter: stringValue(entry.levelProbeDiameter),
@@ -127,6 +131,55 @@ export function WellRegistryEditor({
   const previewLat = Number.parseFloat(form.lat);
   const previewLng = Number.parseFloat(form.lng);
   const hasPreviewLocation = Number.isFinite(previewLat) && Number.isFinite(previewLng);
+  const handleGeographicCoordinateChange = (field: "lat" | "lng", value: string) => {
+    const nextLatitude = Number(field === "lat" ? value : form.lat);
+    const nextLongitude = Number(field === "lng" ? value : form.lng);
+    const converted = value.trim() && Number.isFinite(nextLatitude) && Number.isFinite(nextLongitude)
+      ? geographicToUtm(nextLatitude, nextLongitude, COPIAPO_UTM_ZONE)
+      : null;
+    const validCopiapoZone = converted?.hemisphere === "S";
+    onChange({
+      [field]: value,
+      ...(converted && validCopiapoZone
+        ? {
+            utmEasting: converted.easting.toFixed(2),
+            utmNorthing: converted.northing.toFixed(2),
+            huso: COPIAPO_UTM_HUSO,
+            datum: COPIAPO_DATUM,
+          }
+        : {
+            utmEasting: "",
+            utmNorthing: "",
+            huso: COPIAPO_UTM_HUSO,
+            datum: COPIAPO_DATUM,
+          }),
+    });
+  };
+  const handleUtmCoordinateChange = (
+    field: "utmEasting" | "utmNorthing",
+    value: string,
+  ) => {
+    const eastingValue = field === "utmEasting" ? value : form.utmEasting;
+    const northingValue = field === "utmNorthing" ? value : form.utmNorthing;
+    const zone = parseUtmZone(COPIAPO_UTM_HUSO);
+    const easting = Number(eastingValue);
+    const northing = Number(northingValue);
+    const coordinates =
+      eastingValue.trim() && northingValue.trim() && zone
+        ? utmToGeographic(easting, northing, zone.zone, zone.hemisphere)
+        : null;
+    onChange({
+      [field]: value,
+      ...(coordinates
+        ? {
+            lat: coordinates.latitude.toFixed(6),
+            lng: coordinates.longitude.toFixed(6),
+            huso: COPIAPO_UTM_HUSO,
+            datum: COPIAPO_DATUM,
+          }
+        : { lat: "", lng: "", huso: COPIAPO_UTM_HUSO, datum: COPIAPO_DATUM }),
+    });
+  };
   const workCodeError =
     status === "error" && message?.startsWith("Código de obra inválido")
       ? message
@@ -193,7 +246,7 @@ export function WellRegistryEditor({
 
             <div className="manual-two-col">
               <label>
-                <span>Código de obra DGA * (ej. OB-0101-11)</span>
+                <span>Código de obra DGA *</span>
                 <input
                   type="text"
                   value={form.codigoObra}
@@ -221,29 +274,78 @@ export function WellRegistryEditor({
               </label>
             </div>
 
-            <div className="manual-two-col">
-              <label>
-                <span>Latitud *</span>
-                <input
-                  type="number"
-                  step="0.000001"
-                  value={form.lat}
-                  placeholder="Latitud real del pozo"
-                  onChange={(event) => onChange({ lat: event.target.value })}
-                  required
-                />
-              </label>
-              <label>
-                <span>Longitud *</span>
-                <input
-                  type="number"
-                  step="0.000001"
-                  value={form.lng}
-                  placeholder="Longitud real del pozo"
-                  onChange={(event) => onChange({ lng: event.target.value })}
-                  required
-                />
-              </label>
+            <div className="registry-location-intro">
+              <h5>Ubicación</h5>
+              <p>Puedes ingresar las coordenadas en Latitud/Longitud o en UTM.</p>
+            </div>
+            <div className="registry-coordinate-row">
+              <div className="registry-geographic-fields manual-two-col">
+                <label>
+                  <span>Latitud *</span>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={form.lat}
+                    placeholder="Ej. -27.3668"
+                    onChange={(event) => handleGeographicCoordinateChange("lat", event.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  <span>Longitud *</span>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={form.lng}
+                    placeholder="Ej. -70.3323"
+                    onChange={(event) => handleGeographicCoordinateChange("lng", event.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+              <div className="registry-utm-fields" aria-labelledby="registry-utm-heading">
+                <h5 id="registry-utm-heading">Coordenadas UTM *</h5>
+                <label>
+                  <span>Este *</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.utmEasting}
+                    placeholder="368000.00"
+                    onChange={(event) => handleUtmCoordinateChange("utmEasting", event.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  <span>Norte *</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.utmNorthing}
+                    placeholder="6972000.00"
+                    onChange={(event) => handleUtmCoordinateChange("utmNorthing", event.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  <span>Huso</span>
+                  <input
+                    type="text"
+                    value={COPIAPO_UTM_HUSO}
+                    readOnly
+                  />
+                </label>
+                <label>
+                  <span>Datum</span>
+                  <input
+                    type="text"
+                    value={COPIAPO_DATUM}
+                    readOnly
+                  />
+                </label>
+              </div>
             </div>
           </section>
           <section className="registry-map-card" aria-labelledby="registry-map-heading">

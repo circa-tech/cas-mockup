@@ -1,5 +1,5 @@
 import type { LinePoint } from "../components/SimpleLineChart";
-import type { WellMapPoint } from "../data/mockupData";
+import type { WellMapPoint, WellMeasurementVariable } from "../data/mockupData";
 import { authQueryScope, queryClient } from "../lib/queryClient";
 import { toZonedDateTimeIso } from "../utils/date";
 import { throwApiError } from "./apiError";
@@ -568,6 +568,7 @@ const mapMeasurementsToWells = (measurements: WellMeasurement[]): WellMapPoint[]
       aquiferSector: latest.aquiferSector ?? "Sin sector",
       levelSeries: buildLevelSeries(sortedRows),
       levelSeriesBySource: buildLevelSeriesBySource(sortedRows),
+      measurementSeriesByVariable: buildMeasurementSeriesByVariable(sortedRows),
       status: "stale",
     };
   });
@@ -617,6 +618,38 @@ const buildLevelSeriesBySource = (
     ...(manual.length > 0 ? { manual } : {}),
     ...(telemetry.length > 0 ? { telemetry } : {}),
   };
+};
+
+const chartVariables: WellMeasurementVariable[] = [
+  "waterTableDepth", "flowRate", "pressure", "ph", "conductivity", "totalizer",
+];
+
+const buildMeasurementSeriesByVariable = (
+  measurements: WellMeasurement[],
+): NonNullable<WellMapPoint["measurementSeriesByVariable"]> => {
+  const result: NonNullable<WellMapPoint["measurementSeriesByVariable"]> = {};
+
+  for (const variable of chartVariables) {
+    const points = (source?: "manual" | "api") => measurements
+      .filter((measurement) =>
+        source === undefined || measurement.groundwaterMeasurement.source === source,
+      )
+      .flatMap((measurement) => {
+        const value = toNumber(measurement.groundwaterMeasurement[variable]);
+        return value === null
+          ? []
+          : [{ label: toChartLabel(measurement.groundwaterMeasurement), value }];
+      })
+      .slice(-18);
+
+    result[variable] = {
+      all: points(),
+      manual: points("manual"),
+      telemetry: points("api"),
+    };
+  }
+
+  return result;
 };
 
 const toMeasurementIso = (measurement: GroundwaterMeasurement) =>

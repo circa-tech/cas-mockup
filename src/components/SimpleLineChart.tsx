@@ -108,13 +108,13 @@ export function SimpleLineChart({
               tickFormatter={(value: number) => value.toFixed(1)}
               tickLine={false}
               width={46}
-              label={{
+              label={unit ? {
                 value: unit,
                 angle: -90,
                 position: "insideLeft",
                 dx: -5,
                 style: { fill: "hsl(215 14% 50%)", fontSize: 11 },
-              }}
+              } : undefined}
             />
             <Tooltip
               animationDuration={150}
@@ -126,7 +126,10 @@ export function SimpleLineChart({
                 fontSize: "12px",
               }}
               cursor={{ stroke: "hsl(215 38% 68%)", strokeDasharray: "3 3" }}
-              formatter={(value, name) => [`${Number(value ?? 0).toFixed(2)} ${unit}`, String(name)]}
+              formatter={(value, name) => [
+                `${Number(value ?? 0).toFixed(2)}${unit ? ` ${unit}` : ""}`,
+                String(name),
+              ]}
               labelStyle={{ color: "hsl(215 14% 40%)", fontWeight: 600 }}
             />
             <Legend
