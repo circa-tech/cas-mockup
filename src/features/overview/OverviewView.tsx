@@ -115,7 +115,9 @@ export function OverviewView({
           const meteoHasNoData = card.targetView === "meteo" && stations.length === 0;
           const meteoIsLoading = meteoHasNoData && meteoStatus === "loading";
           const chartLoading = card.targetView === "etr" ? etrStatus === "loading" : card.targetView === "snow" && snowStatus === "loading";
-          const cardStatusLabel = chartLoading ? "Cargando…" : freshnessLabelMap[card.status];
+          const loading = chartLoading || wellsIsLoading || meteoIsLoading;
+          const hasUpdate = Number.isFinite(Date.parse(card.lastUpdate));
+          const cardStatusLabel = loading ? "Cargando…" : hasUpdate ? freshnessLabelMap[card.status] : "Sin datos";
 
           const cardSecondaryKpi =
             card.targetView === "wells"
@@ -123,13 +125,13 @@ export function OverviewView({
                 ? "Cargando datos reales"
                 : wellsHasNoData
                   ? wellsErrorMessage ?? "Sin datos disponibles"
-                  : `${wells.length} pozos monitoreados`
+                  : wells.length === 1 ? "1 pozo monitoreado" : `${wells.length} pozos monitoreados`
               : card.targetView === "meteo"
                 ? meteoIsLoading
                   ? "Cargando datos reales"
                   : meteoHasNoData
                     ? meteoErrorMessage ?? "Sin datos disponibles"
-                    : `${stations.length} estaciones monitoreadas`
+                    : stations.length === 1 ? "1 estación monitoreada" : `${stations.length} estaciones monitoreadas`
                 : card.targetView === "etr" && etrErrorMessage
                   ? etrErrorMessage
                   : card.targetView === "snow" && snowErrorMessage
@@ -156,8 +158,8 @@ export function OverviewView({
               <div className="overview-card-header">
                 <h3>{card.title}</h3>
                 <span
-                  className={`status-pill ${freshnessClassMap[card.status]}`}
-                  title={freshnessTooltipMap[card.status]}
+                  className={`status-pill ${loading || !hasUpdate ? "is-neutral" : freshnessClassMap[card.status]}`}
+                  title={loading ? "Consultando las últimas mediciones." : hasUpdate ? freshnessTooltipMap[card.status] : "Aún no hay mediciones disponibles."}
                 >
                   {cardStatusLabel}
                 </span>
@@ -222,9 +224,9 @@ export function OverviewView({
                 </div>
               )}
               <small>
-                Última actualización: {card.targetView === "etr" || card.targetView === "snow"
+                {hasUpdate ? `Última actualización: ${card.targetView === "etr" || card.targetView === "snow"
                   ? formatDate(card.lastUpdate)
-                  : formatDateTimeLong(card.lastUpdate)}
+                  : formatDateTimeLong(card.lastUpdate)}` : loading ? "Consultando fecha de actualización…" : "Sin fecha de actualización disponible"}
               </small>
             </button>
           );

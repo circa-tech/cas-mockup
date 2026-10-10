@@ -243,3 +243,57 @@ test("missing climate data is reported as a partial copy", async ({ page, contex
   await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Disponibilidad sin conexión")).toContainText("Copia parcial");
 });
+
+test("summary loading states do not display demo dates or stale-data warnings", async ({ page, context }) => {
+  await mockServices(context, () => false);
+  let release!: () => void;
+  const pendingData = new Promise<void>((resolve) => { release = resolve; });
+  await context.route("**/api/v1/**", async (route) => {
+    await pendingData;
+    await route.fallback();
+  });
+  await signIn(page, false);
+  const cards = page.locator(".overview-card");
+  try {
+    await expect(cards).toHaveCount(4);
+    await expect(cards.locator(".status-pill.is-neutral")).toHaveText(Array(4).fill("Cargando…"));
+    await expect(cards.locator("small")).toHaveText(Array(4).fill("Consultando fecha de actualización…"));
+    await expect(page.getByLabel("Disponibilidad sin conexión")).toContainText("Preparando datos sin conexión");
+    await expect(page.getByLabel("Disponibilidad sin conexión")).not.toContainText("Copia parcial");
+    await page.screenshot({ path: "test-results/summary-loading.png", fullPage: true, animations: "disabled" });
+  } finally {
+    release();
+  }
+  await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toBeVisible();
+  await expect(cards.locator("small")).toHaveText(Array(4).fill(/Última actualización:.*2026/));
+  await expect(cards.last()).toContainText("23,0 °C promedio de 1 estación");
+  await expect(cards.last()).toContainText("1 estación monitoreada");
+});
+
+test("empty sector datasets are explained after preparation, online and offline", async ({ page, context }) => {
+  let offline = false;
+  await mockServices(context, () => offline);
+  await context.route("**/api/v1/et-lat/mapa-sectores", (route) => route.fulfill({
+    json: {
+      type: "FeatureCollection",
+      features: [
+        ...map(19, { sector_id: 19, nombre: "Sector guardado" }).features,
+        ...map(2, { sector_id: 2, nombre: "Sector sin mediciones" }).features,
+      ],
+    },
+  }));
+  await context.route(/\/api\/v1\/et-lat\/(serie-et|et-cult)\?sector_id=2$/, (route) => route.fulfill({ json: [] }));
+  await signIn(page);
+  offline = true;
+  await context.setOffline(true);
+  await page.getByRole("button", { name: "Evapotranspiración", exact: true }).click();
+  await page.locator(".etr-map path.leaflet-interactive").nth(1).dispatchEvent("click");
+  const emptyCharts = page.getByText("No hay mediciones para esta selección", { exact: true });
+  await expect(emptyCharts).toHaveCount(2);
+  await expect(page.locator(".data-state.is-error")).toHaveCount(0);
+  await page.screenshot({ path: "test-results/empty-sector-offline.png", fullPage: true, animations: "disabled" });
+  offline = false;
+  await context.setOffline(false);
+  await expect(page.getByText("Sin conexión · Solo lectura", { exact: true })).toHaveCount(0);
+  await expect(emptyCharts).toHaveCount(2);
+});
