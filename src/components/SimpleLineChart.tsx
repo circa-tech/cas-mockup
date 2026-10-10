@@ -8,6 +8,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { RemoteDataState } from "./RemoteDataState";
 
 export type LinePoint = {
   label: string;
@@ -67,6 +68,16 @@ export function SimpleLineChart({
   xLabelAngle = 0,
 }: SimpleLineChartProps) {
   const rows = buildRows(series);
+  if (!rows.length) {
+    return (
+      <RemoteDataState
+        className="is-chart"
+        tone="empty"
+        title="No hay mediciones para esta selección"
+        message="La última consulta no devolvió datos para el período seleccionado."
+      />
+    );
+  }
   const rowCount = rows.length;
   const hasRotatedLabels = xLabelAngle !== 0;
   const showXAxisTitle = !hasRotatedLabels && xAxisLabel.trim().length > 0;

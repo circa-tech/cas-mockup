@@ -8,6 +8,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { RemoteDataState } from "./RemoteDataState";
 
 type BarSeries = {
   color: string;
@@ -98,6 +99,16 @@ export function SimpleBarChart({
   xLabelAngle = 0,
 }: SimpleBarChartProps) {
   const rows = buildRows(groups);
+  if (!rows.length) {
+    return (
+      <RemoteDataState
+        className="is-chart"
+        tone="empty"
+        title="No hay mediciones para esta selección"
+        message="La última consulta no devolvió datos para el período seleccionado."
+      />
+    );
+  }
   const seriesLabels = getSeriesOrder(groups);
   const colors = getSeriesColors(groups);
   const hasRotatedLabels = xLabelAngle !== 0;

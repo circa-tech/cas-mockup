@@ -914,7 +914,7 @@ export const computeOverviewCards = ({
       title: "Clima",
       targetView: "meteo",
       primaryKpi: stationsMeanTemp !== null
-        ? `${stationsMeanTemp.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} °C promedio de ${temperatures.length} estaciones`
+        ? `${stationsMeanTemp.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} °C promedio de ${temperatures.length} ${temperatures.length === 1 ? "estación" : "estaciones"}`
         : "Temperatura promedio sin datos",
       secondaryKpi: `${stationsStale} sin reporte > 48 h`,
       status: hasMeteoData ? getNetworkStatus(stations) : "stale",

@@ -132,15 +132,14 @@ export function useDashboardData({
     return computeOverviewCards({
       etrLastDate: etrOverviewSummary.lastDate,
       etrLastUpdate: enabled
-        ? toSummaryUpdateIso(etrOverviewSummary.lastDate, etrLastUpdateIso)
+        ? toSummaryUpdateIso(etrOverviewSummary.lastDate, "")
         : etrLastUpdateIso,
       etrMeanValue: etrOverviewSummary.meanValue,
       meteoStatus,
       now,
-      snowLastUpdate:
-        enabled && latestSnowDate
-          ? toSummaryUpdateIso(latestSnowDate, snowLastUpdateIso)
-          : snowLastUpdateIso,
+      snowLastUpdate: enabled
+        ? latestSnowDate ? toSummaryUpdateIso(latestSnowDate, "") : ""
+        : snowLastUpdateIso,
       snowSeries: snowOverviewSeriesForSummary,
       stations,
       wells,
