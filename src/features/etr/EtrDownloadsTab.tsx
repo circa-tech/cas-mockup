@@ -1,3 +1,4 @@
+import { useOfflineState } from "../../offline/state";
 import { FormEvent, lazy, useEffect, useMemo, useState } from "react";
 import { Panel } from "../../components/Panel";
 import { RemoteDataState } from "../../components/RemoteDataState";
@@ -40,6 +41,8 @@ export function EtrDownloadsTab({
   authIdToken: string | null;
   isLoggedIn: boolean;
 }) {
+  const offline = useOfflineState();
+  const readOnly = !offline.online || offline.networkUnavailable || !authIdToken;
   const [selectedQuadrant, setSelectedQuadrant] = useState<EtrQuadrantSelection>(
     defaultEtrQuadrantSelection,
   );
@@ -73,7 +76,7 @@ export function EtrDownloadsTab({
       ),
     [selectedQuadrant.quadrantId, selectedVariable, selectedYear, selectedMonth],
   );
-  const enabled = isLoggedIn && Boolean(authIdToken);
+  const enabled = isLoggedIn;
   const quadrantMapQuery = useQuery({
     queryKey: queryKeys.etr.resource(authIdToken, "mapa-cuadrantes"),
     queryFn: () => fetchEtrQuadrantMap(authIdToken!),
@@ -105,7 +108,7 @@ export function EtrDownloadsTab({
         variable: selectedVariable,
         year: selectedYear,
       }),
-    enabled,
+    enabled: enabled && Boolean(yearsQuery.data?.anos.includes(selectedYear)),
     staleTime: 30 * 60 * 1000,
   });
   const daysQuery = useQuery({
@@ -122,7 +125,7 @@ export function EtrDownloadsTab({
         variable: selectedVariable,
         year: selectedYear,
       }),
-    enabled,
+    enabled: enabled && Boolean(monthsQuery.data?.meses.includes(selectedMonth)),
     staleTime: 30 * 60 * 1000,
   });
   const quadrantMapData = quadrantMapQuery.data ?? null;
@@ -133,12 +136,13 @@ export function EtrDownloadsTab({
     isError: boolean;
     isPending: boolean;
     isSuccess: boolean;
+    data?: unknown;
   }): RemoteLoadStatus =>
     !enabled
       ? "idle"
       : query.isPending
         ? "loading"
-        : query.isError
+        : query.isError && !query.data
           ? "error"
           : "ready";
   const quadrantMapStatus = queryStatus(quadrantMapQuery);
@@ -176,11 +180,12 @@ export function EtrDownloadsTab({
   const datesAreLoading =
     isLoggedIn &&
     !datesHaveError &&
-    (!authIdToken || dateStatuses.some((status) => status !== "ready"));
+    dateStatuses.some((status) => status !== "ready");
   const quadrantMapTone = quadrantMapStatus === "error" ? "error" : "loading";
 
   const handleFakeDownload = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (readOnly) return;
     setIsDownloading(true);
 
     const filename = buildEtrDownloadFilename({
@@ -378,7 +383,7 @@ export function EtrDownloadsTab({
                   </select>
                 </label>
 
-                <button type="submit" disabled={isDownloading}>
+                <button type="submit" disabled={readOnly || isDownloading}>
                   {isDownloading ? "Procesando..." : "Descargar"}
                 </button>
               </form>

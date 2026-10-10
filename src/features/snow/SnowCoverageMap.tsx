@@ -1,3 +1,4 @@
+import { BasemapLayers } from "../../components/BasemapLayers";
 import L from "leaflet";
 import { useEffect, useMemo } from "react";
 import {
@@ -6,7 +7,6 @@ import {
   MapContainer,
   Pane,
   Polygon,
-  TileLayer,
   Tooltip,
   useMap,
 } from "react-leaflet";
@@ -151,6 +151,7 @@ export function SnowCoverageMap({
   return (
     <div className="snow-coverage-map-shell">
       <MapContainer
+        zoomAnimation={false}
         bounds={fallbackBounds}
         className="snow-coverage-map"
         scrollWheelZoom={false}
@@ -158,18 +159,7 @@ export function SnowCoverageMap({
       >
         <ModifierWheelZoom />
         <LayersControl position="topright">
-          <LayersControl.BaseLayer name="OpenStreetMap">
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-          </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer checked name="Esri Satellite">
-            <TileLayer
-              attribution="Tiles &copy; Esri"
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-            />
-          </LayersControl.BaseLayer>
+          <BasemapLayers />
         </LayersControl>
 
         <FitSnowBounds bounds={viewportBounds} />

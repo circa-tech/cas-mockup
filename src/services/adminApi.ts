@@ -1,3 +1,4 @@
+import { apiFetch } from "../offline/apiFetch";
 export type AdminRole = {
   id: "general_admin" | "technical_admin" | "cas_user" | "public_user";
   label: string;
@@ -22,14 +23,14 @@ const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
 
 const requestAdmin = async <T>(
   path: string,
-  idToken: string,
+  idToken: string | null,
   options?: RequestInit,
 ): Promise<T> => {
   if (!apiBaseUrl) {
     throw new Error("Missing VITE_API_BASE_URL");
   }
 
-  const response = await fetch(`${apiBaseUrl}/api/v1/admin/${path}`, {
+  const response = await apiFetch(`${apiBaseUrl}/api/v1/admin/${path}`, {
     ...options,
     headers: {
       Authorization: `Bearer ${idToken}`,
@@ -54,17 +55,17 @@ const requestAdmin = async <T>(
   return response.json() as Promise<T>;
 };
 
-export const fetchAdminRoles = (idToken: string) =>
+export const fetchAdminRoles = (idToken: string | null) =>
   requestAdmin<AdminRole[]>("roles", idToken);
 
-export const fetchAdminUsers = (idToken: string) =>
+export const fetchAdminUsers = (idToken: string | null) =>
   requestAdmin<AdminUser[]>("users", idToken);
 
-export const fetchDailyActiveUsers = (idToken: string) =>
+export const fetchDailyActiveUsers = (idToken: string | null) =>
   requestAdmin<DailyActiveUsersResponse>("activity/daily", idToken);
 
 export const updateAdminUserRole = (
-  idToken: string,
+  idToken: string | null,
   uid: string,
   role: AdminRole["id"],
 ) =>

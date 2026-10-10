@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { queryClient } from "../lib/queryClient";
+import { clearSavedData, readSavedSession, saveSession } from "../offline/storage";
+import { getOfflineState, sessionScope, setOfflineSession, updateOfflineState } from "../offline/state";
 import {
   isFirebaseConfigured,
   signInWithEmailPassword,
@@ -26,7 +28,7 @@ const readStoredValue = (key: string, fallback: string) => {
 
 export function useAuthSession() {
   const [isLoggedIn, setIsLoggedIn] = useState(
-    () => readStoredValue(authStorageKey, "true") === "true",
+    () => !isFirebaseConfigured && readStoredValue(authStorageKey, "true") === "true",
   );
   const [authUserName, setAuthUserName] = useState(() =>
     readStoredValue(authUserStorageKey, defaultAuthUserName),
@@ -36,11 +38,37 @@ export function useAuthSession() {
   const [authRole, setAuthRole] = useState("public_user");
   const [authUid, setAuthUid] = useState<string | null>(null);
   const previousAuthUid = useRef<string | null>(null);
+  const transition = useRef(0);
+  const [authReady, setAuthReady] = useState(!isFirebaseConfigured);
 
-  const applySession = (session: AuthSession) => {
-    if (previousAuthUid.current && previousAuthUid.current !== session.uid) {
+  const applySession = async (session: AuthSession) => {
+    const revision = ++transition.current;
+    const credentialChanged = getOfflineState().session?.idToken !== session.idToken;
+    const saved = session.uid ? {
+      uid: session.uid, role: session.role, permissions: session.permissions,
+      userName: session.userName, verifiedAt: session.verifiedAt ?? Date.now(),
+    } : null;
+    const previous = session.uid ? await readSavedSession(session.uid).catch(() => undefined) : undefined;
+    if (revision !== transition.current) return;
+    const scopeChanged = getOfflineState().scope !== (saved ? sessionScope(saved) : "anonymous");
+    if (scopeChanged || !session.uid) {
+      setAuthReady(false);
+      setOfflineSession(null);
+      await queryClient.cancelQueries();
       queryClient.clear();
     }
+    if (revision !== transition.current) return;
+    if (!session.uid || (previousAuthUid.current && previousAuthUid.current !== session.uid) ||
+      (previous && saved && sessionScope(previous) !== sessionScope(saved))) {
+      await clearSavedData().catch(() => updateOfflineState({ storageError: true }));
+      try { window.localStorage.removeItem("cas_weather_stations_snapshot"); } catch { /* Legacy cache cleanup is best-effort. */ }
+    }
+    if (revision !== transition.current) return;
+    setOfflineSession(saved ? { ...saved, idToken: session.idToken } : null);
+    if (saved && session.idToken && navigator.onLine) {
+      await saveSession(saved).catch(() => updateOfflineState({ storageError: true }));
+    }
+    if (revision !== transition.current) return;
     previousAuthUid.current = session.uid;
     setIsLoggedIn(session.isLoggedIn);
     setAuthUserName(
@@ -50,13 +78,15 @@ export function useAuthSession() {
     setAuthPermissions(session.permissions);
     setAuthRole(session.role);
     setAuthUid(session.uid);
+    setAuthReady(true);
+    if (session.idToken && credentialChanged) void queryClient.invalidateQueries();
   };
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
       return undefined;
     }
-    return subscribeToAuthSession(applySession);
+    return subscribeToAuthSession((session) => { void applySession(session); });
   }, []);
 
   useEffect(() => {
@@ -73,7 +103,7 @@ export function useAuthSession() {
     applySession(await signInWithEmailPassword(email, password));
   const logout = async () => {
     await signOutFromGoogle();
-    applySession({
+    await applySession({
       idToken: null,
       isConfigured: isFirebaseConfigured,
       isLoggedIn: false,
@@ -87,6 +117,7 @@ export function useAuthSession() {
 
   return {
     authIdToken,
+    authReady,
     authPermissions,
     authRole,
     authUid,

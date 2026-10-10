@@ -1,3 +1,4 @@
+import { apiFetch } from "../offline/apiFetch";
 import type { LinePoint } from "../components/SimpleLineChart";
 import type { WellMapPoint, WellMeasurementVariable } from "../data/mockupData";
 import { authQueryScope, queryClient } from "../lib/queryClient";
@@ -194,12 +195,12 @@ export type WellsCapabilities = {
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
 
-export const fetchWellMapPoints = async (idToken: string): Promise<WellMapPoint[]> => {
+export const fetchWellMapPoints = async (idToken: string | null): Promise<WellMapPoint[]> => {
   if (!apiBaseUrl) {
     throw new Error("Missing VITE_API_BASE_URL");
   }
 
-  const response = await fetch(`${apiBaseUrl}/api/v1/wells/groundwater-measurements`, {
+  const response = await apiFetch(`${apiBaseUrl}/api/v1/wells/groundwater-measurements`, {
     headers: {
       Authorization: `Bearer ${idToken}`,
     },
@@ -209,28 +210,28 @@ export const fetchWellMapPoints = async (idToken: string): Promise<WellMapPoint[
 };
 
 export const fetchWellsAdminStatus = async (
-  idToken: string,
+  idToken: string | null,
 ): Promise<WellsCapabilities> => {
   const response = await requestWells("admin/me", idToken);
   return response.json() as Promise<WellsCapabilities>;
 };
 
 export const fetchWellRegistryEntries = async (
-  idToken: string,
+  idToken: string | null,
 ): Promise<WellRegistryEntry[]> => {
   const response = await requestWells("registry", idToken);
   return response.json() as Promise<WellRegistryEntry[]>;
 };
 
 export const fetchMyWellRegistryEntries = async (
-  idToken: string,
+  idToken: string | null,
 ): Promise<WellRegistryEntry[]> => {
   const response = await requestWells("registry/mine", idToken);
   return response.json() as Promise<WellRegistryEntry[]>;
 };
 
 export const createWellRegistryEntry = async (
-  idToken: string,
+  idToken: string | null,
   payload: CreateWellRegistryEntryPayload,
 ): Promise<WellRegistryEntry> => {
   const response = await requestWells("registry", idToken, {
@@ -242,7 +243,7 @@ export const createWellRegistryEntry = async (
 };
 
 export const updateWellRegistryEntry = async (
-  idToken: string,
+  idToken: string | null,
   wellId: string,
   payload: CreateWellRegistryEntryPayload,
 ): Promise<WellRegistryEntry> => {
@@ -255,7 +256,7 @@ export const updateWellRegistryEntry = async (
 };
 
 export const deleteWellRegistryEntry = async (
-  idToken: string,
+  idToken: string | null,
   wellId: string,
 ): Promise<void> => {
   await requestWells(`registry/${wellId}`, idToken, {
@@ -265,21 +266,21 @@ export const deleteWellRegistryEntry = async (
 };
 
 export const fetchCasOrganizations = async (
-  idToken: string,
+  idToken: string | null,
 ): Promise<CasOrganization[]> => {
   const response = await requestWells("cas", idToken);
   return response.json() as Promise<CasOrganization[]>;
 };
 
 export const fetchMyCasOrganizations = async (
-  idToken: string,
+  idToken: string | null,
 ): Promise<CasOrganization[]> => {
   const response = await requestWells("cas/mine", idToken);
   return response.json() as Promise<CasOrganization[]>;
 };
 
 export const createCasOrganization = async (
-  idToken: string,
+  idToken: string | null,
   payload: { code: string; name: string },
 ): Promise<CasOrganization> => {
   const response = await requestWells("cas", idToken, {
@@ -291,7 +292,7 @@ export const createCasOrganization = async (
 };
 
 export const updateCasOrganization = async (
-  idToken: string,
+  idToken: string | null,
   casId: string,
   payload: { code: string; name: string },
 ): Promise<CasOrganization> => {
@@ -304,7 +305,7 @@ export const updateCasOrganization = async (
 };
 
 export const deleteCasOrganization = async (
-  idToken: string,
+  idToken: string | null,
   casId: string,
 ): Promise<void> => {
   await requestWells(`cas/${casId}`, idToken, {
@@ -314,7 +315,7 @@ export const deleteCasOrganization = async (
 };
 
 export const fetchCasMemberships = async (
-  idToken: string,
+  idToken: string | null,
   casId: string,
 ): Promise<CasMembership[]> => {
   const response = await requestWells(`cas/${casId}/memberships`, idToken);
@@ -322,14 +323,14 @@ export const fetchCasMemberships = async (
 };
 
 export const fetchCasMembershipUsers = async (
-  idToken: string,
+  idToken: string | null,
 ): Promise<CasMembershipUser[]> => {
   const response = await requestWells("cas/users", idToken);
   return response.json() as Promise<CasMembershipUser[]>;
 };
 
 export const setCasMembership = async (
-  idToken: string,
+  idToken: string | null,
   casId: string,
   firebaseUid: string,
 ): Promise<CasMembership> => {
@@ -342,7 +343,7 @@ export const setCasMembership = async (
 };
 
 export const revokeCasMembership = async (
-  idToken: string,
+  idToken: string | null,
   casId: string,
   firebaseUid: string,
 ): Promise<void> => {
@@ -352,13 +353,13 @@ export const revokeCasMembership = async (
   await invalidateWells(idToken);
 };
 
-export const fetchWritableWellIds = async (idToken: string): Promise<string[]> => {
+export const fetchWritableWellIds = async (idToken: string | null): Promise<string[]> => {
   const response = await requestWells("registry/writable", idToken);
   return response.json() as Promise<string[]>;
 };
 
 export const fetchWellWriters = async (
-  idToken: string,
+  idToken: string | null,
   wellId: string,
 ): Promise<WellWriter[]> => {
   const response = await requestWells(`registry/${wellId}/writers`, idToken);
@@ -366,7 +367,7 @@ export const fetchWellWriters = async (
 };
 
 export const fetchWellWriterCandidates = async (
-  idToken: string,
+  idToken: string | null,
   wellId: string,
 ): Promise<CasMembershipUser[]> => {
   const response = await requestWells(`registry/${wellId}/writer-candidates`, idToken);
@@ -374,7 +375,7 @@ export const fetchWellWriterCandidates = async (
 };
 
 export const addWellWriter = async (
-  idToken: string,
+  idToken: string | null,
   wellId: string,
   firebaseUid: string,
 ): Promise<WellWriter> => {
@@ -386,7 +387,7 @@ export const addWellWriter = async (
 };
 
 export const revokeWellWriter = async (
-  idToken: string,
+  idToken: string | null,
   wellId: string,
   firebaseUid: string,
 ): Promise<void> => {
@@ -397,7 +398,7 @@ export const revokeWellWriter = async (
 };
 
 export const ingestWellMeasurement = async (
-  idToken: string,
+  idToken: string | null,
   payload: IngestWellMeasurementPayload,
 ): Promise<void> => {
   await requestWells("groundwater-measurements", idToken, {
@@ -413,7 +414,7 @@ export const ingestWellMeasurement = async (
 };
 
 export const ingestWellMeasurementsBatch = async (
-  idToken: string,
+  idToken: string | null,
   payloads: IngestWellMeasurementPayload[],
 ): Promise<{ insertedCount: number; skippedCount: number }> => {
   const response = await requestWells("groundwater-measurements/batch", idToken, {
@@ -433,7 +434,7 @@ export const ingestWellMeasurementsBatch = async (
   return response.json() as Promise<{ insertedCount: number; skippedCount: number }>;
 };
 
-const invalidateWells = (idToken: string) =>
+const invalidateWells = (idToken: string | null) =>
   queryClient.invalidateQueries({
     queryKey: ["wells", authQueryScope(idToken)],
   });
@@ -472,7 +473,7 @@ const toApiMeasurement = (payload: IngestWellMeasurementPayload) => ({
 
 const requestWells = async (
   path: string,
-  idToken: string,
+  idToken: string | null,
   init?: RequestInit,
 ): Promise<Response> => {
   if (!apiBaseUrl) {
@@ -485,7 +486,7 @@ const requestWells = async (
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(`${apiBaseUrl}/api/v1/wells/${path}`, {
+  const response = await apiFetch(`${apiBaseUrl}/api/v1/wells/${path}`, {
     ...init,
     headers,
   });

@@ -41,7 +41,7 @@ export function useDashboardData({
   now: Date;
   wells: WellMapPoint[];
 }) {
-  const enabled = hasAuthenticatedApiSession && Boolean(authIdToken);
+  const enabled = hasAuthenticatedApiSession;
   const [selectedStationId, setSelectedStationId] = useState(meteoStationPoints[0].id);
   const meteoQuery = useQuery({
     queryKey: queryKeys.meteo.snapshot(authIdToken),
@@ -81,10 +81,10 @@ export function useDashboardData({
     ? "idle"
     : meteoQuery.isPending
       ? "loading"
-      : meteoQuery.isError || stations.length === 0
+      : (meteoQuery.isError && !meteoQuery.data) || stations.length === 0
         ? "error"
         : "ready";
-  const meteoErrorMessage = meteoQuery.isError
+  const meteoErrorMessage = (meteoQuery.isError && !meteoQuery.data)
     ? toRemoteErrorMessage(meteoQuery.error, "No fue posible cargar datos reales de meteo.")
     : meteoQuery.isSuccess && stations.length === 0
       ? "La API respondió sin estaciones meteorológicas."

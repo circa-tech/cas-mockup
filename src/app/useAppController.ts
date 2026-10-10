@@ -3,6 +3,9 @@ import { mockNowIso, views, type ViewId } from "../data/mockupData";
 import { useWellsController } from "../features/wells/useWellsController";
 import { useAuthSession } from "./useAuthSession";
 import { useDashboardData } from "./useDashboardData";
+import { useOfflineState } from "../offline/state";
+import { useOfflinePreparation } from "../offline/prepare";
+import { isFirebaseConfigured } from "../services/firebaseAuth";
 
 export function useAppController() {
   const [activeView, setActiveView] = useState<ViewId>(() =>
@@ -16,9 +19,12 @@ export function useAppController() {
   }, [activeView]);
   const [appScreen, setAppScreen] = useState<"dashboard" | "login">("dashboard");
   const auth = useAuthSession();
-  const canManageUsers = auth.authPermissions.includes("users:manage");
+  const offline = useOfflineState();
+  const readOnly = !offline.online || offline.networkUnavailable || !auth.authIdToken;
+  const canManageUsers = auth.authPermissions.includes("users:manage") && !readOnly;
   const canDownloadEt = auth.authPermissions.includes("et:download");
-  const hasAuthenticatedApiSession = auth.isLoggedIn && Boolean(auth.authIdToken);
+  const hasAuthenticatedApiSession = auth.authReady && auth.isLoggedIn && Boolean(auth.authUid);
+  useOfflinePreparation(hasAuthenticatedApiSession);
   const canViewCommunity =
     hasAuthenticatedApiSession &&
     ["cas_user", "technical_admin", "general_admin"].includes(auth.authRole);
@@ -27,9 +33,9 @@ export function useAppController() {
       ? "overview"
       : activeView;
   const dashboardNow = useMemo(() => {
-    const timestamp = auth.authIdToken ? Date.now() : new Date(mockNowIso).getTime();
+    const timestamp = auth.authUid ? Date.now() : new Date(mockNowIso).getTime();
     return new Date(timestamp);
-  }, [auth.authIdToken]);
+  }, [auth.authUid]);
 
   const wells = useWellsController({
     authIdToken: auth.authIdToken,
@@ -100,6 +106,9 @@ export function useAppController() {
 
   return {
     activeView: visibleActiveView,
+    authReady: auth.authReady,
+    readOnly,
+    offlineAccessUnavailable: isFirebaseConfigured && !auth.isLoggedIn && !offline.online,
     appScreen,
     authIdToken: auth.authIdToken,
     authRole: auth.authRole,

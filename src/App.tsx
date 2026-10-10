@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { RemoteDataState } from "./components/RemoteDataState";
 import { useAppController } from "./app/useAppController";
+import { OfflineBanner } from "./components/OfflineBanner";
 
 const ForumView = lazy(() =>
   import("./features/forum/ForumView").then((module) => ({ default: module.ForumView })),
@@ -60,6 +61,8 @@ const navIconMap = {
 
 export default function App() {
   const app = useAppController();
+  if (!app.authReady) return <RemoteDataState className="route-loading-state" title="Restaurando sesión" message="Preparando los datos de este dispositivo." />;
+  if (app.offlineAccessUnavailable) return <RemoteDataState className="route-loading-state" title="Conéctate para iniciar sesión" message="Necesitas iniciar sesión con internet y guardar los datos antes de usar este dispositivo sin conexión." tone="error" />;
 
   if (app.appScreen === "login") {
     return (
@@ -148,6 +151,7 @@ export default function App() {
       </header>
 
       <main className="content-shell">
+        <OfflineBanner />
         <Suspense
           fallback={
             <RemoteDataState
@@ -191,11 +195,11 @@ export default function App() {
             <WellsView
               authIdToken={app.authIdToken}
               authUid={app.authUid}
-              canAddMeasurements={app.wellsCapabilities.canAddMeasurements}
-              canCreateWells={app.wellsCapabilities.canCreateWells}
-              canDeleteWells={app.wellsCapabilities.canDeleteWells}
-              canManageWells={app.wellsCapabilities.canManageWells}
-              canManageCas={app.wellsCapabilities.canManageCas}
+              canAddMeasurements={!app.readOnly && app.wellsCapabilities.canAddMeasurements}
+              canCreateWells={!app.readOnly && app.wellsCapabilities.canCreateWells}
+              canDeleteWells={!app.readOnly && app.wellsCapabilities.canDeleteWells}
+              canManageWells={!app.readOnly && app.wellsCapabilities.canManageWells}
+              canManageCas={!app.readOnly && app.wellsCapabilities.canManageCas}
               isLoggedIn={app.hasAuthenticatedApiSession}
               now={app.dashboardNow}
               onWellRegistryChange={app.handleWellRegistryChange}

@@ -1,3 +1,4 @@
+import { useOfflineState } from "../../offline/state";
 import { useConfirmationDialog } from "../../components/useConfirmationDialog";
 import { readForumLocation, writeForumLocation } from "./forumNavigation";
 import { useEffect, useRef, useState } from "react";
@@ -109,7 +110,7 @@ type Props = {
   onLogin: () => void;
 };
 export function ForumView(props: Props) {
-  if (!props.authIdToken || !props.authUid)
+  if (!props.authUid)
     return (
       <Panel
         title="Foro"
@@ -127,7 +128,9 @@ export function ForumView(props: Props) {
   return <AuthenticatedForum key={props.authUid} token={props.authIdToken} />;
 }
 
-function AuthenticatedForum({ token }: { token: string }) {
+function AuthenticatedForum({ token }: { token: string | null }) {
+  const offline = useOfflineState();
+  const readOnly = !offline.online || offline.networkUnavailable || !token;
   const client = useQueryClient();
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [initialLocation] = useState(() =>
@@ -327,14 +330,14 @@ function AuthenticatedForum({ token }: { token: string }) {
             <span>Conversaciones más recientes</span>
             <button
               className="forum-primary"
-              disabled={busy}
+              disabled={busy || readOnly}
               onClick={() => setCreating(!creating)}
             >
               <Plus size={15} />
               Nuevo tema
             </button>
           </div>
-          {creating && (
+          {creating && !readOnly && (
             <form
               className="forum-form"
               onSubmit={(e) => {
@@ -360,7 +363,7 @@ function AuthenticatedForum({ token }: { token: string }) {
                   required
                   maxLength={200}
                   value={title}
-                  disabled={busy}
+                  disabled={busy || readOnly}
                   onChange={(e) => setTitle(e.target.value)}
                 />
               </div>
@@ -372,20 +375,20 @@ function AuthenticatedForum({ token }: { token: string }) {
                   maxLength={10000}
                   rows={5}
                   value={body}
-                  disabled={busy}
+                  disabled={busy || readOnly}
                   onChange={(e) => setBody(e.target.value)}
                 />
               </div>
               <div className="forum-actions">
                 <button
                   className="forum-primary"
-                  disabled={busy || !title.trim() || !body.trim()}
+                  disabled={busy || readOnly || !title.trim() || !body.trim()}
                 >
                   Publicar tema
                 </button>
                 <button
                   type="button"
-                  disabled={busy}
+                  disabled={busy || readOnly}
                   onClick={() => setCreating(false)}
                 >
                   Cerrar formulario
@@ -481,7 +484,7 @@ function AuthenticatedForum({ token }: { token: string }) {
                 <div className="forum-actions">
                   {thread.data.can_edit && (
                     <button
-                      disabled={busy}
+                      disabled={busy || readOnly}
                       onClick={() => {
                         setEditingTitle(true);
                         setNextTitle(thread.data.title);
@@ -494,7 +497,7 @@ function AuthenticatedForum({ token }: { token: string }) {
                   {thread.data.can_delete && (
                     <button
                       className="forum-danger"
-                      disabled={busy}
+                      disabled={busy || readOnly}
                       onClick={async () => {
                         if (
                           !(await confirm({
@@ -547,20 +550,20 @@ function AuthenticatedForum({ token }: { token: string }) {
                         required
                         maxLength={200}
                         value={nextTitle}
-                        disabled={busy}
+                        disabled={busy || readOnly}
                         onChange={(e) => setNextTitle(e.target.value)}
                       />
                     </div>
                     <div className="forum-actions">
                       <button
                         className="forum-primary"
-                        disabled={busy || !nextTitle.trim()}
+                        disabled={busy || readOnly || !nextTitle.trim()}
                       >
                         Guardar título
                       </button>
                       <button
                         type="button"
-                        disabled={busy}
+                        disabled={busy || readOnly}
                         onClick={() => setEditingTitle(false)}
                       >
                         Cancelar
@@ -627,7 +630,7 @@ function AuthenticatedForum({ token }: { token: string }) {
                                       required
                                       rows={5}
                                       maxLength={10000}
-                                      disabled={busy}
+                                      disabled={busy || readOnly}
                                       value={editedBody}
                                       onChange={(e) =>
                                         setEditedBody(e.target.value)
@@ -637,13 +640,13 @@ function AuthenticatedForum({ token }: { token: string }) {
                                   <div className="forum-actions">
                                     <button
                                       className="forum-primary"
-                                      disabled={busy || !editedBody.trim()}
+                                      disabled={busy || readOnly || !editedBody.trim()}
                                     >
                                       Guardar cambios
                                     </button>
                                     <button
                                       type="button"
-                                      disabled={busy}
+                                      disabled={busy || readOnly}
                                       onClick={() => setEditingPost(null)}
                                     >
                                       Cancelar
@@ -657,7 +660,7 @@ function AuthenticatedForum({ token }: { token: string }) {
                                 {(["like", "dislike"] as const).map((value) => (
                                   <button
                                     key={value}
-                                    disabled={busy}
+                                    disabled={busy || readOnly}
                                     aria-pressed={p.my_reaction === value}
                                     aria-label={`${value === "like" ? "Me gusta" : "No me gusta"}: ${value === "like" ? p.likes : p.dislikes}`}
                                     onClick={() => {
@@ -684,7 +687,7 @@ function AuthenticatedForum({ token }: { token: string }) {
                                   </button>
                                 ))}
                                 <button
-                                  disabled={busy}
+                                  disabled={busy || readOnly}
                                   onClick={() => {
                                     setQuote({
                                       id: p.id,
@@ -700,7 +703,7 @@ function AuthenticatedForum({ token }: { token: string }) {
                                 </button>
                                 {p.can_edit && (
                                   <button
-                                    disabled={busy}
+                                    disabled={busy || readOnly}
                                     onClick={async () => {
                                       if (
                                         editingPost &&
@@ -725,7 +728,7 @@ function AuthenticatedForum({ token }: { token: string }) {
                                 {p.can_delete && (
                                   <button
                                     className="forum-danger"
-                                    disabled={busy}
+                                    disabled={busy || readOnly}
                                     onClick={async () => {
                                       if (
                                         !(await confirm({
@@ -799,7 +802,7 @@ function AuthenticatedForum({ token }: { token: string }) {
                       <QuoteBlock quote={quote} />
                       <button
                         type="button"
-                        disabled={busy}
+                        disabled={busy || readOnly}
                         onClick={() => setQuote(null)}
                       >
                         Quitar cita
@@ -814,7 +817,7 @@ function AuthenticatedForum({ token }: { token: string }) {
                       required
                       maxLength={10000}
                       rows={5}
-                      disabled={busy}
+                      disabled={busy || readOnly}
                       value={reply}
                       onChange={(e) => setReply(e.target.value)}
                     />
@@ -822,7 +825,7 @@ function AuthenticatedForum({ token }: { token: string }) {
                   <div>
                     <button
                       className="forum-primary"
-                      disabled={busy || !reply.trim()}
+                      disabled={busy || readOnly || !reply.trim()}
                     >
                       Publicar respuesta
                     </button>

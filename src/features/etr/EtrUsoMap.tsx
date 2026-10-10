@@ -1,5 +1,6 @@
+import { BasemapLayers } from "../../components/BasemapLayers";
 import { useEffect, useRef } from "react";
-import { GeoJSON, LayersControl, MapContainer, TileLayer, useMap } from "react-leaflet";
+import { GeoJSON, LayersControl, MapContainer, useMap } from "react-leaflet";
 import etrUsoGeoJson from "../../data/etrUsoGeoJson.json";
 import { chartPalette } from "../../data/mockupData";
 import {
@@ -142,6 +143,7 @@ export function EtrUsoMap({
     <div className="etr-map">
       <div className="etr-region-map-shell">
         <MapContainer
+        zoomAnimation={false}
           bounds={copiapoBounds}
           className="etr-region-map"
           preferCanvas
@@ -151,18 +153,7 @@ export function EtrUsoMap({
           <ModifierWheelZoom />
           <InitialUsoViewport features={etrUsoFeatures} selectedUsoId={selectedUsoId} />
           <LayersControl position="topright">
-            <LayersControl.BaseLayer name="OpenStreetMap">
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-            </LayersControl.BaseLayer>
-            <LayersControl.BaseLayer checked name="Esri Satellite">
-              <TileLayer
-                attribution="Tiles &copy; Esri"
-                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-              />
-            </LayersControl.BaseLayer>
+            <BasemapLayers />
           </LayersControl>
 
           <GeoJSON

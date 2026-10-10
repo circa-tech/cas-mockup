@@ -1,3 +1,4 @@
+import { apiFetch } from "../offline/apiFetch";
 import type { LineSeries } from "../components/SimpleLineChart";
 import { chartPalette } from "../data/mockupData";
 import { throwApiError } from "./apiError";
@@ -23,7 +24,7 @@ export type ModisSnowLatestImage = {
   bounds: ModisSnowImageBounds | null;
   crs: string | null;
   imageDate: string | null;
-  objectUrl: string;
+  blob: Blob;
 };
 
 export type ModisSnowBasinsGeoJson = {
@@ -62,13 +63,13 @@ const parseImageBounds = (rawBounds: string | null): ModisSnowImageBounds | null
 
 const requestModisSnow = async (
   path: string,
-  idToken: string,
+  idToken: string | null,
 ): Promise<Response> => {
   if (!apiBaseUrl) {
     throw new Error("Missing VITE_API_BASE_URL");
   }
 
-  const response = await fetch(`${apiBaseUrl}/api/v1/modis-snow/${path}`, {
+  const response = await apiFetch(`${apiBaseUrl}/api/v1/modis-snow/${path}`, {
     headers: {
       Authorization: `Bearer ${idToken}`,
     },
@@ -82,14 +83,14 @@ const requestModisSnow = async (
 };
 
 export const fetchModisSnowCoverageSeries = async (
-  idToken: string,
+  idToken: string | null,
 ): Promise<ModisSnowCoverageSeries> => {
   const response = await requestModisSnow("coverage-series", idToken);
   return response.json() as Promise<ModisSnowCoverageSeries>;
 };
 
 export const fetchModisSnowLatestImage = async (
-  idToken: string,
+  idToken: string | null,
 ): Promise<ModisSnowLatestImage> => {
   const response = await requestModisSnow("latest-image", idToken);
   const blob = await response.blob();
@@ -98,12 +99,12 @@ export const fetchModisSnowLatestImage = async (
     bounds: parseImageBounds(response.headers.get("X-Image-Bounds")),
     crs: response.headers.get("X-Image-CRS"),
     imageDate,
-    objectUrl: URL.createObjectURL(blob),
+    blob,
   };
 };
 
 export const fetchModisSnowBasinsGeoJson = async (
-  idToken: string,
+  idToken: string | null,
 ): Promise<ModisSnowBasinsGeoJson> => {
   const response = await requestModisSnow("basins-geojson", idToken);
   return response.json() as Promise<ModisSnowBasinsGeoJson>;

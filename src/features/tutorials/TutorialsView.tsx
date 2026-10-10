@@ -1,3 +1,5 @@
+import { useOfflineState } from "../../offline/state";
+
 const tutorials = [
   { id: "pRSS8XaQAzo", title: "Agua con dato - Intro" },
   { id: "JvCw5dVUXJk", title: "Agua con dato - Vista Admin" },
@@ -5,6 +7,7 @@ const tutorials = [
 ] as const;
 
 export function TutorialsView() {
+  const { online, networkUnavailable } = useOfflineState();
   return (
     <div className="view-stack tutorials-view">
       <div className="view-intro">
@@ -20,7 +23,7 @@ export function TutorialsView() {
               <h3>{tutorial.title}</h3>
             </div>
             <div className="tutorial-video-wrap">
-              <iframe
+              {online && !networkUnavailable ? <iframe
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen
                 className="tutorial-video"
@@ -28,7 +31,7 @@ export function TutorialsView() {
                 referrerPolicy="strict-origin-when-cross-origin"
                 src={`https://www.youtube-nocookie.com/embed/${tutorial.id}`}
                 title={`${tutorial.title} ${index + 1}`}
-              />
+              /> : <p className="offline-media-note">Conéctate a internet para reproducir este video.</p>}
             </div>
           </article>
         ))}
