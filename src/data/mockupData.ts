@@ -735,10 +735,10 @@ export type WellMapPoint = GeoPointBase & {
 };
 
 export type MeteoStationPoint = GeoPointBase & {
-  humidityValue: number;
-  pressureValue: number;
-  temperatureValue: number;
-  windValue: number;
+  humidityValue: number | null;
+  pressureValue: number | null;
+  temperatureValue: number | null;
+  windValue: number | null;
 };
 
 export type WaterQualityRecord = {
@@ -864,9 +864,8 @@ export const computeOverviewCards = ({
   const snowDelta = snowCurrent - snowPrevious;
   const hasMeteoData = stations.length > 0;
   const meteoIsLoading = meteoStatus === "loading";
-  const stationsMeanTemp = hasMeteoData
-    ? stations.reduce((total, station) => total + station.temperatureValue, 0) / stations.length
-    : 0;
+  const temperatures = stations.flatMap((station) => station.temperatureValue === null ? [] : [station.temperatureValue]);
+  const stationsMeanTemp = temperatures.length ? temperatures.reduce((sum, value) => sum + value, 0) / temperatures.length : null;
   const wellsOnTime = wells.filter((well) => well.status !== "stale").length;
   const wellsStale = wells.filter((well) => well.status === "stale").length;
   const stationsStale = hasMeteoData
@@ -914,8 +913,8 @@ export const computeOverviewCards = ({
       id: "overview-meteo",
       title: "Clima",
       targetView: "meteo",
-      primaryKpi: hasMeteoData
-        ? `${stationsMeanTemp.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} °C promedio de ${stations.length} estaciones`
+      primaryKpi: stationsMeanTemp !== null
+        ? `${stationsMeanTemp.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} °C promedio de ${temperatures.length} estaciones`
         : "Temperatura promedio sin datos",
       secondaryKpi: `${stationsStale} sin reporte > 48 h`,
       status: hasMeteoData ? getNetworkStatus(stations) : "stale",

@@ -15,11 +15,13 @@ type OverviewViewProps = {
   cards: OverviewCard[];
   etrErrorMessage: string | null;
   etrSeries: LineSeries[];
+  etrStatus: RemoteLoadStatus;
   meteoErrorMessage: string | null;
   meteoStatus: RemoteLoadStatus;
   onOpenView: (viewId: Exclude<ViewId, "overview">) => void;
   snowErrorMessage: string | null;
   snowSeries: LineSeries[];
+  snowStatus: RemoteLoadStatus;
   stations: MeteoStationPoint[];
   wellsErrorMessage: string | null;
   wellsStatus: RemoteLoadStatus;
@@ -48,11 +50,13 @@ export function OverviewView({
   cards,
   etrErrorMessage,
   etrSeries,
+  etrStatus,
   meteoErrorMessage,
   meteoStatus,
   onOpenView,
   snowErrorMessage,
   snowSeries,
+  snowStatus,
   stations,
   wellsErrorMessage,
   wellsStatus,
@@ -110,7 +114,8 @@ export function OverviewView({
           const wellsIsLoading = wellsHasNoData && wellsStatus === "loading";
           const meteoHasNoData = card.targetView === "meteo" && stations.length === 0;
           const meteoIsLoading = meteoHasNoData && meteoStatus === "loading";
-          const cardStatusLabel = freshnessLabelMap[card.status];
+          const chartLoading = card.targetView === "etr" ? etrStatus === "loading" : card.targetView === "snow" && snowStatus === "loading";
+          const cardStatusLabel = chartLoading ? "Cargando…" : freshnessLabelMap[card.status];
 
           const cardSecondaryKpi =
             card.targetView === "wells"
@@ -157,9 +162,9 @@ export function OverviewView({
                   {cardStatusLabel}
                 </span>
               </div>
-              <strong>{cardPrimaryKpi}</strong>
-              <p>{cardSecondaryKpi}</p>
-              {card.targetView === "etr" && (
+              <strong>{chartLoading ? "Cargando resumen…" : cardPrimaryKpi}</strong>
+              <p>{chartLoading ? "El gráfico aparecerá en cuanto lleguen los datos." : cardSecondaryKpi}</p>
+              {card.targetView === "etr" && (etrMiniLabels.length ? (
                 <OverviewMiniLine
                   labels={etrMiniLabels}
                   lines={etrMiniLines}
@@ -167,10 +172,10 @@ export function OverviewView({
                   showYAxisUnit
                   unit="mm/día"
                 />
-              )}
-              {card.targetView === "snow" && (
+              ) : <div className="overview-chart-placeholder">{chartLoading ? "Cargando gráfico…" : "Gráfico no disponible. Consulta el estado de la copia sin conexión."}</div>)}
+              {card.targetView === "snow" && (snowMiniLabels.length ? (
                 <OverviewMiniLine labels={snowMiniLabels} lines={snowMiniLines} unit="%" />
-              )}
+              ) : <div className="overview-chart-placeholder">{chartLoading ? "Cargando gráfico…" : "Gráfico no disponible. Consulta el estado de la copia sin conexión."}</div>)}
               {card.targetView === "wells" && (
                 <div className="overview-mini-table">
                   <div className="overview-mini-table-head">
@@ -207,8 +212,8 @@ export function OverviewView({
                   {meteoSnapshot.map((station) => (
                     <div key={station.id} className="overview-mini-table-row">
                       <span className="overview-mini-name">{station.name}</span>
-                      <span>{station.temperature.toFixed(1)}°C</span>
-                      <span>{station.humidity.toFixed(0)}%</span>
+                      <span>{station.temperature === null ? "Sin datos" : `${station.temperature.toFixed(1)}°C`}</span>
+                      <span>{station.humidity === null ? "Sin datos" : `${station.humidity.toFixed(0)}%`}</span>
                       <span className={`overview-mini-status ${station.status}`}>
                         {freshnessCompactLabelMap[station.status]}
                       </span>

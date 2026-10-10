@@ -1,0 +1,15 @@
+Copiapó regional basemap
+© OpenStreetMap contributors, Open Database License (ODbL) 1.0.
+https://www.openstreetmap.org/copyright
+https://opendatacommons.org/licenses/odbl/1-0/
+
+Source: Geofabrik Chile extract, 2026-10-09
+https://download.geofabrik.de/south-america/chile-261009.osm.pbf
+
+This OSM-derived GeoJSON database is distributed under ODbL 1.0.
+The downloadable database is provided alongside this notice as copiapo-basemap.geojson.
+Rebuild with scripts/build-offline-basemap.py. Coordinates are rounded to five
+decimal places and linework simplified by approximately five metres. Includes
+roads, rivers, water polygons, selected land use and settlements within
+71.15°W–68.85°W, 28.85°S–26.85°S. It is a regional reference map, not satellite
+imagery. Mapping coverage follows the source data and may be incomplete.

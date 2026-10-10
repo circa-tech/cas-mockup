@@ -1,16 +1,18 @@
 import { useEffect } from "react";
 import { apiFetch, canonicalUrl } from "./apiFetch";
 import { getOfflineState, updateOfflineState, useOfflineState } from "./state";
-import { listResponses, readResponse, OFFLINE_MAX_AGE } from "./storage";
+import { listResponses, readResponse } from "./storage";
+import { snapshotCompleteness } from "./completeness";
 import { queryClient } from "../lib/queryClient";
 
 const apiBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+const summaryPaths = ["weather-stations/snapshot", "et-lat/std-ae", "et-lat/serie-et", "modis-snow/coverage-series"];
 const corePaths = [
-  "weather-stations/snapshot",
-  "et-lat/std-ae", "et-lat/serie-et", "et-lat/et-cult", "et-lat/mapa-sectores",
+  ...summaryPaths,
+  "et-lat/et-cult", "et-lat/mapa-sectores",
   "et-lat/mapa-cult", "et-lat/mapa-cuadrantes",
   "et-lat/serie-et?sector_id=19", "et-lat/et-cult?sector_id=19",
-  "modis-snow/coverage-series", "modis-snow/basins-geojson", "modis-snow/latest-image",
+  "modis-snow/basins-geojson", "modis-snow/latest-image",
 ];
 let runRevision = 0;
 export function offlinePaths(role: string) {
@@ -28,30 +30,40 @@ export async function prepareOfflineData(refresh = false) {
   const { generation, scope } = initial;
   const revision = ++runRevision;
   const current = () => getOfflineState().generation === generation && revision === runRevision;
-  const paths = offlinePaths(initial.session.role);
+  const paths: string[] = [];
   let completed = 0;
   let cursor = 0;
   updateOfflineState({ preparing: initial.online && Boolean(initial.session.idToken), completed: 0, total: paths.length });
   const run = async () => {
     while (cursor < paths.length && current() && getOfflineState().online) {
       const path = paths[cursor++];
-      try {
-        const response = await apiFetch(`${apiBase}/api/v1/${path}`, { cache: refresh ? "reload" : "default" });
-        if (response.ok && current()) completed += 1;
-      } catch { /* Other datasets remain useful after a partial failure. */ }
+      // Retry a transient login-burst failure before discovering dependencies
+      // (not afterwards, which could incorrectly omit forum replies/maps).
+      for (let attempt = 0; attempt < 2 && current() && getOfflineState().online; attempt++) {
+        try {
+          const response = await apiFetch(`${apiBase}/api/v1/${path}`, { cache: refresh ? "reload" : "default" });
+          if (response.ok && current()) { completed += 1; break; }
+          if (response.status < 500) break;
+        } catch { /* One retry, then report the missing section. */ }
+      }
       if (current()) updateOfflineState({ completed });
     }
   };
-  const runPhase = async (extra: string[] = []) => {
+  const runPhase = async (extra: string[] = [], repair = false) => {
     paths.push(...extra.filter((path) => !paths.includes(path)));
     if (current()) updateOfflineState({ total: paths.length, requiredUrls: paths.map((path) => canonicalUrl(`${apiBase}/api/v1/${path}`)) });
     if (initial.online && initial.session?.idToken) await Promise.all([run(), run(), run()]);
+    // A successful raw download must also repair any failed foreground query.
+    // Reading its just-saved response avoids another network request.
+    if (current() && repair) await queryClient.refetchQueries({ type: "active", predicate: (query) => query.state.status === "error" }, { cancelRefetch: false });
   };
   const savedJson = async (path: string) => {
     const entry = await readResponse(scope, canonicalUrl(`${apiBase}/api/v1/${path}`)).catch(() => undefined);
     return entry ? new Response(entry.body).json().catch(() => undefined) : undefined;
   };
-  await runPhase();
+  await runPhase(summaryPaths, true);
+  if (!current()) return;
+  await runPhase(offlinePaths(initial.session.role));
   if (!current()) return;
   const [sectorMap, parcelMap, capabilities] = await Promise.all([
     savedJson("et-lat/mapa-sectores"), savedJson("et-lat/mapa-cult"),
@@ -86,16 +98,42 @@ export async function prepareOfflineData(refresh = false) {
     }
   }
   if (!current()) return;
-  // Read the committed entries, not request success, before reporting readiness.
-  // This also verifies the actual contents when restarting without connectivity.
+  // Follow forum pagination and save every downloaded topic's body/replies.
+  // Bound unusually large archives and disclose any remaining online-only pages.
+  const forumQueue = paths.filter((path) => path.startsWith("forum/"));
+  const discovered = new Set(forumQueue);
+  let forumTruncated = false;
+  for (let index = 0; index < forumQueue.length && current(); index++) {
+    const path = forumQueue[index];
+    const data = await savedJson(path);
+    const extra: string[] = [];
+    if (data?.items) {
+      const url = new URL(path, "https://offline.local/");
+      const page = Number(url.searchParams.get("page") ?? 1);
+      if (page * 20 < data.total) {
+        url.searchParams.set("page", String(page + 1));
+        extra.push(`${url.pathname.slice(1)}?${url.searchParams}`);
+      }
+      if (url.pathname === "/forum/threads") {
+        for (const thread of data.items) {
+          const id = encodeURIComponent(thread.id);
+          extra.push(`forum/threads/${id}`, `forum/threads/${id}/posts?page=1&page_size=20`);
+        }
+      }
+    }
+    const next = extra.filter((entry) => !discovered.has(entry));
+    const allowed = next.slice(0, Math.max(0, 300 - discovered.size));
+    if (next.length > allowed.length) forumTruncated = true;
+    allowed.forEach((entry) => { discovered.add(entry); forumQueue.push(entry); });
+    if (allowed.length) await runPhase(allowed);
+  }
+  if (!current()) return;
+  await queryClient.refetchQueries({ type: "active", predicate: (query) => query.state.status === "error" }, { cancelRefetch: false });
+  if (!current()) return;
+  // Read committed entries before reporting readiness, including offline restarts.
   try {
-    const saved = (await listResponses()).filter((entry) => entry.scope === scope && Date.now() - entry.savedAt < OFFLINE_MAX_AGE);
-    const requiredUrls = paths.map((path) => canonicalUrl(`${apiBase}/api/v1/${path}`));
-    const required = saved.filter((entry) => requiredUrls.includes(entry.url));
-    if (current()) updateOfflineState({
-      completed: required.length,
-      lastSync: required.length ? Math.min(...required.map((entry) => entry.savedAt)) : null,
-    });
+    const status = snapshotCompleteness(await listResponses(), scope, paths.map((path) => canonicalUrl(`${apiBase}/api/v1/${path}`)));
+    if (current()) updateOfflineState({ ...status, forumTruncated });
   } catch { if (current()) updateOfflineState({ storageError: true }); }
   finally { if (current()) updateOfflineState({ preparing: false }); }
 }
@@ -127,12 +165,8 @@ export function useOfflinePreparation(enabled: boolean) {
         const snapshot = getOfflineState();
         if (snapshot.preparing || !snapshot.requiredUrls.length) return;
         try {
-          const entries = (await listResponses()).filter((entry) =>
-            entry.scope === snapshot.scope && snapshot.requiredUrls.includes(entry.url) && Date.now() - entry.savedAt < OFFLINE_MAX_AGE);
-          if (getOfflineState().generation === snapshot.generation) updateOfflineState({
-            completed: entries.length,
-            lastSync: entries.length ? Math.min(...entries.map((entry) => entry.savedAt)) : null,
-          });
+          const status = snapshotCompleteness(await listResponses(), snapshot.scope, snapshot.requiredUrls);
+          if (getOfflineState().generation === snapshot.generation) updateOfflineState(status);
         } catch { updateOfflineState({ storageError: true }); }
       }, 300);
     };

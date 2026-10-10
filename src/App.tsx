@@ -165,11 +165,13 @@ export default function App() {
             <OverviewView
               cards={app.overviewCards}
               etrErrorMessage={app.etrErrorMessage}
+              etrStatus={app.etrStatus}
               etrSeries={app.etrOverviewSeries}
               meteoErrorMessage={app.meteoErrorMessage}
               meteoStatus={app.meteoStatus}
               onOpenView={app.handleOpenView}
               snowErrorMessage={app.snowErrorMessage}
+              snowStatus={app.snowStatus}
               snowSeries={app.snowOverviewSeriesForSummary}
               stations={app.stations}
               wellsErrorMessage={app.wellsErrorMessage}

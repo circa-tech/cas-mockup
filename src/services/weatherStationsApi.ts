@@ -22,15 +22,7 @@ type WeatherStationApiPoint = {
   windValue?: number | null;
 };
 
-type CompleteWeatherStationApiPoint = WeatherStationApiPoint & {
-  humidityValue: number;
-  lastUpdate: string;
-  pressureValue: number;
-  temperatureValue: number;
-  windValue: number;
-};
-
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+const apiBaseUrl = import.meta.env?.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
 
 export const fetchWeatherStationPoints = async (
   idToken: string | null,
@@ -48,49 +40,24 @@ export const fetchWeatherStationPoints = async (
   return mapSnapshotToStations(snapshot);
 };
 
-const requireNumber = (
-  value: number | null | undefined,
-  fieldName: string,
-  stationId: string,
-) => {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    throw new Error(`Weather station ${stationId} is missing ${fieldName}`);
-  }
+const finiteMetric = (value: number | null | undefined) =>
+  typeof value === "number" && Number.isFinite(value) ? value : null;
 
-  return value;
-};
-
-const hasCompleteStationData = (
-  station: WeatherStationApiPoint,
-): station is CompleteWeatherStationApiPoint =>
-  typeof station.lastUpdate === "string" &&
-  station.lastUpdate.trim().length > 0 &&
-  typeof station.temperatureValue === "number" &&
-  !Number.isNaN(station.temperatureValue) &&
-  typeof station.humidityValue === "number" &&
-  !Number.isNaN(station.humidityValue) &&
-  typeof station.windValue === "number" &&
-  !Number.isNaN(station.windValue) &&
-  typeof station.pressureValue === "number" &&
-  !Number.isNaN(station.pressureValue);
-
-const mapSnapshotToStations = (snapshot: WeatherStationSnapshot): MeteoStationPoint[] =>
+// One unavailable sensor must not hide the entire station (or climate tab).
+export const mapSnapshotToStations = (snapshot: WeatherStationSnapshot): MeteoStationPoint[] =>
   snapshot.stations.flatMap((station) => {
-    if (!hasCompleteStationData(station)) {
-      return [];
-    }
-
-    return {
+    if (!Number.isFinite(station.lat) || !Number.isFinite(station.lng)) return [];
+    return [{
       id: station.id,
       name: station.name,
       lat: station.lat,
       lng: station.lng,
-      lastUpdate: station.lastUpdate,
-      sourceType: "telemetry",
+      lastUpdate: station.lastUpdate || "Sin datos",
+      sourceType: "telemetry" as const,
       status: station.status ?? "stale",
-      temperatureValue: requireNumber(station.temperatureValue, "temperatureValue", station.id),
-      humidityValue: requireNumber(station.humidityValue, "humidityValue", station.id),
-      windValue: requireNumber(station.windValue, "windValue", station.id),
-      pressureValue: requireNumber(station.pressureValue, "pressureValue", station.id),
-    };
+      temperatureValue: finiteMetric(station.temperatureValue),
+      humidityValue: finiteMetric(station.humidityValue),
+      windValue: finiteMetric(station.windValue),
+      pressureValue: finiteMetric(station.pressureValue),
+    }];
   });

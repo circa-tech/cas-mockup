@@ -121,15 +121,13 @@ export function OverviewMiniLine({
             ]}
             labelFormatter={(label) => String(toOverviewMiniDateLabel(String(label)))}
           />
-          {lines.map((line, index) => (
+          {lines.map((line) => (
             <Line
               key={line.label}
               activeDot={{ r: 4 }}
-              animationBegin={index * 90}
-              animationDuration={620}
               dataKey={line.label}
               dot={{ r: 2 }}
-              isAnimationActive
+              isAnimationActive={false}
               stroke={line.color}
               strokeWidth={2.1}
               type="monotone"
