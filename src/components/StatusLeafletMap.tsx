@@ -1,10 +1,10 @@
+import { BasemapLayers } from "./BasemapLayers";
 import L from "leaflet";
 import { useEffect } from "react";
 import {
   LayersControl,
   MapContainer,
   Marker,
-  TileLayer,
   Tooltip,
   useMap,
 } from "react-leaflet";
@@ -145,6 +145,7 @@ export function StatusLeafletMap({
 
   return (
     <MapContainer
+        zoomAnimation={false}
       bounds={initialCenter ? undefined : copiapoBounds}
       center={initialCenter}
       className={`status-leaflet-map ${className ?? ""}`.trim()}
@@ -160,18 +161,7 @@ export function StatusLeafletMap({
         zoom={selectedPointZoom}
       />
       <LayersControl position="topright">
-        <LayersControl.BaseLayer name="OpenStreetMap">
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-        </LayersControl.BaseLayer>
-        <LayersControl.BaseLayer checked name="Esri Satellite">
-          <TileLayer
-            attribution="Tiles &copy; Esri"
-            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-          />
-        </LayersControl.BaseLayer>
+        <BasemapLayers />
       </LayersControl>
 
       {points.map((point) => {

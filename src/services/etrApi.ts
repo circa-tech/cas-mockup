@@ -1,3 +1,4 @@
+import { apiFetch } from "../offline/apiFetch";
 import { BarGroup } from "../components/SimpleBarChart";
 import { LineSeries } from "../components/SimpleLineChart";
 import { chartPalette, EtrDownloadFormat, EtrDownloadVariable } from "../data/mockupData";
@@ -55,7 +56,7 @@ const ETMAX_COLOR = chartPalette.chart4;
 
 const requestEtr = async <T>(
   path: string,
-  idToken: string,
+  idToken: string | null,
   params?: Record<string, string | number | undefined>,
 ): Promise<T> => {
   if (!apiBaseUrl) {
@@ -69,7 +70,7 @@ const requestEtr = async <T>(
   Object.entries(normalizedParams).forEach(([key, value]) => {
     url.searchParams.set(key, String(value));
   });
-  const response = await fetch(url, {
+  const response = await apiFetch(url, {
     headers: { Authorization: `Bearer ${idToken}` },
   });
   if (!response.ok) {
@@ -78,45 +79,45 @@ const requestEtr = async <T>(
   return response.json() as Promise<T>;
 };
 
-export const fetchEtrStdAe = (idToken: string) =>
+export const fetchEtrStdAe = (idToken: string | null) =>
   requestEtr<EtrStdAe>("std-ae", idToken);
 
-export const fetchEtrSerieEt = (idToken: string, sectorId?: string) =>
+export const fetchEtrSerieEt = (idToken: string | null, sectorId?: string) =>
   requestEtr<EtrSeriePoint[]>("serie-et", idToken, {
     sector_id: sectorId ? Number(sectorId) : undefined,
   });
 
-export const fetchEtrCult = (idToken: string, sectorId?: string) =>
+export const fetchEtrCult = (idToken: string | null, sectorId?: string) =>
   requestEtr<EtrCultPoint[]>("et-cult", idToken, {
     sector_id: sectorId ? Number(sectorId) : undefined,
   });
 
-export const fetchEtrSectorMap = (idToken: string) =>
+export const fetchEtrSectorMap = (idToken: string | null) =>
   requestEtr<GeoJsonFeatureCollection>("mapa-sectores", idToken);
 
-export const fetchEtrUsoMap = (idToken: string) =>
+export const fetchEtrUsoMap = (idToken: string | null) =>
   requestEtr<GeoJsonFeatureCollection>("mapa-cult", idToken);
 
-export const fetchEtrQuadrantMap = (idToken: string) =>
+export const fetchEtrQuadrantMap = (idToken: string | null) =>
   requestEtr<GeoJsonFeatureCollection>("mapa-cuadrantes", idToken);
 
-export const fetchEtrPoly = (idToken: string, usoId: string) =>
+export const fetchEtrPoly = (idToken: string | null, usoId: string) =>
   requestEtr<EtrPolyPoint[]>("et-poly", idToken, {
     uso_id: Number(usoId),
   });
 
-export const fetchKcPoly = (idToken: string, usoId: string) =>
+export const fetchKcPoly = (idToken: string | null, usoId: string) =>
   requestEtr<KcPolyPoint[]>("kc-poly", idToken, {
     uso_id: Number(usoId),
   });
 
-export const fetchLaiPoly = (idToken: string, usoId: string) =>
+export const fetchLaiPoly = (idToken: string | null, usoId: string) =>
   requestEtr<LaiPolyPoint[]>("lai-poly", idToken, {
     uso_id: Number(usoId),
   });
 
 export const fetchEtrDataCuad = (
-  idToken: string,
+  idToken: string | null,
   {
     quadrantId,
     variable,
@@ -137,7 +138,7 @@ export const fetchEtrDataCuad = (
   });
 
 export const fetchEtrDownCuad = (
-  idToken: string,
+  idToken: string | null,
   {
     day,
     month,
@@ -164,7 +165,7 @@ export const fetchEtrDownCuad = (
   });
 
 export const fetchEtrDownCuadImageBlob = async (
-  idToken: string,
+  idToken: string | null,
   {
     day,
     month,
@@ -193,7 +194,7 @@ export const fetchEtrDownCuadImageBlob = async (
   url.searchParams.set("dia", String(day));
   url.searchParams.set("format", format);
 
-  const response = await fetch(url, {
+  const response = await apiFetch(url, {
     headers: {
       Authorization: `Bearer ${idToken}`,
     },

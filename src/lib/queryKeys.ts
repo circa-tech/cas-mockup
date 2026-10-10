@@ -1,7 +1,7 @@
 import { authQueryScope } from "./queryClient";
 
 const scope = (idToken: string | null) =>
-  idToken ? authQueryScope(idToken) : "anonymous";
+  authQueryScope(idToken);
 
 export const queryKeys = {
   forum: {

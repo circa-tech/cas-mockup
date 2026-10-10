@@ -135,7 +135,7 @@ export function EtrSectorTab({
     () => etrRegions.find((region) => region.id === selectedSector.regionId) ?? etrRegions[0],
     [selectedSector.regionId],
   );
-  const enabled = isLoggedIn && Boolean(authIdToken);
+  const enabled = isLoggedIn;
   const overviewQuery = useQuery({
     queryKey: queryKeys.etr.resource(authIdToken, "sector-overview"),
     queryFn: async () => {
@@ -186,14 +186,14 @@ export function EtrSectorTab({
     ? "idle"
     : overviewQuery.isPending
       ? "loading"
-      : overviewQuery.isError
+      : (overviewQuery.isError && !overviewQuery.data)
         ? "error"
         : "ready";
   const selectedSectorStatus = !enabled
     ? "idle"
     : sectorQuery.isPending
       ? "loading"
-      : sectorQuery.isError
+      : (sectorQuery.isError && !sectorQuery.data)
         ? "error"
         : "ready";
   const stats = enabled ? (overviewQuery.data?.stats ?? etrLoadingStats) : etrStats;

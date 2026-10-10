@@ -209,7 +209,7 @@ export function EtrUsageTab({
     () => buildEtrUsoRecordFromSelection(selectedUso),
     [selectedUso],
   );
-  const enabled = isLoggedIn && Boolean(authIdToken);
+  const enabled = isLoggedIn;
   const mapQuery = useQuery({
     queryKey: queryKeys.etr.resource(authIdToken, "mapa-cult"),
     queryFn: () => fetchEtrUsoMap(authIdToken!),
@@ -255,14 +255,14 @@ export function EtrUsageTab({
     ? "idle"
     : mapQuery.isPending
       ? "loading"
-      : mapQuery.isError
+      : (mapQuery.isError && !mapQuery.data)
         ? "error"
         : "ready";
   const usageStatus = !enabled
     ? "idle"
     : usageQuery.isPending
       ? "loading"
-      : usageQuery.isError
+      : (usageQuery.isError && !usageQuery.data)
         ? "error"
         : "ready";
   const etrEtmaxDomain = useMemo(

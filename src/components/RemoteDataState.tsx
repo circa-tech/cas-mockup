@@ -1,5 +1,6 @@
 import { AlertTriangle, LoaderCircle } from "lucide-react";
 import type { ReactNode } from "react";
+import { useOfflineState } from "../offline/state";
 
 type RemoteDataStateProps = {
   className?: string;
@@ -16,6 +17,13 @@ export function RemoteDataState({
   title,
   tone = "loading",
 }: RemoteDataStateProps) {
+  const offline = useOfflineState();
+  const missingOfflineData = tone === "error" && Boolean(offline.session) &&
+    (!offline.online || offline.networkUnavailable || !offline.session?.idToken);
+  if (missingOfflineData) {
+    title = "Datos no disponibles sin conexión";
+    message = "Esta selección aún no se ha guardado. Vuelve a consultarla cuando tengas internet.";
+  }
   const Icon = tone === "loading" ? LoaderCircle : AlertTriangle;
   const stateClassName = [
     "data-state",

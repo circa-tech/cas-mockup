@@ -1,3 +1,4 @@
+import { apiFetch } from "../offline/apiFetch";
 import { MeteoStationPoint } from "../data/mockupData";
 import { throwApiError } from "./apiError";
 
@@ -29,34 +30,21 @@ type CompleteWeatherStationApiPoint = WeatherStationApiPoint & {
   windValue: number;
 };
 
-const snapshotCacheKey = "cas_weather_stations_snapshot";
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
 
-type CachedSnapshot = {
-  etag: string | null;
-  snapshot: WeatherStationSnapshot;
-};
-
 export const fetchWeatherStationPoints = async (
-  idToken: string,
+  idToken: string | null,
 ): Promise<MeteoStationPoint[]> => {
   if (!apiBaseUrl) {
     throw new Error("Missing VITE_API_BASE_URL");
   }
 
-  const cached = readCachedSnapshot();
   const headers = new Headers({ Authorization: `Bearer ${idToken}` });
-  if (cached?.etag) headers.set("If-None-Match", cached.etag);
-  const response = await fetch(`${apiBaseUrl}/api/v1/weather-stations/snapshot`, {
+  const response = await apiFetch(`${apiBaseUrl}/api/v1/weather-stations/snapshot`, {
     headers,
   });
-  if (response.status === 304 && cached) return mapSnapshotToStations(cached.snapshot);
   if (!response.ok) await throwApiError(response, "Weather station snapshot");
   const snapshot = (await response.json()) as WeatherStationSnapshot;
-  writeCachedSnapshot({
-    etag: response.headers.get("ETag") ?? snapshot.etag ?? null,
-    snapshot,
-  });
   return mapSnapshotToStations(snapshot);
 };
 
@@ -106,20 +94,3 @@ const mapSnapshotToStations = (snapshot: WeatherStationSnapshot): MeteoStationPo
       pressureValue: requireNumber(station.pressureValue, "pressureValue", station.id),
     };
   });
-
-const readCachedSnapshot = (): CachedSnapshot | null => {
-  try {
-    const raw = window.localStorage.getItem(snapshotCacheKey);
-    return raw ? (JSON.parse(raw) as CachedSnapshot) : null;
-  } catch {
-    return null;
-  }
-};
-
-const writeCachedSnapshot = (snapshot: CachedSnapshot) => {
-  try {
-    window.localStorage.setItem(snapshotCacheKey, JSON.stringify(snapshot));
-  } catch {
-    // Cache failures should not block the dashboard.
-  }
-};

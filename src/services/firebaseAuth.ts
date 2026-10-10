@@ -1,4 +1,5 @@
 import { initializeApp, getApps } from "firebase/app";
+import { readSavedSession } from "../offline/storage";
 import {
   getAuth,
   GoogleAuthProvider,
@@ -8,6 +9,7 @@ import {
   signOut,
   type Auth,
   type Unsubscribe,
+  type User,
 } from "firebase/auth";
 
 export type AuthSession = {
@@ -18,6 +20,7 @@ export type AuthSession = {
   role: string;
   uid: string | null;
   userName: string;
+  verifiedAt?: number;
 };
 
 const defaultAuthUserName = "Usuario CAS";
@@ -63,8 +66,9 @@ export const subscribeToAuthSession = (
     return () => undefined;
   }
 
-  let shouldForceInitialRefresh = true;
-  return onIdTokenChanged(auth, async (user) => {
+  let revision = 0;
+  const publishUser = async (user: User | null, forceRefresh = false) => {
+    const currentRevision = ++revision;
     if (!user) {
       onChange({
         idToken: null,
@@ -79,9 +83,15 @@ export const subscribeToAuthSession = (
     }
 
     try {
-      const forceRefresh = shouldForceInitialRefresh;
-      shouldForceInitialRefresh = false;
-      const tokenResult = await user.getIdTokenResult(forceRefresh);
+      // Firebase has restored this UID. Show its saved snapshot immediately
+      // while online revalidation runs, including on a flaky connection.
+      if (forceRefresh) {
+        const saved = await readSavedSession(user.uid).catch(() => undefined);
+        if (currentRevision !== revision) return;
+        if (saved) onChange({ ...saved, idToken: null, isConfigured: true, isLoggedIn: true });
+      }
+      const tokenResult = await user.getIdTokenResult(forceRefresh && navigator.onLine);
+      if (currentRevision !== revision) return;
 
       onChange({
         idToken: tokenResult.token,
@@ -91,8 +101,18 @@ export const subscribeToAuthSession = (
         role: normalizeRoleClaim(tokenResult.claims.role),
         uid: user.uid,
         userName: user.displayName || user.email || defaultAuthUserName,
+        verifiedAt: Date.now(),
       });
-    } catch {
+    } catch (error) {
+      if (currentRevision !== revision) return;
+      const code = (error as { code?: string })?.code;
+      const networkFailure = code === "auth/network-request-failed" || (!navigator.onLine && !code);
+      const saved = networkFailure ? await readSavedSession(user.uid).catch(() => undefined) : undefined;
+      if (currentRevision !== revision) return;
+      if (saved) {
+        onChange({ ...saved, idToken: null, isConfigured: true, isLoggedIn: true });
+        return;
+      }
       onChange({
         idToken: null,
         isConfigured: true,
@@ -103,7 +123,20 @@ export const subscribeToAuthSession = (
         userName: defaultAuthUserName,
       });
     }
+  };
+  let initial = true;
+  const unsubscribe = onIdTokenChanged(auth, (user) => {
+    const forceRefresh = initial;
+    initial = false;
+    void publishUser(user, forceRefresh);
   });
+  const refresh = () => { void publishUser(auth.currentUser, true); };
+  window.addEventListener("online", refresh);
+  return () => {
+    revision += 1;
+    unsubscribe();
+    window.removeEventListener("online", refresh);
+  };
 };
 
 export const signInWithGoogle = async (): Promise<AuthSession> => {

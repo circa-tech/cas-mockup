@@ -1,3 +1,4 @@
+import { apiFetch } from "../offline/apiFetch";
 export type ForumPage<T> = {
   items: T[];
   page: number;
@@ -47,14 +48,14 @@ export class ForumApiError extends Error {
 }
 const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
 export async function requestForum<T>(
-  token: string,
+  token: string | null,
   path: string,
   method = "GET",
   body?: unknown,
   signal?: AbortSignal,
 ): Promise<T> {
   if (!baseUrl) throw new Error("No se ha configurado la conexión al foro.");
-  const response = await fetch(`${baseUrl}/api/v1/forum/${path}`, {
+  const response = await apiFetch(`${baseUrl}/api/v1/forum/${path}`, {
     method,
     signal,
     headers: {

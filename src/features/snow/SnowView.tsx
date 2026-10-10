@@ -31,7 +31,7 @@ export function SnowView({
   isLoggedIn: boolean;
 }) {
   const [activeSnowTab, setActiveSnowTab] = useState<"coverage" | "balance">("coverage");
-  const enabled = isLoggedIn && Boolean(authIdToken);
+  const enabled = isLoggedIn;
   const coverageQuery = useQuery({
     queryKey: queryKeys.snow.coverage(authIdToken),
     queryFn: () => fetchModisSnowCoverageSeries(authIdToken!),
@@ -62,12 +62,19 @@ export function SnowView({
   const manflasSeries = enabled
     ? toModisSnowLineSeries(coverageQuery.data?.manflas ?? [])
     : snowManflasSeries;
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!imageQuery.data?.blob) { setImageUrl(null); return; }
+    const url = URL.createObjectURL(imageQuery.data.blob);
+    setImageUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [imageQuery.data?.blob]);
   const latestSnowImage = imageQuery.data
     ? {
         bounds: imageQuery.data.bounds,
         crs: imageQuery.data.crs,
         date: imageQuery.data.imageDate,
-        url: imageQuery.data.objectUrl,
+        url: imageUrl,
       }
     : { bounds: null, crs: null, date: null, url: null };
   const basinsGeoJson = basinsQuery.data ?? null;
@@ -101,20 +108,20 @@ export function SnowView({
     ? "idle"
     : imageQuery.isPending
       ? "loading"
-      : imageQuery.isError
+      : (imageQuery.isError && !imageQuery.data)
         ? "error"
         : "ready";
   const basinsStatus = !enabled
     ? "idle"
     : basinsQuery.isPending
       ? "loading"
-      : basinsQuery.isError
+      : (basinsQuery.isError && !basinsQuery.data)
         ? "error"
         : "ready";
-  const showSnowCharts = !isLoggedIn || coverageQuery.isSuccess;
-  const snowChartsTone = coverageQuery.isError ? "error" : "loading";
-  const imageTone = imageQuery.isError ? "error" : "loading";
-  const basinsTone = basinsQuery.isError ? "error" : "loading";
+  const showSnowCharts = !isLoggedIn || Boolean(coverageQuery.data);
+  const snowChartsTone = (coverageQuery.isError && !coverageQuery.data) ? "error" : "loading";
+  const imageTone = (imageQuery.isError && !imageQuery.data) ? "error" : "loading";
+  const basinsTone = (basinsQuery.isError && !basinsQuery.data) ? "error" : "loading";
 
   return (
     <div className="view-stack">

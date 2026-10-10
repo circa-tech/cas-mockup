@@ -304,13 +304,13 @@ export function useWellsController({
   const measurementsQuery = useQuery({
     queryKey: queryKeys.wells.measurements(authIdToken),
     queryFn: () => fetchWellMapPoints(authIdToken!),
-    enabled: hasAuthenticatedApiSession && Boolean(authIdToken),
+    enabled: hasAuthenticatedApiSession,
     staleTime: 2 * 60 * 1000,
   });
   const capabilitiesQuery = useQuery({
     queryKey: queryKeys.wells.capabilities(authIdToken),
     queryFn: () => fetchWellsAdminStatus(authIdToken!),
-    enabled: hasAuthenticatedApiSession && Boolean(authIdToken),
+    enabled: hasAuthenticatedApiSession,
     staleTime: 5 * 60 * 1000,
   });
   const wellsCapabilities = capabilitiesQuery.data ?? emptyCapabilities;
@@ -322,7 +322,6 @@ export function useWellsController({
         : fetchMyWellRegistryEntries(authIdToken!),
     enabled:
       hasAuthenticatedApiSession &&
-      Boolean(authIdToken) &&
       capabilitiesQuery.isSuccess,
     staleTime: 5 * 60 * 1000,
   });
@@ -334,10 +333,10 @@ export function useWellsController({
     ? "idle"
     : measurementsQuery.isPending
       ? "loading"
-      : measurementsQuery.isError || wellState.length === 0
+      : (measurementsQuery.isError && !measurementsQuery.data) || wellState.length === 0
         ? "error"
         : "ready";
-  const wellsErrorMessage = measurementsQuery.isError
+  const wellsErrorMessage = (measurementsQuery.isError && !measurementsQuery.data)
     ? toRemoteErrorMessage(
         measurementsQuery.error,
         "No fue posible cargar datos reales de pozos.",
@@ -365,7 +364,7 @@ export function useWellsController({
       setWellMeasurementCsvMessage(null);
       return;
     }
-    if (capabilitiesQuery.isError || registryQuery.isError) {
+    if ((capabilitiesQuery.isError && !capabilitiesQuery.data) || (registryQuery.isError && !registryQuery.data)) {
       setWellRegistryStatus("error");
       setWellRegistryMessage("No fue posible cargar permisos o registro de pozos.");
     } else if (capabilitiesQuery.isPending || registryQuery.isPending) {
@@ -375,10 +374,10 @@ export function useWellsController({
     }
   }, [
     authIdToken,
-    capabilitiesQuery.isError,
+    (capabilitiesQuery.isError && !capabilitiesQuery.data),
     capabilitiesQuery.isPending,
     hasAuthenticatedApiSession,
-    registryQuery.isError,
+    (registryQuery.isError && !registryQuery.data),
     registryQuery.isPending,
   ]);
 

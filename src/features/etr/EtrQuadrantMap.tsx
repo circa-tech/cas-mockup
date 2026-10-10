@@ -1,5 +1,6 @@
+import { BasemapLayers } from "../../components/BasemapLayers";
 import { useEffect, useMemo } from "react";
-import { GeoJSON, LayersControl, MapContainer, TileLayer, useMap } from "react-leaflet";
+import { GeoJSON, LayersControl, MapContainer, useMap } from "react-leaflet";
 import etrQuadrantsGeoJson from "../../data/etrQuadrantsGeoJson.json";
 import { chartPalette } from "../../data/mockupData";
 import { ModifierWheelZoom } from "../../components/ModifierWheelZoom";
@@ -136,6 +137,7 @@ export function EtrQuadrantMap({
     <div className="etr-map etr-quadrant-map">
       <div className="etr-region-map-shell">
         <MapContainer
+        zoomAnimation={false}
           bounds={copiapoBounds}
           className="etr-region-map"
           preferCanvas
@@ -145,18 +147,7 @@ export function EtrQuadrantMap({
           <ModifierWheelZoom />
           <QuadrantViewport bounds={selectedBounds} />
           <LayersControl position="topright">
-            <LayersControl.BaseLayer name="OpenStreetMap">
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-            </LayersControl.BaseLayer>
-            <LayersControl.BaseLayer checked name="Esri Satellite">
-              <TileLayer
-                attribution="Tiles &copy; Esri"
-                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-              />
-            </LayersControl.BaseLayer>
+            <BasemapLayers />
             <LayersControl.Overlay checked name="Zonas">
               <GeoJSON
                 key={geoJson === localEtrQuadrantsGeoJson ? "local-quadrants" : "remote-quadrants"}
