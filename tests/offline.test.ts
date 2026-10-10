@@ -5,6 +5,8 @@ import { apiFetch, canSaveResponse, OfflineDataUnavailableError } from "../src/o
 import { clearSavedData, listResponses, OFFLINE_MAX_AGE, readSavedSession, saveSession } from "../src/offline/storage.ts";
 import { getOfflineState, setOfflineSession, updateOfflineState } from "../src/offline/state.ts";
 import { queryClient, authQueryScope } from "../src/lib/queryClient.ts";
+import { snapshotCompleteness } from "../src/offline/completeness.ts";
+import { mapSnapshotToStations } from "../src/services/weatherStationsApi.ts";
 
 const url = "https://example.test/api/v1/weather-stations/snapshot";
 const session = { uid: "alice", userName: "Alice", role: "cas_user", permissions: ["wells:read"], verifiedAt: Date.now(), idToken: "first-token" };
@@ -158,4 +160,22 @@ test("user administration and generated files are excluded from persistence", ()
   for (const path of ["admin/users", "wells/cas-users", "wells/123/writers", "et-lat/down-cuad", "et-lat/down-cuad-image"]) {
     assert.equal(canSaveResponse(`https://example.test/api/v1/${path}`), false);
   }
+});
+
+test("incomplete copies identify missing sections and ignore another account's responses", async () => {
+  globalThis.fetch = async () => Response.json({ stations: [] });
+  await apiFetch(url);
+  const forum = "https://example.test/api/v1/forum/threads?page=1&page_size=20";
+  const status = snapshotCompleteness(await listResponses(), getOfflineState().scope, [url, forum]);
+  assert.equal(status.completed, 1);
+  assert.deepEqual(status.missingSections, ["Foro"]);
+  assert.deepEqual(snapshotCompleteness(await listResponses(), "another user", [url]).missingSections, ["Clima"]);
+});
+
+test("partial weather readings retain the station without fabricating missing measurements", () => {
+  const stations = mapSnapshotToStations({ generatedAt: "2026-10-10", stations: [{ id: "s1", name: "Copiapó", lat: -27.3, lng: -70.3, lastUpdate: "2026-10-09", temperatureValue: 23, humidityValue: 40, windValue: null }] });
+  assert.equal(stations.length, 1);
+  assert.equal(stations[0].temperatureValue, 23);
+  assert.equal(stations[0].windValue, null);
+  assert.equal(stations[0].pressureValue, null);
 });

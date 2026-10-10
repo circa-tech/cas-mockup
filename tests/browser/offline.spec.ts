@@ -2,6 +2,7 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 const uid = "offline-alice";
 const threadId = "b22f6858-e52a-4b33-91c7-8f0caf878682";
+const secondThreadId = "cdf4cfed-8a0a-473b-a5e3-f109f311e510";
 const token = () => {
   const now = Math.floor(Date.now() / 1000);
   return [
@@ -14,7 +15,8 @@ const map = (id: number, properties: Record<string, unknown>) => ({ type: "Featu
 const etSeries = [{ fecha: "2026-10-01", etr: 1.2, etmax: 2.4 }, { fecha: "2026-10-09", etr: 1.4, etmax: 2.6 }];
 const thread = { id: threadId, title: "Datos de terreno", author_name: "Alice", created_at: "2026-10-09T10:00:00Z", last_activity_at: "2026-10-09T10:00:00Z", reply_count: 0, can_edit: true, can_delete: true };
 
-async function mockServices(context: BrowserContext, isOffline: () => boolean) {
+async function mockServices(context: BrowserContext, isOffline: () => boolean, failFirstSummary = false, missingWeather = false) {
+  const attempted = new Set<string>();
   await context.route("https://**/*", async (route) => {
     if (isOffline()) return route.abort("internetdisconnected");
     const url = route.request().url();
@@ -35,8 +37,13 @@ async function mockServices(context: BrowserContext, isOffline: () => boolean) {
     const path = new URL(route.request().url()).pathname.replace("/api/v1/", "");
     expect(route.request().method()).toBe("GET");
     expect(route.request().headers().authorization).toContain("Bearer ");
+    if ((failFirstSummary && ["weather-stations/snapshot", "et-lat/serie-et"].includes(path) && !attempted.has(path)) || (missingWeather && path === "weather-stations/snapshot")) {
+      attempted.add(path);
+      return route.abort("failed");
+    }
+    const pageNumber = Number(new URL(route.request().url()).searchParams.get("page") ?? 1);
     let data: unknown;
-    if (path === "weather-stations/snapshot") data = { generatedAt: "2026-10-09", stations: [{ id: "station-1", name: "Estación guardada", lat: -27.3, lng: -70.5, lastUpdate: "2026-10-09T12:00:00Z", humidityValue: 41, pressureValue: 1010, temperatureValue: 23, windValue: 5 }] };
+    if (path === "weather-stations/snapshot") data = { generatedAt: "2026-10-09", stations: [{ id: "station-1", name: "Estación guardada", lat: -27.3, lng: -70.5, lastUpdate: "2026-10-09T12:00:00Z", humidityValue: 41, pressureValue: null, temperatureValue: 23, windValue: 5 }] };
     else if (path === "wells/groundwater-measurements") data = [{ wellId: "well-1", name: "Pozo guardado", lat: -27.3, lng: -70.5, groundwaterMeasurement: { measurementDate: "2026-10-09", measurementTime: "12:00:00", waterTableDepth: 22, flowRate: 3, source: "manual" } }];
     else if (path === "wells/admin/me") data = { canViewWells: true, canAddMeasurements: true, canManageCas: false, canCreateWells: true };
     else if (path.startsWith("wells/registry")) data = [];
@@ -54,21 +61,23 @@ async function mockServices(context: BrowserContext, isOffline: () => boolean) {
     else if (path === "modis-snow/basins-geojson") data = map(1, { name: "ae" });
     else if (path === "modis-snow/latest-image") {
       return route.fulfill({ contentType: "image/png", headers: { "X-Image-Date": "2026-10-09", "X-Image-CRS": "EPSG:4326", "X-Image-Bounds": '{"south":-28,"north":-27,"west":-71,"east":-69}' }, body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWoUAAAAASUVORK5CYII=", "base64") });
-    } else if (path === "forum/threads") data = { items: [thread], page: 1, page_size: 20, total: 1 };
+    } else if (path === "forum/threads") data = { items: pageNumber === 1 ? [thread] : [{ ...thread, id: secondThreadId, title: "Otro tema guardado" }], page: pageNumber, page_size: 20, total: 21 };
+    else if (path === `forum/threads/${secondThreadId}`) data = { ...thread, id: secondThreadId, title: "Otro tema guardado" };
+    else if (path === `forum/threads/${secondThreadId}/posts`) data = { items: [], page: 1, page_size: 20, total: 0 };
     else if (path === `forum/threads/${threadId}`) data = thread;
-    else if (path === `forum/threads/${threadId}/posts`) data = { items: [], page: 1, page_size: 20, total: 0 };
+    else if (path === `forum/threads/${threadId}/posts`) data = { items: [{ id: `post-${pageNumber}`, thread_id: threadId, author_name: "Alice", body: pageNumber === 1 ? "Medición guardada del terreno" : "Respuesta guardada de la segunda página", is_initial: pageNumber === 1, created_at: "2026-10-09T12:00:00Z", updated_at: null, deleted_at: null, quote: null, likes: 0, dislikes: 0, my_reaction: null, can_edit: false, can_delete: false }], page: pageNumber, page_size: 20, total: 21 };
     else throw new Error(`Unexpected request: ${path}`);
     return route.fulfill({ json: data });
   });
 }
 
-async function signIn(page: Page) {
+async function signIn(page: Page, waitForReady = true) {
   await page.goto("./");
   await page.getByRole("button", { name: "Iniciar sesión", exact: true }).click();
   await page.getByLabel("Correo electrónico").fill("alice@example.test");
   await page.getByLabel("Contraseña", { exact: true }).fill("offline-test-password");
   await page.getByRole("button", { name: "Ingresar", exact: true }).click();
-  await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toBeVisible({ timeout: 30_000 });
+  if (waitForReady) await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toBeVisible({ timeout: 30_000 });
 }
 
 test("prepared data and lazy tab assets survive an offline reload with an expired token", async ({ page, context }) => {
@@ -108,14 +117,25 @@ test("prepared data and lazy tab assets survive an offline reload with an expire
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByText("Sin conexión · Solo lectura", { exact: true })).toBeVisible();
+  await expect(page.locator(".overview-card").first().locator(".recharts-line-curve")).toHaveCount(2);
+  await expect(page.locator(".overview-card").last()).toContainText("23,0 °C");
   await page.getByRole("button", { name: "Clima", exact: true }).click();
   await expect(page.getByText("Estación guardada").first()).toBeVisible();
   await page.getByRole("button", { name: "Pozos", exact: true }).click();
   await expect(page.getByText("Pozo guardado").first()).toBeVisible();
+  await expect(page.locator(".leaflet-regional-basemap-pane canvas")).toBeVisible();
+  await expect.poll(() => page.locator(".leaflet-regional-basemap-pane canvas").evaluate((canvas: HTMLCanvasElement) => {
+    const pixels = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
+    let painted = 0;
+    for (let i = 3; i < pixels.length; i += 4) if (pixels[i] > 0) painted++;
+    return painted;
+  })).toBeGreaterThan(1000);
+  await expect(page.getByText("Copiapó", { exact: true }).first()).toBeVisible();
+  await page.screenshot({ path: "test-results/offline-wells.png", fullPage: true, animations: "disabled" });
   await expect(page.getByRole("tab", { name: "Agregar medición" })).toHaveCount(0);
   await page.getByRole("button", { name: "Evapotranspiración", exact: true }).click();
   await expect(page.getByText("1,4 mm/día", { exact: true })).toBeVisible();
-  await expect(page.getByText("Sin mapa base · Puedes explorar los datos guardados")).toBeVisible();
+  await expect(page.getByText("Mapa regional · Calles, ríos y localidades · Satélite requiere internet")).toBeVisible();
   await page.getByRole("tab", { name: "Por parcela", exact: true }).click();
   await expect(page.getByText("1.4 mm/día", { exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Descargar imágenes", exact: true }).click();
@@ -126,8 +146,19 @@ test("prepared data and lazy tab assets survive an offline reload with an expire
   await page.getByRole("button", { name: "Foro", exact: true }).click();
   await expect(page.getByRole("button", { name: "Nuevo tema" })).toBeDisabled();
   await page.getByRole("button", { name: "Datos de terreno" }).click();
-  await expect(page.getByText(/Estos datos aún no están disponibles sin conexión/).first()).toBeVisible();
-  await page.screenshot({ path: "test-results/offline-forum.png", fullPage: true });
+  await expect(page.getByText("Medición guardada del terreno", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Siguiente", exact: true }).first().click();
+  await expect(page.getByText("Respuesta guardada de la segunda página", { exact: true })).toBeVisible();
+  await page.screenshot({ path: "test-results/offline-forum.png", fullPage: true, animations: "disabled" });
+  await page.getByRole("button", { name: "Volver a los temas" }).click();
+  await page.getByRole("button", { name: "Siguiente", exact: true }).first().click();
+  await page.getByRole("button", { name: "Otro tema guardado" }).click();
+  await expect(page.getByRole("heading", { name: "Otro tema guardado" })).toBeVisible();
+  await page.getByRole("button", { name: "Ayuda", exact: true }).click();
+  await expect(page.getByText("Video no disponible sin conexión", { exact: true })).toHaveCount(3);
+  await expect(page.locator("iframe")).toHaveCount(0);
+  await page.screenshot({ path: "test-results/offline-videos.png", fullPage: true, animations: "disabled" });
+  await page.getByRole("button", { name: "Foro", exact: true }).click();
   expect(errors).toEqual([]);
   offline = false;
   await context.setOffline(false);
@@ -179,4 +210,36 @@ test("offline logout propagates to another tab and removes saved data", async ({
   await page.getByRole("button", { name: "Cerrar sesión" }).click();
   await expect(page.getByText("Conéctate para iniciar sesión", { exact: true })).toBeVisible();
   await expect(second.getByText("Conéctate para iniciar sesión", { exact: true })).toBeVisible({ timeout: 15_000 });
+});
+
+
+test("initial summary failures recover on the home page during preparation", async ({ page, context }) => {
+  let offline = false;
+  await mockServices(context, () => offline, true);
+  let release!: () => void;
+  const slowMap = new Promise<void>((resolve) => { release = resolve; });
+  await context.route("**/api/v1/et-lat/mapa-cult", async (route) => { await slowMap; await route.fallback(); });
+  await signIn(page, false);
+  await expect(page.locator(".overview-card").first().locator(".recharts-line-curve")).toHaveCount(2);
+  await expect(page.locator(".overview-card").last()).toContainText("23,0 °C");
+  await expect(page.locator(".overview-card").last()).toContainText("guardada");
+  await expect(page.getByLabel("Disponibilidad sin conexión")).toContainText("Preparando datos sin conexión");
+  await page.screenshot({ path: "test-results/summary-during-preparation.png", fullPage: true, animations: "disabled" });
+  release();
+  await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
+  offline = true;
+  await context.setOffline(true);
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+  await page.getByRole("button", { name: "Clima", exact: true }).click();
+  await expect(page.getByText("Estación guardada").first()).toBeVisible();
+  await expect(page.getByText("Presión Sin datos hPa")).toBeVisible();
+});
+
+test("missing climate data is reported as a partial copy", async ({ page, context }) => {
+  await mockServices(context, () => false, false, true);
+  await signIn(page, false);
+  await expect(page.getByLabel("Disponibilidad sin conexión")).toContainText("Falta guardar: Clima", { timeout: 30_000 });
+  await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Disponibilidad sin conexión")).toContainText("Copia parcial");
 });

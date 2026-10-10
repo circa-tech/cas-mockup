@@ -13,10 +13,13 @@ type OfflineState = {
   networkUnavailable: boolean;
   storageError: boolean;
   shellReady: boolean;
+  shellUpdateAvailable: boolean;
   preparing: boolean;
   completed: number;
   total: number;
   requiredUrls: string[];
+  missingSections: string[];
+  forumTruncated: boolean;
   lastSync: number | null;
 };
 let state: OfflineState = {
@@ -27,10 +30,13 @@ let state: OfflineState = {
   networkUnavailable: false,
   storageError: false,
   shellReady: false,
+  shellUpdateAvailable: false,
   preparing: false,
   completed: 0,
   total: 0,
   requiredUrls: [],
+  missingSections: [],
+  forumTruncated: false,
   lastSync: null,
 };
 const listeners = new Set<() => void>();
@@ -45,7 +51,7 @@ export function setOfflineSession(session: OfflineState["session"]) {
   updateOfflineState({
     session,
     scope,
-    ...(changed ? { generation: state.generation + 1, completed: 0, total: 0, requiredUrls: [], lastSync: null, preparing: false, storageError: false } : {}),
+    ...(changed ? { generation: state.generation + 1, completed: 0, total: 0, requiredUrls: [], missingSections: [], forumTruncated: false, lastSync: null, preparing: false, storageError: false } : {}),
   });
 }
 export function useOfflineState() {

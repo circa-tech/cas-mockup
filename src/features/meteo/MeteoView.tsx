@@ -17,16 +17,19 @@ type MeteoViewProps = {
   status: RemoteLoadStatus;
 };
 
-const formatOneDecimal = (value: number) =>
-  new Intl.NumberFormat("es-CL", {
+const formatOneDecimal = (value: number | null) =>
+  value === null ? "Sin datos" : new Intl.NumberFormat("es-CL", {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   }).format(value);
 
-const formatInteger = (value: number) =>
-  new Intl.NumberFormat("es-CL", { maximumFractionDigits: 0 }).format(value);
+const formatInteger = (value: number | null) =>
+  value === null ? "Sin datos" : new Intl.NumberFormat("es-CL", { maximumFractionDigits: 0 }).format(value);
 
 const getStationWeatherSummary = (station: MeteoStationPoint) => {
+  if (station.humidityValue === null || station.temperatureValue === null) {
+    return { icon: CloudSun, label: "Medición parcial", tone: "cloud" } as const;
+  }
   if (
     station.humidityValue >= 52 ||
     (station.temperatureValue <= 15.5 && station.humidityValue >= 47)

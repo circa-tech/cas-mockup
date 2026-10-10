@@ -90,30 +90,31 @@ export function useDashboardData({
       ? "La API respondió sin estaciones meteorológicas."
       : null;
 
+  const etrSummary = etrSummaryQuery.data ?? etrSeriesQuery.data?.at(-1);
   const etrOverviewSummary = enabled
-    ? etrSummaryQuery.data
+    ? etrSummary
       ? {
-          lastDate: etrSummaryQuery.data.fecha,
-          meanValue: etrSummaryQuery.data.etr ?? 0,
+          lastDate: etrSummary.fecha,
+          meanValue: etrSummary.etr ?? 0,
         }
       : { lastDate: "Sin datos", meanValue: 0 }
     : { lastDate: "2025-10-09", meanValue: 1.2 };
-  const etrOverviewSeries: LineSeries[] = enabled
+  const etrOverviewSeries: LineSeries[] = useMemo(() => enabled
     ? etrSeriesQuery.data
       ? toEtrEtmaxSeries(etrSeriesQuery.data)
       : []
-    : etrOverviewSeasonSeries;
-  const etrFailure = etrSummaryQuery.error ?? etrSeriesQuery.error;
+    : etrOverviewSeasonSeries, [enabled, etrSeriesQuery.data]);
+  const etrFailure = (!etrSummary && etrSummaryQuery.error) || (!etrSeriesQuery.data && etrSeriesQuery.error);
   const etrErrorMessage = etrFailure
     ? toRemoteErrorMessage(etrFailure, "No fue posible cargar ET-LAT.")
     : null;
 
-  const snowOverviewSeriesForSummary: LineSeries[] = enabled
+  const snowOverviewSeriesForSummary: LineSeries[] = useMemo(() => enabled
     ? snowQuery.data
       ? toModisSnowLineSeries(snowQuery.data.ae ?? [])
       : []
-    : snowOverviewSeries;
-  const snowErrorMessage = snowQuery.error
+    : snowOverviewSeries, [enabled, snowQuery.data]);
+  const snowErrorMessage = snowQuery.error && !snowQuery.data
     ? toRemoteErrorMessage(
         snowQuery.error,
         "No fue posible cargar datos reales de MODIS Snow.",
@@ -155,6 +156,8 @@ export function useDashboardData({
   ]);
 
   return {
+    etrStatus: (enabled && etrSeriesQuery.isPending ? "loading" : etrFailure ? "error" : "ready") as RemoteLoadStatus,
+    snowStatus: (enabled && snowQuery.isPending ? "loading" : snowErrorMessage ? "error" : "ready") as RemoteLoadStatus,
     etrErrorMessage,
     etrOverviewSeries,
     meteoErrorMessage,
