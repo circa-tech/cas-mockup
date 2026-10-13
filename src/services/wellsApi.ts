@@ -568,7 +568,6 @@ const mapMeasurementsToWells = (measurements: WellMeasurement[]): WellMapPoint[]
       provider: latest.provider ?? "Sin proveedor",
       aquiferSector: latest.aquiferSector ?? "Sin sector",
       levelSeries: buildLevelSeries(sortedRows),
-      levelSeriesBySource: buildLevelSeriesBySource(sortedRows),
       measurementSeriesByVariable: buildMeasurementSeriesByVariable(sortedRows),
       status: "stale",
     };
@@ -598,27 +597,12 @@ const buildLevelSeries = (measurements: WellMeasurement[]): LinePoint[] => {
 
     return {
       label: toChartLabel(measurement.groundwaterMeasurement),
+      timestamp: Date.parse(toMeasurementIso(measurement.groundwaterMeasurement)),
       value,
     };
   });
 
-  return points.slice(-18);
-};
-
-const buildLevelSeriesBySource = (
-  measurements: WellMeasurement[],
-): WellMapPoint["levelSeriesBySource"] => {
-  const manual = buildLevelSeries(
-    measurements.filter((measurement) => measurement.groundwaterMeasurement.source === "manual"),
-  );
-  const telemetry = buildLevelSeries(
-    measurements.filter((measurement) => measurement.groundwaterMeasurement.source === "api"),
-  );
-
-  return {
-    ...(manual.length > 0 ? { manual } : {}),
-    ...(telemetry.length > 0 ? { telemetry } : {}),
-  };
+  return points;
 };
 
 const chartVariables: WellMeasurementVariable[] = [
@@ -637,11 +621,22 @@ const buildMeasurementSeriesByVariable = (
       )
       .flatMap((measurement) => {
         const value = toNumber(measurement.groundwaterMeasurement[variable]);
+        const levelCondition = measurement.groundwaterMeasurement.waterLevelCondition;
         return value === null
           ? []
-          : [{ label: toChartLabel(measurement.groundwaterMeasurement), value }];
-      })
-      .slice(-18);
+          : [{
+              label: toChartLabel(measurement.groundwaterMeasurement),
+              timestamp: Date.parse(toMeasurementIso(measurement.groundwaterMeasurement)),
+              ...(variable === "waterTableDepth"
+                ? {
+                    condition: levelCondition === "static" || levelCondition === "dynamic"
+                      ? levelCondition
+                      : "unknown" as const,
+                  }
+                : {}),
+              value,
+            }];
+      });
 
     result[variable] = {
       all: points(),

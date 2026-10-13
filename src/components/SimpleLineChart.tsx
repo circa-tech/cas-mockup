@@ -7,18 +7,27 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  type DotItemDotProps,
 } from "recharts";
 import { RemoteDataState } from "./RemoteDataState";
 
 export type LinePoint = {
+  condition?: "static" | "dynamic" | "unknown";
   label: string;
+  timestamp?: number;
   value: number;
 };
 
 export type LineSeries = {
   color: string;
+  connectNulls?: boolean;
+  conditionPointColors?: Partial<Record<"static" | "dynamic" | "unknown", string>>;
   label: string;
+  markerShape?: "circle" | "square";
   points: LinePoint[];
+  strokeDasharray?: string;
+  unit?: string;
+  yAxisId?: "primary" | "secondary";
 };
 
 type SimpleLineChartProps = {
@@ -27,14 +36,18 @@ type SimpleLineChartProps = {
   maxValue: number;
   minValue: number;
   mode?: "linear" | "step";
+  primaryAxisLabel?: string;
   series: LineSeries[];
+  secondaryMaxValue?: number;
+  secondaryMinValue?: number;
   unit: string;
   xLabelAngle?: number;
 };
 
 type ChartRow = {
   label: string;
-  [key: string]: number | string;
+  timestamp?: number;
+  [key: string]: number | string | undefined;
 };
 
 const buildRows = (series: LineSeries[]): ChartRow[] => {
@@ -42,19 +55,30 @@ const buildRows = (series: LineSeries[]): ChartRow[] => {
     return [];
   }
 
-  const labels = [...new Set(series.flatMap((item) => item.points.map((point) => point.label)))];
-
-  return labels.map((label) => {
-    const row: ChartRow = { label };
-    series.forEach((item) => {
-      const point = item.points.find((candidate) => candidate.label === label);
-      if (point) {
-        row[item.label] = point.value;
+  const rowsByKey = new Map<string, ChartRow>();
+  const insertionOrder = new Map<string, number>();
+  series.forEach((item) => {
+    item.points.forEach((point) => {
+      const key = point.timestamp === undefined ? `label:${point.label}` : `time:${point.timestamp}`;
+      let row = rowsByKey.get(key);
+      if (!row) {
+        row = { label: point.label, ...(point.timestamp === undefined ? {} : { timestamp: point.timestamp }) };
+        rowsByKey.set(key, row);
+        insertionOrder.set(key, insertionOrder.size);
       }
+      row[item.label] = point.value;
+      if (point.condition) row[`${item.label}__condition`] = point.condition;
     });
-
-    return row;
   });
+
+  return [...rowsByKey.entries()]
+    .sort(([leftKey, left], [rightKey, right]) => {
+      if (left.timestamp !== undefined && right.timestamp !== undefined) {
+        return left.timestamp - right.timestamp;
+      }
+      return (insertionOrder.get(leftKey) ?? 0) - (insertionOrder.get(rightKey) ?? 0);
+    })
+    .map(([, row]) => row);
 };
 
 export function SimpleLineChart({
@@ -63,7 +87,10 @@ export function SimpleLineChart({
   maxValue,
   minValue,
   mode = "linear",
+  primaryAxisLabel,
   series,
+  secondaryMaxValue,
+  secondaryMinValue,
   unit,
   xLabelAngle = 0,
 }: SimpleLineChartProps) {
@@ -81,12 +108,13 @@ export function SimpleLineChart({
   const rowCount = rows.length;
   const hasRotatedLabels = xLabelAngle !== 0;
   const showXAxisTitle = !hasRotatedLabels && xAxisLabel.trim().length > 0;
+  const hasSecondaryAxis = series.some((item) => item.yAxisId === "secondary");
 
   return (
     <div className="simple-chart">
       <div className="simple-chart-recharts-shell">
         <ResponsiveContainer height={338} width="100%">
-          <LineChart data={rows} margin={{ bottom: hasRotatedLabels ? 18 : 22, left: 8, right: 8, top: 12 }}>
+          <LineChart data={rows} margin={{ bottom: hasRotatedLabels ? 18 : 22, left: 8, right: hasSecondaryAxis ? 18 : 8, top: 12 }}>
             <CartesianGrid stroke="hsl(210 18% 89%)" strokeDasharray="3 3" vertical={false} />
             <XAxis
               angle={xLabelAngle}
@@ -113,20 +141,33 @@ export function SimpleLineChart({
               }
             />
             <YAxis
+              yAxisId="primary"
               axisLine={{ stroke: "hsl(210 18% 84%)" }}
               domain={[minValue, maxValue]}
               tick={{ fill: "hsl(215 14% 50%)", fontSize: 11 }}
               tickFormatter={(value: number) => value.toFixed(1)}
               tickLine={false}
               width={46}
-              label={unit ? {
-                value: unit,
+              label={primaryAxisLabel || unit ? {
+                value: primaryAxisLabel ?? unit,
                 angle: -90,
                 position: "insideLeft",
                 dx: -5,
                 style: { fill: "hsl(215 14% 50%)", fontSize: 11 },
               } : undefined}
             />
+            {hasSecondaryAxis && (
+              <YAxis
+                yAxisId="secondary"
+                orientation="right"
+                axisLine={{ stroke: "hsl(210 18% 84%)" }}
+                domain={[secondaryMinValue ?? minValue, secondaryMaxValue ?? maxValue]}
+                tick={{ fill: "hsl(215 14% 50%)", fontSize: 11 }}
+                tickFormatter={(value: number) => value.toFixed(1)}
+                tickLine={false}
+                width={54}
+              />
+            )}
             <Tooltip
               animationDuration={150}
               contentStyle={{
@@ -137,10 +178,13 @@ export function SimpleLineChart({
                 fontSize: "12px",
               }}
               cursor={{ stroke: "hsl(215 38% 68%)", strokeDasharray: "3 3" }}
-              formatter={(value, name) => [
-                `${Number(value ?? 0).toFixed(2)}${unit ? ` ${unit}` : ""}`,
-                String(name),
-              ]}
+              formatter={(value, name) => {
+                const seriesUnit = series.find((item) => item.label === String(name))?.unit ?? unit;
+                return [
+                  `${Number(value ?? 0).toFixed(2)}${seriesUnit ? ` ${seriesUnit}` : ""}`,
+                  String(name),
+                ];
+              }}
               labelStyle={{ color: "hsl(215 14% 40%)", fontWeight: 600 }}
             />
             <Legend
@@ -153,14 +197,51 @@ export function SimpleLineChart({
             {series.map((item, index) => (
               <Line
                 key={item.label}
+                yAxisId={item.yAxisId ?? "primary"}
                 activeDot={{ r: 4 }}
                 animationBegin={index * 120}
                 animationDuration={780}
+                connectNulls={item.connectNulls ?? false}
                 dataKey={item.label}
-                dot={{ r: 2 }}
+                dot={item.conditionPointColors
+                  ? (dotProps: DotItemDotProps) => {
+                      if (typeof dotProps.cx !== "number" || typeof dotProps.cy !== "number") {
+                        return null;
+                      }
+                      const conditionKey = typeof dotProps.dataKey === "string"
+                        ? `${dotProps.dataKey}__condition`
+                        : "";
+                      const conditionValue: unknown = conditionKey
+                        ? dotProps.payload?.[conditionKey]
+                        : undefined;
+                      const condition = conditionValue === "static" || conditionValue === "dynamic"
+                        ? conditionValue
+                        : "unknown";
+                      const fill = item.conditionPointColors?.[condition] ?? item.color;
+                      return item.markerShape === "square"
+                        ? <rect
+                            height={7}
+                            width={7}
+                            x={dotProps.cx - 3.5}
+                            y={dotProps.cy - 3.5}
+                            fill={fill}
+                            stroke={item.color}
+                            strokeWidth={1.5}
+                          />
+                        : <circle
+                            cx={dotProps.cx}
+                            cy={dotProps.cy}
+                            r={3.5}
+                            fill={fill}
+                            stroke={item.color}
+                            strokeWidth={1.5}
+                          />;
+                    }
+                  : { r: 2 }}
                 isAnimationActive
                 name={item.label}
                 stroke={item.color}
+                strokeDasharray={item.strokeDasharray}
                 strokeWidth={2.2}
                 type={mode === "step" ? "stepAfter" : "monotone"}
               />

@@ -59,6 +59,30 @@ const chartVariables: { value: WellMeasurementVariable; label: string; unit: str
   { value: "totalizer", label: "Totalizador", unit: "" },
 ];
 
+const secondaryChartVariables = chartVariables.filter(
+  (variable) => variable.value !== "waterTableDepth",
+);
+const chartVariableColor: Record<WellMeasurementVariable, string> = {
+  waterTableDepth: chartPalette.chart1,
+  flowRate: chartPalette.chart2,
+  pressure: chartPalette.chart4,
+  ph: chartPalette.chart5,
+  conductivity: chartPalette.chart6,
+  totalizer: chartPalette.chart8,
+};
+
+type LevelCondition = NonNullable<LinePoint["condition"]>;
+type MeasurementSource = "api" | "manual";
+const measurementSourceOptions: { value: MeasurementSource; label: string }[] = [
+  { value: "api", label: "Medición API" },
+  { value: "manual", label: "Medición manual" },
+];
+const levelConditionOptions: { value: LevelCondition; label: string; color: string }[] = [
+  { value: "static", label: "Nivel estático", color: chartPalette.chart5 },
+  { value: "dynamic", label: "Nivel dinámico", color: chartPalette.chart3 },
+  { value: "unknown", label: "Sin clasificar", color: chartPalette.chart7 },
+];
+
 const formatMeters = (value: number) =>
   `${new Intl.NumberFormat("es-CL", {
     minimumFractionDigits: 2,
@@ -93,54 +117,69 @@ const formatSeriesPeriod = (points: LinePoint[]) => {
   return `Variación en el período (${range})`;
 };
 
-const toLevelChartSeries = (well: WellMapPoint): LineSeries[] => {
-  const manualSeries = well.levelSeriesBySource?.manual ?? [];
-  const telemetrySeries = well.levelSeriesBySource?.telemetry ?? [];
-  const separatedSeries = [
-    ...(manualSeries.length > 0
-      ? [{ label: "Medición manual", color: chartPalette.chart5, points: manualSeries }]
-      : []),
-    ...(telemetrySeries.length > 0
-      ? [{
-          label: "Telemetría (automática)",
-          color: chartPalette.chart6,
-          points: telemetrySeries,
-        }]
-      : []),
-  ];
-
-  if (separatedSeries.length > 0) {
-    return separatedSeries;
-  }
-
-  if (well.levelSeries.length === 0) return [];
-
-  return [{
-    label: sourceLabelMap[well.sourceType],
-    color: chartPalette.chart6,
-    points: well.levelSeries,
-  }];
+const toLevelChartSeries = (
+  well: WellMapPoint,
+  selectedConditions: LevelCondition[],
+  selectedSources: MeasurementSource[],
+): LineSeries[] => {
+  const levelBySource = well.measurementSeriesByVariable?.waterTableDepth;
+  const conditions = {
+    static: chartPalette.chart5,
+    dynamic: chartPalette.chart3,
+    unknown: chartPalette.chart7,
+  };
+  return ([
+    { source: "api" as const, label: "Medición API", points: levelBySource?.telemetry ?? [], color: chartPalette.chart1, marker: "circle" as const },
+    { source: "manual" as const, label: "Medición manual", points: levelBySource?.manual ?? [], color: chartPalette.chart4, marker: "square" as const },
+  ]).flatMap(({ source, label, points, color, marker }) => {
+    if (!selectedSources.includes(source)) return [];
+    const visiblePoints = points.filter((point) =>
+      selectedConditions.includes(point.condition ?? "unknown"),
+    );
+    return visiblePoints.length > 0
+    ? [{
+        label,
+        color,
+        points: visiblePoints,
+        markerShape: marker,
+        conditionPointColors: conditions,
+        unit: "m",
+        yAxisId: "primary" as const,
+        connectNulls: true,
+      }]
+    : [];
+  });
 };
 
-const toVariableChartSeries = (well: WellMapPoint, variable: WellMeasurementVariable): LineSeries[] => {
-  if (variable === "waterTableDepth") return toLevelChartSeries(well);
+const toVariableChartSeries = (
+  well: WellMapPoint,
+  variable: (typeof secondaryChartVariables)[number],
+  selectedSources: MeasurementSource[],
+): LineSeries[] => {
+  const sourceSeries = well.measurementSeriesByVariable?.[variable.value];
+  return ([
+    { source: "api" as const, label: "telemetría", points: sourceSeries?.telemetry ?? [], marker: "circle" as const },
+    { source: "manual" as const, label: "manual", points: sourceSeries?.manual ?? [], marker: "square" as const },
+  ]).flatMap(({ source, label, points, marker }) => selectedSources.includes(source) && points.length > 0
+    ? [{
+        label: `${variable.label} · ${label}`,
+        color: chartVariableColor[variable.value],
+        points,
+        markerShape: marker,
+        unit: variable.unit,
+        yAxisId: "secondary" as const,
+        connectNulls: true,
+      }]
+    : []);
+};
 
-  const points = well.measurementSeriesByVariable?.[variable];
-  if (!points) return [];
-
-  const separatedSeries: LineSeries[] = [
-    ...(points.manual.length > 0
-      ? [{ label: "Medición manual", color: chartPalette.chart5, points: points.manual }]
-      : []),
-    ...(points.telemetry.length > 0
-      ? [{ label: "Telemetría (automática)", color: chartPalette.chart6, points: points.telemetry }]
-      : []),
-  ];
-  return separatedSeries.length > 0
-    ? separatedSeries
-    : points.all.length > 0
-      ? [{ label: sourceLabelMap[well.sourceType], color: chartPalette.chart6, points: points.all }]
-      : [];
+const getSeriesDomain = (series: LineSeries[]) => {
+  const values = series.flatMap((item) => item.points.map((point) => point.value));
+  if (values.length === 0) return [-0.1, 0.1] as const;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const padding = Math.max((max - min) * 0.05, Math.abs(max) * 0.01, 0.1);
+  return [min - padding, max + padding] as const;
 };
 
 export function WellsMonitoringTab({
@@ -153,7 +192,13 @@ export function WellsMonitoringTab({
   subnav,
   wells,
 }: WellsMonitoringTabProps) {
-  const [selectedChartVariable, setSelectedChartVariable] = useState<WellMeasurementVariable>("waterTableDepth");
+  const [selectedSecondaryVariables, setSelectedSecondaryVariables] = useState<WellMeasurementVariable[]>([]);
+  const [selectedLevelConditions, setSelectedLevelConditions] = useState<LevelCondition[]>([
+    "static", "dynamic", "unknown",
+  ]);
+  const [selectedMeasurementSources, setSelectedMeasurementSources] = useState<MeasurementSource[]>([
+    "api", "manual",
+  ]);
 
   if (isLoggedIn && (status === "loading" || status === "error" || wells.length === 0)) {
     const isLoading = status === "loading";
@@ -213,13 +258,20 @@ export function WellsMonitoringTab({
       ? well.lastUpdate
       : latest;
   }, "");
-  const chartVariable = chartVariables.find((item) => item.value === selectedChartVariable)!;
-  const selectedChartSeries = toVariableChartSeries(selectedWell, selectedChartVariable);
-  const seriesValues = selectedChartSeries.flatMap((series) =>
-    series.points.map((point) => point.value),
+  const primaryChartSeries = toLevelChartSeries(
+    selectedWell,
+    selectedLevelConditions,
+    selectedMeasurementSources,
   );
-  const minSeriesValue = seriesValues.length > 0 ? Math.min(...seriesValues) - 0.1 : -0.1;
-  const maxSeriesValue = seriesValues.length > 0 ? Math.max(...seriesValues) + 0.1 : 0.1;
+  const secondaryChartSeries = secondaryChartVariables
+    .filter((variable) => selectedSecondaryVariables.includes(variable.value))
+    .flatMap((variable) => toVariableChartSeries(selectedWell, variable, selectedMeasurementSources));
+  const selectedChartSeries = [...primaryChartSeries, ...secondaryChartSeries];
+  const chartLabelCount = new Set(
+    selectedChartSeries.flatMap((item) => item.points.map((point) => point.label)),
+  ).size;
+  const [minSeriesValue, maxSeriesValue] = getSeriesDomain(primaryChartSeries);
+  const [minSecondaryValue, maxSecondaryValue] = getSeriesDomain(secondaryChartSeries);
   const dailyChange = getDailyChangeValue(selectedWell.levelSeries);
   const dailyChangeDescription = dailyChange > 0
     ? `el agua subió ${formatMeters(dailyChange)}`
@@ -381,33 +433,84 @@ export function WellsMonitoringTab({
         </Panel>
       </div>
 
-      <Panel
-        title={`${chartVariable.label} en el tiempo · ${selectedWell.name}`}
-      >
-        <label className="well-chart-variable-selector">
-          <span>Variable del gráfico</span>
-          <select
-            value={selectedChartVariable}
-            onChange={(event) => setSelectedChartVariable(event.target.value as WellMeasurementVariable)}
-          >
-            {chartVariables.map((variable) => (
-              <option key={variable.value} value={variable.value}>{variable.label}</option>
+      <Panel title={`Nivel freático y otras variables · ${selectedWell.name}`}>
+        <fieldset className="well-chart-variable-selector">
+          <legend>Origen de las mediciones</legend>
+          <div className="well-chart-variable-options">
+            {measurementSourceOptions.map((source) => (
+              <label key={source.value}>
+                <input
+                  type="checkbox"
+                  checked={selectedMeasurementSources.includes(source.value)}
+                  onChange={(event) => {
+                    setSelectedMeasurementSources((current) => event.target.checked
+                      ? [...current, source.value]
+                      : current.filter((selected) => selected !== source.value));
+                  }}
+                />
+                <span>{source.label}</span>
+              </label>
             ))}
-          </select>
-        </label>
+          </div>
+        </fieldset>
+        <fieldset className="well-chart-variable-selector">
+          <legend>Variables del eje secundario</legend>
+          <div className="well-chart-variable-options">
+            {secondaryChartVariables.map((variable) => (
+              <label key={variable.value}>
+                <input
+                  type="checkbox"
+                  checked={selectedSecondaryVariables.includes(variable.value)}
+                  onChange={(event) => {
+                    setSelectedSecondaryVariables((current) => event.target.checked
+                      ? [...current, variable.value]
+                      : current.filter((selected) => selected !== variable.value));
+                  }}
+                />
+                <span>{variable.label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <fieldset className="well-chart-variable-selector">
+          <legend>Condiciones del nivel freático</legend>
+          <div className="well-chart-variable-options">
+            {levelConditionOptions.map((condition) => (
+              <label key={condition.value}>
+                <input
+                  type="checkbox"
+                  checked={selectedLevelConditions.includes(condition.value)}
+                  onChange={(event) => {
+                    setSelectedLevelConditions((current) => event.target.checked
+                      ? [...current, condition.value]
+                      : current.filter((selected) => selected !== condition.value));
+                  }}
+                />
+                <span className="well-chart-condition-option">
+                  <i aria-hidden="true" style={{ backgroundColor: condition.color }} />
+                  {condition.label}
+                </span>
+              </label>
+            ))}
+          </div>
+          <p>El trazo distingue API y manual; el color del punto indica la condición seleccionada.</p>
+        </fieldset>
         {selectedChartSeries.length > 0 ? (
           <SimpleLineChart
-            labelEvery={1}
+            labelEvery={Math.max(1, Math.ceil(chartLabelCount / 18))}
             maxValue={maxSeriesValue}
             minValue={minSeriesValue}
             mode="linear"
             series={selectedChartSeries}
-            unit={chartVariable.unit}
+            primaryAxisLabel="Nivel freático (m)"
+            secondaryMaxValue={maxSecondaryValue}
+            secondaryMinValue={minSecondaryValue}
+            unit="m"
             xLabelAngle={-40}
           />
         ) : (
           <p className="well-chart-no-data" role="status">
-            No hay mediciones de {chartVariable.label.toLocaleLowerCase("es-CL")} para este pozo.
+            No hay mediciones de nivel freático para este pozo.
           </p>
         )}
       </Panel>

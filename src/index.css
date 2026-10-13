@@ -2308,22 +2308,87 @@ select:focus-visible {
 
 .well-chart-variable-selector {
   display: grid;
-  gap: 6px;
-  width: min(100%, 260px);
+  gap: 10px;
   margin: 14px 14px 0;
+  padding: 0;
+  border: 0;
   color: var(--text);
   font-size: 13px;
+}
+
+.well-chart-variable-selector legend {
+  margin-bottom: 8px;
   font-weight: 600;
 }
 
-.well-chart-variable-selector select {
-  min-height: 40px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #fff;
-  color: var(--text);
-  padding: 0 10px;
-  font: inherit;
+.well-chart-variable-selector p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.well-chart-condition-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.well-chart-condition-key span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.well-chart-condition-key i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.well-chart-condition-key .is-static {
+  background: rgb(77, 179, 144);
+}
+
+.well-chart-condition-key .is-dynamic {
+  background: rgb(59, 169, 206);
+}
+
+.well-chart-condition-key .is-unknown {
+  background: rgb(135, 166, 197);
+}
+
+.well-chart-variable-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.well-chart-variable-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.well-chart-variable-options input {
+  accent-color: var(--brand, #1468a3);
+}
+
+.well-chart-condition-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.well-chart-condition-option i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
 }
 
 .well-chart-no-data {

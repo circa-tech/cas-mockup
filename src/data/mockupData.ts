@@ -722,10 +722,6 @@ export type WellMeasurementVariable =
 export type WellMapPoint = GeoPointBase & {
   aquiferSector: string;
   levelSeries: LinePoint[];
-  levelSeriesBySource?: {
-    manual?: LinePoint[];
-    telemetry?: LinePoint[];
-  };
   measurementSeriesByVariable?: Partial<Record<WellMeasurementVariable, {
     all: LinePoint[];
     manual: LinePoint[];
