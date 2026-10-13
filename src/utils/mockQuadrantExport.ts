@@ -1,17 +1,19 @@
 import etrQuadrantsGeoJson from "../data/etrQuadrantsGeoJson.json";
 import {
+  getNativeRasterRequest,
   getRasterPixelBounds,
   toPixelPoint,
-  type GeoBounds,
   type PixelPoint,
+  type PixelSize,
+  type ProjectionBounds,
   type RasterBounds,
 } from "./geoProjection";
 
 const valleyBounds = {
-  maxLat: -26.95,
-  maxLon: -68.95,
-  minLat: -28.75,
-  minLon: -71.05,
+  maxX: -68.95,
+  maxY: -26.95,
+  minX: -71.05,
+  minY: -28.75,
 } as const;
 
 const staticSatelliteImagePath = `${import.meta.env.BASE_URL}mock/copiapo-satellite-static.jpg`;
@@ -24,6 +26,8 @@ const minRequestDimensionPx = 320;
 const maxRequestDimensionPx = 900;
 const maxOutputDimensionPx = 900;
 const overlayOpacity = 0.72;
+const geographicCrs = "EPSG:4326";
+const nativeRasterCrs = "EPSG:32719";
 
 type QuadrantGeometry = {
   coordinates: number[][][][] | number[][][];
@@ -116,67 +120,83 @@ const toGeoRings = (geometry: QuadrantGeometry): GeoPoint[][] =>
     })),
   );
 
-const getGeoBounds = (rings: GeoPoint[][]): GeoBounds => {
+const getGeoBounds = (rings: GeoPoint[][]): ProjectionBounds => {
   const allPoints = rings.flat();
   const lonValues = allPoints.map((point) => point.lon);
   const latValues = allPoints.map((point) => point.lat);
   return {
-    maxLat: Math.max(...latValues),
-    maxLon: Math.max(...lonValues),
-    minLat: Math.min(...latValues),
-    minLon: Math.min(...lonValues),
+    maxX: Math.max(...lonValues),
+    maxY: Math.max(...latValues),
+    minX: Math.min(...lonValues),
+    minY: Math.min(...latValues),
   };
 };
 
-const expandGeoBounds = (bounds: GeoBounds): GeoBounds => {
-  const lonSpan = Math.max(0.00015, bounds.maxLon - bounds.minLon);
-  const latSpan = Math.max(0.00015, bounds.maxLat - bounds.minLat);
+const expandGeoBounds = (bounds: ProjectionBounds): ProjectionBounds => {
+  const lonSpan = Math.max(0.00015, bounds.maxX - bounds.minX);
+  const latSpan = Math.max(0.00015, bounds.maxY - bounds.minY);
   const padLon = lonSpan * bboxPaddingRatio;
   const padLat = latSpan * bboxPaddingRatio;
 
-  const minLon = clamp(bounds.minLon - padLon, valleyBounds.minLon, valleyBounds.maxLon);
-  const maxLon = clamp(bounds.maxLon + padLon, valleyBounds.minLon, valleyBounds.maxLon);
-  const minLat = clamp(bounds.minLat - padLat, valleyBounds.minLat, valleyBounds.maxLat);
-  const maxLat = clamp(bounds.maxLat + padLat, valleyBounds.minLat, valleyBounds.maxLat);
+  const minX = clamp(bounds.minX - padLon, valleyBounds.minX, valleyBounds.maxX);
+  const maxX = clamp(bounds.maxX + padLon, valleyBounds.minX, valleyBounds.maxX);
+  const minY = clamp(bounds.minY - padLat, valleyBounds.minY, valleyBounds.maxY);
+  const maxY = clamp(bounds.maxY + padLat, valleyBounds.minY, valleyBounds.maxY);
 
   return {
-    maxLat: Math.max(maxLat, minLat + 0.00015),
-    maxLon: Math.max(maxLon, minLon + 0.00015),
-    minLat,
-    minLon,
+    maxX: Math.max(maxX, minX + 0.00015),
+    maxY: Math.max(maxY, minY + 0.00015),
+    minX,
+    minY,
   };
 };
 
-const buildEsriExportRequestUrl = (bounds: GeoBounds) => {
-  const centerLat = (bounds.minLat + bounds.maxLat) / 2;
-  const centerLon = (bounds.minLon + bounds.maxLon) / 2;
-  const widthMeters = haversineMeters(centerLat, bounds.minLon, centerLat, bounds.maxLon);
-  const heightMeters = haversineMeters(bounds.minLat, centerLon, bounds.maxLat, centerLon);
-  const widthPx = clamp(
-    Math.round(widthMeters / targetGroundResolutionMeters),
-    minRequestDimensionPx,
-    maxRequestDimensionPx,
-  );
-  const heightPx = clamp(
-    Math.round(heightMeters / targetGroundResolutionMeters),
-    minRequestDimensionPx,
-    maxRequestDimensionPx,
-  );
+export const buildEsriExportRequestUrl = (
+  bounds: ProjectionBounds,
+  crs: string,
+  requestedSize?: PixelSize,
+) => {
+  const isGeographic = crs === geographicCrs;
+  const centerY = (bounds.minY + bounds.maxY) / 2;
+  const centerX = (bounds.minX + bounds.maxX) / 2;
+  const widthMeters = isGeographic
+    ? haversineMeters(centerY, bounds.minX, centerY, bounds.maxX)
+    : bounds.maxX - bounds.minX;
+  const heightMeters = isGeographic
+    ? haversineMeters(bounds.minY, centerX, bounds.maxY, centerX)
+    : bounds.maxY - bounds.minY;
+  const widthPx = requestedSize?.width ??
+    clamp(
+      Math.round(widthMeters / targetGroundResolutionMeters),
+      minRequestDimensionPx,
+      maxRequestDimensionPx,
+    );
+  const heightPx = requestedSize?.height ??
+    clamp(
+      Math.round(heightMeters / targetGroundResolutionMeters),
+      minRequestDimensionPx,
+      maxRequestDimensionPx,
+    );
 
+  const spatialReference = crs.replace(/^EPSG:/i, "");
   const params = new URLSearchParams({
-    bbox: `${bounds.minLon},${bounds.minLat},${bounds.maxLon},${bounds.maxLat}`,
-    bboxSR: "4326",
+    bbox: `${bounds.minX},${bounds.minY},${bounds.maxX},${bounds.maxY}`,
+    bboxSR: spatialReference,
     f: "json",
     format: "jpg",
-    imageSR: "4326",
+    imageSR: spatialReference,
     size: `${widthPx},${heightPx}`,
   });
 
   return `${esriExportBaseUrl}?${params.toString()}`;
 };
 
-const loadEsriExport = async (bounds: GeoBounds) => {
-  const response = await fetch(buildEsriExportRequestUrl(bounds));
+const loadEsriExport = async (
+  bounds: ProjectionBounds,
+  crs: string,
+  requestedSize?: PixelSize,
+) => {
+  const response = await fetch(buildEsriExportRequestUrl(bounds, crs, requestedSize));
   if (!response.ok) {
     throw new Error(`Esri export request failed: ${response.status}`);
   }
@@ -196,10 +216,10 @@ const loadEsriExport = async (bounds: GeoBounds) => {
 
   return {
     bounds: {
-      maxLat: extent.ymax,
-      maxLon: extent.xmax,
-      minLat: extent.ymin,
-      minLon: extent.xmin,
+      maxX: extent.xmax,
+      maxY: extent.ymax,
+      minX: extent.xmin,
+      minY: extent.ymin,
     },
     image: await loadImageCached(payload.href),
   };
@@ -209,11 +229,21 @@ const toPixelRings = (
   geometry: QuadrantGeometry,
   width: number,
   height: number,
-  bounds: GeoBounds,
+  bounds: ProjectionBounds,
 ): PixelPoint[][] =>
   toRings(geometry).map((ring) =>
     ring.map(([lon, lat]) => toPixelPoint(lon, lat, width, height, bounds)),
   );
+
+const pixelBoundsToRings = (bounds: ReturnType<typeof getRasterPixelBounds>): PixelPoint[][] => [
+  [
+    { x: bounds.minX, y: bounds.minY },
+    { x: bounds.maxX, y: bounds.minY },
+    { x: bounds.maxX, y: bounds.maxY },
+    { x: bounds.minX, y: bounds.maxY },
+    { x: bounds.minX, y: bounds.minY },
+  ],
+];
 
 const getPixelBounds = (rings: PixelPoint[][]) => {
   const allPoints = rings.flat();
@@ -290,11 +320,13 @@ const downloadBlob = (blob: Blob, filename: string) => {
 export async function downloadMockQuadrantPng({
   filename,
   overlayBounds,
+  overlayCrs,
   overlayUrl,
   quadrantId,
 }: {
   filename: string;
   overlayBounds?: RasterBounds;
+  overlayCrs?: string;
   overlayUrl?: string;
   quadrantId: string;
 }) {
@@ -306,23 +338,46 @@ export async function downloadMockQuadrantPng({
   }
 
   const geoRings = toGeoRings(selectedFeature.geometry);
-  const paddedBounds = expandGeoBounds(getGeoBounds(geoRings));
+  const paddedGeoBounds = expandGeoBounds(getGeoBounds(geoRings));
+  const normalizedOverlayCrs = overlayCrs?.trim().toUpperCase();
+
+  let overlayImage: HTMLImageElement | null = null;
+  if (overlayUrl) {
+    overlayImage = await loadImageCached(overlayUrl);
+  }
+
+  const useNativeRasterGrid = Boolean(
+    overlayBounds && overlayImage && normalizedOverlayCrs === nativeRasterCrs,
+  );
+  const requestedCrs = useNativeRasterGrid ? nativeRasterCrs : geographicCrs;
+  const nativeRequest = useNativeRasterGrid
+    ? getNativeRasterRequest(
+        overlayBounds!,
+        {
+          height: overlayImage!.naturalHeight || overlayImage!.height,
+          width: overlayImage!.naturalWidth || overlayImage!.width,
+        },
+        bboxPaddingRatio,
+      )
+    : null;
+  const requestedBounds = nativeRequest?.bounds ?? paddedGeoBounds;
 
   let image: HTMLImageElement;
-  let overlayImage: HTMLImageElement | null = null;
-  let pixelProjectionBounds = paddedBounds;
+  let pixelProjectionBounds = requestedBounds;
+  let renderInNativeGrid = useNativeRasterGrid;
 
   try {
-    const satelliteExport = await loadEsriExport(paddedBounds);
+    const satelliteExport = await loadEsriExport(
+      requestedBounds,
+      requestedCrs,
+      nativeRequest?.size,
+    );
     image = satelliteExport.image;
     pixelProjectionBounds = satelliteExport.bounds;
   } catch {
     image = await loadImageCached(staticSatelliteImagePath);
     pixelProjectionBounds = valleyBounds;
-  }
-
-  if (overlayUrl) {
-    overlayImage = await loadImageCached(overlayUrl);
+    renderInNativeGrid = false;
   }
 
   const sourceWidth = image.naturalWidth || image.width;
@@ -332,21 +387,35 @@ export async function downloadMockQuadrantPng({
     throw new Error("La imagen estática de referencia no tiene dimensiones válidas.");
   }
 
-  const pixelRings = toPixelRings(
-    selectedFeature.geometry,
-    sourceWidth,
-    sourceHeight,
-    pixelProjectionBounds,
-  );
+  let pixelRings: PixelPoint[][];
+  let overlayPixelBounds: ReturnType<typeof getRasterPixelBounds>;
+  if (renderInNativeGrid && overlayBounds) {
+    overlayPixelBounds = getRasterPixelBounds(
+      overlayBounds,
+      sourceWidth,
+      sourceHeight,
+      pixelProjectionBounds,
+    );
+    pixelRings = pixelBoundsToRings(overlayPixelBounds);
+  } else {
+    pixelRings = toPixelRings(
+      selectedFeature.geometry,
+      sourceWidth,
+      sourceHeight,
+      pixelProjectionBounds,
+    );
+    const geographicPixelBounds = getPixelBounds(pixelRings);
+    overlayPixelBounds =
+      overlayBounds && normalizedOverlayCrs === geographicCrs
+        ? getRasterPixelBounds(
+            overlayBounds,
+            sourceWidth,
+            sourceHeight,
+            pixelProjectionBounds,
+          )
+        : geographicPixelBounds;
+  }
   const { maxX, maxY, minX, minY } = getPixelBounds(pixelRings);
-  const overlayPixelBounds = overlayBounds
-    ? getRasterPixelBounds(
-        overlayBounds,
-        sourceWidth,
-        sourceHeight,
-        pixelProjectionBounds,
-      )
-    : { maxX, maxY, minX, minY };
   const cropWidth = Math.max(1, Math.ceil(maxX - minX + outputPaddingPx * 2));
   const cropHeight = Math.max(1, Math.ceil(maxY - minY + outputPaddingPx * 2));
   const {
@@ -375,6 +444,7 @@ export async function downloadMockQuadrantPng({
   context.drawImage(image, 0, 0, sourceWidth, sourceHeight);
 
   if (overlayImage) {
+    context.imageSmoothingEnabled = false;
     context.globalAlpha = overlayOpacity;
     context.drawImage(
       overlayImage,
@@ -384,6 +454,7 @@ export async function downloadMockQuadrantPng({
       Math.max(1, overlayPixelBounds.maxY - overlayPixelBounds.minY),
     );
     context.globalAlpha = 1;
+    context.imageSmoothingEnabled = true;
   }
   context.restore();
 

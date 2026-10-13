@@ -1,8 +1,8 @@
-export type GeoBounds = {
-  maxLat: number;
-  maxLon: number;
-  minLat: number;
-  minLon: number;
+export type ProjectionBounds = {
+  maxX: number;
+  maxY: number;
+  minX: number;
+  minY: number;
 };
 
 export type RasterBounds = {
@@ -17,15 +17,20 @@ export type PixelPoint = {
   y: number;
 };
 
+export type PixelSize = {
+  height: number;
+  width: number;
+};
+
 export const toPixelPoint = (
-  lon: number,
-  lat: number,
+  x: number,
+  y: number,
   width: number,
   height: number,
-  bounds: GeoBounds,
+  bounds: ProjectionBounds,
 ): PixelPoint => {
-  const xRatio = (lon - bounds.minLon) / (bounds.maxLon - bounds.minLon);
-  const yRatio = (bounds.maxLat - lat) / (bounds.maxLat - bounds.minLat);
+  const xRatio = (x - bounds.minX) / (bounds.maxX - bounds.minX);
+  const yRatio = (bounds.maxY - y) / (bounds.maxY - bounds.minY);
   return {
     x: xRatio * width,
     y: yRatio * height,
@@ -36,7 +41,7 @@ export const getRasterPixelBounds = (
   rasterBounds: RasterBounds,
   width: number,
   height: number,
-  projectionBounds: GeoBounds,
+  projectionBounds: ProjectionBounds,
 ) => {
   const northWest = toPixelPoint(
     rasterBounds.west,
@@ -57,5 +62,28 @@ export const getRasterPixelBounds = (
     maxY: southEast.y,
     minX: northWest.x,
     minY: northWest.y,
+  };
+};
+
+export const getNativeRasterRequest = (
+  bounds: RasterBounds,
+  imageSize: PixelSize,
+  paddingRatio: number,
+): { bounds: ProjectionBounds; size: PixelSize } => {
+  const paddingX = Math.round(imageSize.width * paddingRatio);
+  const paddingY = Math.round(imageSize.height * paddingRatio);
+  const resolutionX = (bounds.east - bounds.west) / imageSize.width;
+  const resolutionY = (bounds.north - bounds.south) / imageSize.height;
+  return {
+    bounds: {
+      maxX: bounds.east + paddingX * resolutionX,
+      maxY: bounds.north + paddingY * resolutionY,
+      minX: bounds.west - paddingX * resolutionX,
+      minY: bounds.south - paddingY * resolutionY,
+    },
+    size: {
+      height: imageSize.height + paddingY * 2,
+      width: imageSize.width + paddingX * 2,
+    },
   };
 };

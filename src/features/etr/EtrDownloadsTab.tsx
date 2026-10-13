@@ -212,6 +212,7 @@ export function EtrDownloadsTab({
       if (selectedFormat === "PNG") {
         let overlayUrl: string | undefined;
         let overlayBounds: EtrImageBounds | undefined;
+        let overlayCrs: string | undefined;
         if (authIdToken) {
           const overlay = await fetchEtrDownCuadImage(authIdToken, {
             day: selectedDay,
@@ -222,8 +223,9 @@ export function EtrDownloadsTab({
             year: selectedYear,
           });
           overlayUrl = URL.createObjectURL(overlay.blob);
-          if (overlay.bounds && overlay.crs === "EPSG:4326") {
+          if (overlay.bounds && overlay.crs) {
             overlayBounds = overlay.bounds;
+            overlayCrs = overlay.crs;
           }
         }
 
@@ -231,6 +233,7 @@ export function EtrDownloadsTab({
           await downloadMockQuadrantPng({
             filename,
             overlayBounds,
+            overlayCrs,
             overlayUrl,
             quadrantId: selectedQuadrant.quadrantId,
           });
