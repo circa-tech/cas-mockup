@@ -813,6 +813,12 @@ select:focus-visible {
   gap: 18px;
 }
 
+.meteo-map-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -2238,9 +2244,9 @@ select:focus-visible {
   padding: 14px;
 }
 
-.meteo-measurement-source {
+.meteo-measurement-sensor {
   display: block;
-  margin-top: 7px;
+  margin-top: 6px;
   color: var(--muted);
   font-size: 11px;
   line-height: 1.35;

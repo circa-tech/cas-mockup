@@ -23,19 +23,20 @@ type DisplayedMeasurement = {
 };
 
 const displayedVariables = [
-  { name: "Air Temperature", aliases: ["air temperature"] },
-  { name: "Atmospheric Pressure", aliases: ["atmospheric pressure"] },
-  { name: "Gust Speed", aliases: ["gust speed"] },
-  { name: "Max Precip Rate", aliases: ["max precip rate"] },
-  { name: "Precipitation", aliases: ["precipitation"] },
-  { name: "Reference Pressure", aliases: ["reference pressure"] },
-  { name: "Soil Temperature", aliases: ["soil temperature"] },
-  { name: "Solar Radiation", aliases: ["solar radiation"] },
-  { name: "Vapor Pressure", aliases: ["vapor pressure"] },
-  { name: "VPD", aliases: ["vpd", "vapor pressure deficit"] },
-  { name: "Water Content", aliases: ["water content"] },
-  { name: "Wind Direction", aliases: ["wind direction"] },
-  { name: "Wind Speed", aliases: ["wind speed"] },
+  { name: "Air Temperature", label: "Temperatura del aire", aliases: ["air temperature"] },
+  { name: "Atmospheric Pressure", label: "Presión atmosférica", aliases: ["atmospheric pressure"] },
+  { name: "Gust Speed", label: "Ráfaga de viento", aliases: ["gust speed"] },
+  { name: "Max Precip Rate", label: "Tasa máxima de precipitación", aliases: ["max precip rate"] },
+  { name: "NDVI", label: "NDVI", aliases: ["ndvi"] },
+  { name: "Precipitation", label: "Precipitación", aliases: ["precipitation"] },
+  { name: "Reference Pressure", label: "Presión de referencia", aliases: ["reference pressure"] },
+  { name: "Soil Temperature", label: "Temperatura del suelo", aliases: ["soil temperature"] },
+  { name: "Solar Radiation", label: "Radiación solar", aliases: ["solar radiation"] },
+  { name: "Vapor Pressure", label: "Presión de vapor", aliases: ["vapor pressure"] },
+  { name: "VPD", label: "Déficit de presión de vapor", aliases: ["vpd", "vapor pressure deficit"] },
+  { name: "Water Content", label: "Contenido de agua", aliases: ["water content"] },
+  { name: "Wind Direction", label: "Dirección del viento", aliases: ["wind direction"] },
+  { name: "Wind Speed", label: "Velocidad del viento", aliases: ["wind speed"] },
 ] as const;
 
 const normalizeMeasurementName = (name: string) => name.trim().toLocaleLowerCase("en");
@@ -48,11 +49,11 @@ const getDisplayedMeasurements = (measurements: MeteoMeasurement[]): DisplayedMe
     });
     return matches.length > 0
       ? matches.map((measurement, index) => ({
-        key: `${variable.name}-${measurement.portNumber ?? "port"}-${index}`,
-        label: variable.name,
+        key: `${variable.name}-${index}`,
+        label: variable.label,
         measurement,
       }))
-      : [{ key: variable.name, label: variable.name, measurement: null }];
+      : [{ key: variable.name, label: variable.label, measurement: null }];
   });
 
 const formatMeasurementValue = (value: number | null) =>
@@ -67,18 +68,6 @@ const formatCompactMeasurement = (measurement: MeteoMeasurement | null) =>
   measurement === null
     ? "Sin datos"
     : `${formatMeasurementValue(measurement.value)}${measurement.unit ? ` ${measurement.unit}` : ""}`;
-
-const formatMeasurementSource = (measurement: MeteoMeasurement, now: Date) => {
-  const source = [
-    measurement.sensorName,
-    measurement.portNumber === null ? null : `Puerto ${measurement.portNumber}`,
-  ].filter(Boolean).join(" · ");
-  if (!measurement.recordedAt) return source;
-
-  const timestamp = formatShortDateTimeParts(measurement.recordedAt);
-  const age = formatRelativeAge(measurement.recordedAt, now).toLocaleLowerCase("es-CL");
-  return [source, `${timestamp.date} ${timestamp.time} · ${age}`].filter(Boolean).join(" · ");
-};
 
 export function MeteoView({
   isLoggedIn,
@@ -142,16 +131,16 @@ export function MeteoView({
                 </span>
               </div>
               <div className="station-card-metrics">
-                <span>Air Temperature {formatCompactMeasurement(getMeasurement(station, "Air Temperature"))}</span>
-                <span>Wind Speed {formatCompactMeasurement(getMeasurement(station, "Wind Speed"))}</span>
-                <span>Atmospheric Pressure {formatCompactMeasurement(getMeasurement(station, "Atmospheric Pressure"))}</span>
+                <span>Temperatura del aire {formatCompactMeasurement(getMeasurement(station, "Air Temperature"))}</span>
+                <span>Velocidad del viento {formatCompactMeasurement(getMeasurement(station, "Wind Speed"))}</span>
+                <span>Presión atmosférica {formatCompactMeasurement(getMeasurement(station, "Atmospheric Pressure"))}</span>
               </div>
             </button>
           );
         })}
       </div>
 
-      <div className="map-detail-grid">
+      <div className="meteo-map-detail-grid">
         <Panel
           title="Mapa de estaciones"
           subtitle="Color = antigüedad del último dato"
@@ -192,10 +181,8 @@ export function MeteoView({
                   {formatMeasurementValue(measurement?.value ?? null)}
                   {measurement?.unit ? ` ${measurement.unit}` : ""}
                 </strong>
-                {measurement && formatMeasurementSource(measurement, now) && (
-                  <small className="meteo-measurement-source">
-                    {formatMeasurementSource(measurement, now)}
-                  </small>
+                {measurement?.sensorName && (
+                  <small className="meteo-measurement-sensor">{measurement.sensorName}</small>
                 )}
               </article>
             ))}
