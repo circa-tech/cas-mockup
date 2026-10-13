@@ -1,7 +1,8 @@
 export const HISTORY_START = "2021-01-01";
+export type HistoryPreset = 1 | 2 | "all";
 export type HistoryRange = { start_date: string; end_date: string };
 
-export function historyPreset(years: 1 | 2 | "all", today = new Date()): HistoryRange {
+export function historyPreset(years: HistoryPreset, today = new Date()): HistoryRange {
   const end_date = today.toISOString().slice(0, 10);
   if (years === "all") return { start_date: HISTORY_START, end_date };
   const start = new Date(`${end_date}T00:00:00Z`);

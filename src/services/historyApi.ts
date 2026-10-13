@@ -1,6 +1,6 @@
-import { apiFetch } from "../offline/apiFetch";
+import { fetchHistoryResponse } from "../offline/history";
 import { throwApiError } from "./apiError";
-import type { HistoryRange } from "../utils/history";
+import type { HistoryPreset, HistoryRange } from "../utils/history";
 
 export type HistoryPoint = {
   fecha: string;
@@ -25,14 +25,15 @@ export async function fetchHistory(
   params: Record<string, string | number>,
   idToken: string | null,
   signal?: AbortSignal,
+  preset?: HistoryPreset,
 ): Promise<HistoryResponse> {
   const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
   if (!baseUrl) throw new Error("Missing VITE_API_BASE_URL");
   const query = new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)]));
-  const response = await apiFetch(`${baseUrl}/api/v1/${module}/history?${query}`, {
+  const response = await fetchHistoryResponse(`${baseUrl}/api/v1/${module}/history?${query}`, {
     signal,
     headers: { Authorization: `Bearer ${idToken}` },
-  });
+  }, preset);
   if (!response.ok) await throwApiError(response, "Historial");
   return response.json() as Promise<HistoryResponse>;
 }

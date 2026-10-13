@@ -3,9 +3,10 @@ import { useId, useState } from "react";
 import { Brush, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { authQueryScope } from "../lib/queryClient";
 import { OfflineDataUnavailableError } from "../offline/apiFetch";
+import { useOfflineState } from "../offline/state";
 import { ApiRequestError } from "../services/apiError";
 import { fetchHistory } from "../services/historyApi";
-import { HISTORY_START, historyPreset, validHistoryRange, zoomHistoryRange, type HistoryRange } from "../utils/history";
+import { HISTORY_START, historyPreset, validHistoryRange, zoomHistoryRange, type HistoryPreset, type HistoryRange } from "../utils/history";
 import { RemoteDataState } from "./RemoteDataState";
 
 type Props = {
@@ -18,21 +19,29 @@ const dateLabel = (value: string) => new Date(`${value}T00:00:00Z`).toLocaleDate
 
 export function HistoricalSeriesChart({ authIdToken, module, selection = {} }: Props) {
   const id = useId();
-  const [range, setRange] = useState<HistoryRange>(() => historyPreset(1));
-  const [draft, setDraft] = useState(range);
+  const [period, setPeriod] = useState<HistoryPreset | HistoryRange>(1);
+  const [draftRange, setDraft] = useState<HistoryRange | null>(null);
   const [zoom, setZoom] = useState<{ startIndex?: number; endIndex?: number }>();
+  const { online, session } = useOfflineState();
+  const preset = typeof period === "object" ? undefined : period;
+  const requestedRange = typeof period === "object" ? period : historyPreset(period);
   const today = new Date().toISOString().slice(0, 10);
-  const params = { ...selection, ...range, resolution: "auto", max_points: 1200 };
+  const params = { ...selection, ...requestedRange, resolution: "auto", max_points: 1200 };
   const query = useQuery({
-    queryKey: ["history", authQueryScope(authIdToken), module, params],
-    queryFn: ({ signal }) => fetchHistory(module, params, authIdToken, signal),
+    // Connectivity may return before Firebase restores a usable credential.
+    queryKey: ["history", authQueryScope(authIdToken), module, params, preset, online, Boolean(session?.idToken)],
+    queryFn: ({ signal }) => fetchHistory(module, params, authIdToken, signal, preset),
     staleTime: 5 * 60 * 1000,
     retry: (count, error) => !(error instanceof OfflineDataUnavailableError)
       && !(error instanceof ApiRequestError && [401, 403, 404, 422].includes(error.status)) && count < 1,
   });
-  const applyRange = (next: HistoryRange) => {
-    setRange(next);
-    setDraft(next);
+  const range: HistoryRange = query.data
+    ? { start_date: query.data.start_date, end_date: query.data.end_date } : requestedRange;
+  const draft = draftRange ?? range;
+  const showingSavedPeriod = range.start_date !== requestedRange.start_date || range.end_date !== requestedRange.end_date;
+  const applyRange = (next: HistoryPreset | HistoryRange) => {
+    setPeriod(next);
+    setDraft(null);
     setZoom(undefined);
   };
   const metrics = module === "et-lat"
@@ -52,9 +61,8 @@ export function HistoricalSeriesChart({ authIdToken, module, selection = {} }: P
     <div className="historical-series">
       <div className="history-presets" aria-label="Período del historial">
         {([1, 2, "all"] as const).map((years) => {
-          const preset = historyPreset(years);
-          return <button key={years} type="button" aria-pressed={range.start_date === preset.start_date && range.end_date === preset.end_date}
-            onClick={() => applyRange(preset)}>{years === "all" ? "Todo (desde 2021)" : `${years} ${years === 1 ? "año" : "años"}`}</button>;
+          return <button key={years} type="button" aria-pressed={preset === years}
+            onClick={() => applyRange(years)}>{years === "all" ? "Todo (desde 2021)" : `${years} ${years === 1 ? "año" : "años"}`}</button>;
         })}
       </div>
       <form className="history-period" onSubmit={(event) => { event.preventDefault(); if (validHistoryRange(draft)) applyRange(draft); }}>
@@ -64,6 +72,7 @@ export function HistoricalSeriesChart({ authIdToken, module, selection = {} }: P
           value={draft.end_date} required onChange={(event) => setDraft({ ...draft, end_date: event.target.value })} /></label>
         <button type="submit" disabled={!validHistoryRange(draft)}>Aplicar período</button>
       </form>
+      {showingSavedPeriod && <p className="history-note">Mostrando el período guardado: {dateLabel(range.start_date)} – {dateLabel(range.end_date)}. Conéctate para actualizarlo.</p>}
       {!validHistoryRange(draft) && <p role="alert">Selecciona un período válido entre enero de 2021 y hoy.</p>}
       {query.isPending ? <RemoteDataState className="is-chart" tone="loading" title="Cargando historial" message="Consultando las mediciones del período seleccionado." />
         : query.isError ? <RemoteDataState className="is-chart" tone={missingPublication || offlineMissing ? "empty" : "error"}

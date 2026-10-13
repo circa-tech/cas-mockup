@@ -369,3 +369,66 @@ test("ET and snow history support presets, custom periods, zoom and saved ranges
   await expect(page.getByText("Período no guardado", { exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("saved history presets survive a next-day offline reload and refresh on reconnect", async ({ page, context }) => {
+  const savedDay = new Date();
+  const nextDay = new Date(savedDay.getTime() + 24 * 60 * 60 * 1000);
+  const savedEnd = savedDay.toISOString().slice(0, 10);
+  const nextEnd = nextDay.toISOString().slice(0, 10);
+  let offline = false;
+  await mockServices(context, () => offline);
+  await page.clock.setFixedTime(savedDay);
+  await signIn(page);
+  await page.getByRole("button", { name: "Evapotranspiración", exact: true }).click();
+  const chart = page.locator(".historical-series").first();
+  await chart.getByRole("button", { name: "Todo (desde 2021)", exact: true }).click();
+  await expect(chart.locator('[data-resolution="monthly"]')).toBeVisible();
+  offline = true;
+  await context.setOffline(true);
+  await page.clock.setFixedTime(nextDay);
+  await page.reload();
+  await expect(page.getByText("Sin conexión · Solo lectura", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Evapotranspiración", exact: true }).click();
+  await expect(chart.locator('[data-resolution="native"]')).toBeVisible();
+  await expect(chart.getByLabel("Hasta", { exact: true })).toHaveValue(savedEnd);
+  await expect(chart.getByText(/Mostrando el período guardado/)).toBeVisible();
+  await expect(page.getByLabel("Disponibilidad sin conexión")).toContainText("Copia principal completa.");
+  await chart.getByRole("button", { name: "Todo (desde 2021)", exact: true }).click();
+  await expect(chart.locator('[data-resolution="monthly"]')).toBeVisible();
+  await expect(chart.getByLabel("Hasta", { exact: true })).toHaveValue(savedEnd);
+  await chart.getByRole("button", { name: "2 años", exact: true }).click();
+  await expect(chart.getByText("Período no guardado", { exact: true })).toBeVisible();
+  // An explicit custom range must never silently substitute different dates.
+  await chart.getByLabel("Desde", { exact: true }).fill("2021-01-01");
+  await chart.getByLabel("Hasta", { exact: true }).fill(nextEnd);
+  await chart.getByRole("button", { name: "Aplicar período" }).click();
+  await expect(chart.getByText("Período no guardado", { exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "Por parcela", exact: true }).click();
+  await expect(chart.locator('[data-resolution="native"]')).toBeVisible();
+  await expect(chart.getByLabel("Hasta", { exact: true })).toHaveValue(savedEnd);
+  await page.getByRole("button", { name: "Nieve", exact: true }).click();
+  await expect(page.locator('.historical-series [data-resolution="native"]')).toHaveCount(4);
+  await expect(page.locator('.historical-series input[type="date"]').nth(1)).toHaveValue(savedEnd);
+  // Reconnection must also work when the first query runs before Firebase
+  // restores the expired credential, rather than relying on request timing.
+  let restoreCredential!: () => void;
+  const pendingCredential = new Promise<void>((resolve) => { restoreCredential = resolve; });
+  await context.route("https://securetoken.googleapis.com/**", async (route) => {
+    await pendingCredential;
+    await route.fallback();
+  });
+  const refreshRequest = page.waitForRequest("https://securetoken.googleapis.com/**");
+  offline = false;
+  await context.setOffline(false);
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  try {
+    await refreshRequest;
+    await expect(chart.getByText(/Mostrando el período guardado/)).toBeVisible();
+    await expect(chart.getByLabel("Hasta", { exact: true })).toHaveValue(savedEnd);
+  } finally {
+    restoreCredential();
+  }
+  await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toBeVisible();
+  await expect(chart.getByText(/Mostrando el período guardado/)).toHaveCount(0);
+  await expect(chart.getByLabel("Hasta", { exact: true })).toHaveValue(nextEnd);
+});
