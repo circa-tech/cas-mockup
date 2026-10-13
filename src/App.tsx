@@ -183,6 +183,7 @@ export default function App() {
             <EtrView
               authIdToken={app.authIdToken}
               canDownloadImages={app.canDownloadEt}
+              canViewKcLai={app.authRole === "general_admin"}
               isLoggedIn={app.hasAuthenticatedApiSession}
               onLogin={app.handleOpenLogin}
             />

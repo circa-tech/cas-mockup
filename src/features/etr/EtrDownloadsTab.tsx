@@ -36,9 +36,11 @@ const EtrQuadrantMap = lazy(() =>
 
 export function EtrDownloadsTab({
   authIdToken,
+  canDownloadKcLai,
   isLoggedIn,
 }: {
   authIdToken: string | null;
+  canDownloadKcLai: boolean;
   isLoggedIn: boolean;
 }) {
   const offline = useOfflineState();
@@ -53,6 +55,9 @@ export function EtrDownloadsTab({
   const [selectedDay, setSelectedDay] = useState(1);
   const [downloadFeedback, setDownloadFeedback] = useState("");
   const [isDownloading, setIsDownloading] = useState(false);
+  const availableVariables = canDownloadKcLai
+    ? etrDownloadVariables
+    : etrDownloadVariables.filter(({ value }) => value !== "KC" && value !== "LAI");
   const fallbackYears = useMemo(
     () => getEtrDownloadYears(selectedQuadrant.quadrantId, selectedVariable),
     [selectedQuadrant.quadrantId, selectedVariable],
@@ -149,6 +154,12 @@ export function EtrDownloadsTab({
   const yearsStatus = queryStatus(yearsQuery);
   const monthsStatus = queryStatus(monthsQuery);
   const daysStatus = queryStatus(daysQuery);
+
+  useEffect(() => {
+    if (!canDownloadKcLai && (selectedVariable === "KC" || selectedVariable === "LAI")) {
+      setSelectedVariable("ETR");
+    }
+  }, [canDownloadKcLai, selectedVariable]);
 
   useEffect(() => {
     const latestYear = years.length > 0 ? Math.max(...years) : 2025;
@@ -317,7 +328,7 @@ export function EtrDownloadsTab({
                       setSelectedVariable(event.target.value as EtrDownloadVariable)
                     }
                   >
-                    {etrDownloadVariables.map((variable) => (
+                    {availableVariables.map((variable) => (
                       <option key={variable.value} value={variable.value}>
                         {variable.label}
                       </option>

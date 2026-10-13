@@ -9,11 +9,13 @@ type EtrSubTabId = "sector" | "usage" | "downloads";
 export function EtrView({
   authIdToken,
   canDownloadImages,
+  canViewKcLai,
   isLoggedIn,
   onLogin,
 }: {
   authIdToken: string | null;
   canDownloadImages: boolean;
+  canViewKcLai: boolean;
   isLoggedIn: boolean;
   onLogin: () => void;
 }) {
@@ -96,10 +98,18 @@ export function EtrView({
         <EtrSectorTab authIdToken={authIdToken} isLoggedIn={isLoggedIn} />
       )}
       {isLoggedIn && activeEtrTab === "usage" && (
-        <EtrUsageTab authIdToken={authIdToken} isLoggedIn={isLoggedIn} />
+        <EtrUsageTab
+          authIdToken={authIdToken}
+          canViewKcLai={canViewKcLai}
+          isLoggedIn={isLoggedIn}
+        />
       )}
       {canDownloadImages && activeEtrTab === "downloads" && (
-        <EtrDownloadsTab authIdToken={authIdToken} isLoggedIn={isLoggedIn} />
+        <EtrDownloadsTab
+          authIdToken={authIdToken}
+          canDownloadKcLai={canViewKcLai}
+          isLoggedIn={isLoggedIn}
+        />
       )}
     </div>
   );

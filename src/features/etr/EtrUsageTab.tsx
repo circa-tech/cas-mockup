@@ -197,9 +197,11 @@ const buildEtrUsoRecordFromSelection = (selection: EtrUsoSelection): EtrUsoRecor
 
 export function EtrUsageTab({
   authIdToken,
+  canViewKcLai,
   isLoggedIn,
 }: {
   authIdToken: string | null;
+  canViewKcLai: boolean;
   isLoggedIn: boolean;
 }) {
   const [selectedUso, setSelectedUso] = useState<EtrUsoSelection>(
@@ -218,13 +220,18 @@ export function EtrUsageTab({
   });
   const usageQuery = useQuery({
     queryKey: queryKeys.etr.resource(authIdToken, "usage-detail", {
+      canViewKcLai,
       usoId: selectedUso.usoId,
     }),
     queryFn: async (): Promise<EtrUsoRecord> => {
       const [etPoly, kcPoly, laiPoly] = await Promise.all([
         fetchEtrPoly(authIdToken!, selectedUso.usoId),
-        fetchKcPoly(authIdToken!, selectedUso.usoId),
-        fetchLaiPoly(authIdToken!, selectedUso.usoId),
+        canViewKcLai
+          ? fetchKcPoly(authIdToken!, selectedUso.usoId)
+          : Promise.resolve([] as Awaited<ReturnType<typeof fetchKcPoly>>),
+        canViewKcLai
+          ? fetchLaiPoly(authIdToken!, selectedUso.usoId)
+          : Promise.resolve([] as Awaited<ReturnType<typeof fetchLaiPoly>>),
       ]);
       if (!etPoly.length) throw new Error("ET-LAT no entregó datos para la parcela.");
       const lastEtPoint = etPoly.at(-1)!;
@@ -422,58 +429,64 @@ export function EtrUsageTab({
         )}
       </Panel>
 
-      <div className="etr-usage-chart-grid">
-        <Panel title="Coeficiente de cultivo (Kc) en la temporada">
-          {showUsageData ? (
-            <SimpleLineChart
-              labelEvery={3}
-              maxValue={kcDomain.max}
-              minValue={kcDomain.min}
-              series={usageRecord.kcSeries}
-              unit="Kc"
-              xLabelAngle={-45}
-            />
-          ) : (
-            <RemoteDataState
-              className="is-chart"
-              title={
-                usageStateTone === "error" ? "Serie Kc no disponible" : "Cargando serie Kc"
-              }
-              message={
-                usageStateTone === "error"
-                  ? "El servicio no respondió con la serie real de Kc."
-                  : "Esperando datos reales de Kc."
-              }
-              tone={usageStateTone}
-            />
-          )}
-        </Panel>
-        <Panel title="Follaje del cultivo (LAI) en la temporada">
-          {showUsageData ? (
-            <SimpleLineChart
-              labelEvery={3}
-              maxValue={laiDomain.max}
-              minValue={laiDomain.min}
-              series={usageRecord.laiSeries}
-              unit="LAI"
-              xLabelAngle={-45}
-            />
-          ) : (
-            <RemoteDataState
-              className="is-chart"
-              title={
-                usageStateTone === "error" ? "Serie LAI no disponible" : "Cargando serie LAI"
-              }
-              message={
-                usageStateTone === "error"
-                  ? "El servicio no respondió con la serie real de LAI."
-                  : "Esperando datos reales de LAI."
-              }
-              tone={usageStateTone}
-            />
-          )}
-        </Panel>
-      </div>
+      {canViewKcLai && (
+        <div className="etr-usage-chart-grid">
+          <Panel title="Coeficiente de cultivo (Kc) en la temporada">
+            {showUsageData ? (
+              <SimpleLineChart
+                labelEvery={3}
+                maxValue={kcDomain.max}
+                minValue={kcDomain.min}
+                series={usageRecord.kcSeries}
+                unit="Kc"
+                xLabelAngle={-45}
+              />
+            ) : (
+              <RemoteDataState
+                className="is-chart"
+                title={
+                  usageStateTone === "error"
+                    ? "Serie Kc no disponible"
+                    : "Cargando serie Kc"
+                }
+                message={
+                  usageStateTone === "error"
+                    ? "El servicio no respondió con la serie real de Kc."
+                    : "Esperando datos reales de Kc."
+                }
+                tone={usageStateTone}
+              />
+            )}
+          </Panel>
+          <Panel title="Follaje del cultivo (LAI) en la temporada">
+            {showUsageData ? (
+              <SimpleLineChart
+                labelEvery={3}
+                maxValue={laiDomain.max}
+                minValue={laiDomain.min}
+                series={usageRecord.laiSeries}
+                unit="LAI"
+                xLabelAngle={-45}
+              />
+            ) : (
+              <RemoteDataState
+                className="is-chart"
+                title={
+                  usageStateTone === "error"
+                    ? "Serie LAI no disponible"
+                    : "Cargando serie LAI"
+                }
+                message={
+                  usageStateTone === "error"
+                    ? "El servicio no respondió con la serie real de LAI."
+                    : "Esperando datos reales de LAI."
+                }
+                tone={usageStateTone}
+              />
+            )}
+          </Panel>
+        </div>
+      )}
     </div>
   );
 }
