@@ -16,8 +16,9 @@ import {
 import {
   fetchEtrDataCuad,
   fetchEtrDownCuad,
-  fetchEtrDownCuadImageBlob,
+  fetchEtrDownCuadImage,
   fetchEtrQuadrantMap,
+  type EtrImageBounds,
 } from "../../services/etrApi";
 import type { RemoteLoadStatus } from "../../types/remote";
 import { downloadMockQuadrantPng } from "../../utils/mockQuadrantExport";
@@ -210,8 +211,9 @@ export function EtrDownloadsTab({
     try {
       if (selectedFormat === "PNG") {
         let overlayUrl: string | undefined;
+        let overlayBounds: EtrImageBounds | undefined;
         if (authIdToken) {
-          const overlayBlob = await fetchEtrDownCuadImageBlob(authIdToken, {
+          const overlay = await fetchEtrDownCuadImage(authIdToken, {
             day: selectedDay,
             format: selectedFormat,
             month: selectedMonth,
@@ -219,12 +221,16 @@ export function EtrDownloadsTab({
             variable: selectedVariable,
             year: selectedYear,
           });
-          overlayUrl = URL.createObjectURL(overlayBlob);
+          overlayUrl = URL.createObjectURL(overlay.blob);
+          if (overlay.bounds && overlay.crs === "EPSG:4326") {
+            overlayBounds = overlay.bounds;
+          }
         }
 
         try {
           await downloadMockQuadrantPng({
             filename,
+            overlayBounds,
             overlayUrl,
             quadrantId: selectedQuadrant.quadrantId,
           });

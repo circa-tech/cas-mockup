@@ -3,6 +3,9 @@ import { BarGroup } from "../components/SimpleBarChart";
 import { LineSeries } from "../components/SimpleLineChart";
 import { chartPalette, EtrDownloadFormat, EtrDownloadVariable } from "../data/mockupData";
 import { throwApiError } from "./apiError";
+import { parseEtrImageBounds, type EtrImageBounds } from "./etrImageMetadata";
+
+export type { EtrImageBounds } from "./etrImageMetadata";
 
 export type GeoJsonFeatureCollection = {
   type: "FeatureCollection";
@@ -48,6 +51,12 @@ export type EtrDataCuad = {
 
 export type EtrDownCuad = {
   url: string | null;
+};
+
+export type EtrDownCuadImage = {
+  blob: Blob;
+  bounds: EtrImageBounds | null;
+  crs: string | null;
 };
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
@@ -164,7 +173,7 @@ export const fetchEtrDownCuad = (
     format,
   });
 
-export const fetchEtrDownCuadImageBlob = async (
+export const fetchEtrDownCuadImage = async (
   idToken: string | null,
   {
     day,
@@ -181,7 +190,7 @@ export const fetchEtrDownCuadImageBlob = async (
     variable: EtrDownloadVariable;
     year: number;
   },
-) => {
+): Promise<EtrDownCuadImage> => {
   if (!apiBaseUrl) {
     throw new Error("Missing VITE_API_BASE_URL");
   }
@@ -204,7 +213,11 @@ export const fetchEtrDownCuadImageBlob = async (
     throw new Error(`ET-LAT down-cuad-image request failed: ${response.status}`);
   }
 
-  return response.blob();
+  return {
+    blob: await response.blob(),
+    bounds: parseEtrImageBounds(response.headers.get("X-Image-Bounds")),
+    crs: response.headers.get("X-Image-CRS"),
+  };
 };
 
 export const toEtrBarGroups = (points: EtrCultPoint[]): BarGroup[] =>
