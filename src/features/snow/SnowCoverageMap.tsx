@@ -39,6 +39,12 @@ type SnowPolygonItem = {
   positions: [number, number][][] | [number, number][][][];
 };
 
+const snowBasinNames: Record<string, string> = {
+  jorquera: "Río Jorquera",
+  pulido: "Río Pulido",
+  manflas: "Río Manflas",
+};
+
 const fallbackBounds: [[number, number], [number, number]] = [
   [-28.75, -71.05],
   [-26.95, -68.95],
@@ -99,13 +105,18 @@ export function SnowCoverageMap({
 
     return featureCollection.features
       .filter((feature) => feature.geometry?.type === "Polygon" || feature.geometry?.type === "MultiPolygon")
-      .map((feature, index) => ({
-        id: String(feature.id ?? index),
-        name:
-          String(feature.properties?.nombre ?? feature.properties?.name ?? "").trim() ||
-          `Area ${index + 1}`,
-        positions: toPolygonPositions(feature.geometry as SnowGeometry),
-      }));
+      .map((feature, index) => {
+        const basinCode = String(feature.properties?.cca ?? "").trim().toLowerCase();
+
+        return {
+          id: String(feature.id ?? index),
+          name:
+            snowBasinNames[basinCode] ??
+            (String(feature.properties?.nombre ?? feature.properties?.name ?? "").trim() ||
+              `Area ${index + 1}`),
+          positions: toPolygonPositions(feature.geometry as SnowGeometry),
+        };
+      });
   }, [featureCollection]);
 
   const fitBounds = useMemo(() => {
