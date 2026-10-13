@@ -1,8 +1,7 @@
-import { CloudRain, CloudSun, Sun } from "lucide-react";
 import { Panel } from "../../components/Panel";
 import { RemoteDataState } from "../../components/RemoteDataState";
 import { StatusLeafletMap } from "../../components/StatusLeafletMap";
-import type { MeteoStationPoint } from "../../data/mockupData";
+import type { MeteoMeasurement, MeteoStationPoint } from "../../data/mockupData";
 import type { RemoteLoadStatus } from "../../types/remote";
 import { formatRelativeAge, formatShortDateTimeParts } from "../../utils/date";
 import { freshnessClassMap, freshnessLabelMap } from "../../utils/freshness";
@@ -17,51 +16,62 @@ type MeteoViewProps = {
   status: RemoteLoadStatus;
 };
 
-const formatOneDecimal = (value: number | null) =>
-  value === null ? "Sin datos" : new Intl.NumberFormat("es-CL", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  }).format(value);
+const displayedVariables = [
+  { name: "Air Temperature", aliases: ["air temperature"] },
+  { name: "Atmospheric Pressure", aliases: ["atmospheric pressure"] },
+  { name: "Gust Speed", aliases: ["gust speed"] },
+  { name: "Max Precip Rate", aliases: ["max precip rate"] },
+  { name: "Precipitation", aliases: ["precipitation"] },
+  { name: "Reference Pressure", aliases: ["reference pressure"] },
+  { name: "Soil Temperature", aliases: ["soil temperature"] },
+  { name: "Solar Radiation", aliases: ["solar radiation"] },
+  { name: "Vapor Pressure", aliases: ["vapor pressure"] },
+  { name: "VPD", aliases: ["vpd", "vapor pressure deficit"] },
+  { name: "Water Content", aliases: ["water content"] },
+  { name: "Wind Direction", aliases: ["wind direction"] },
+  { name: "Wind Speed", aliases: ["wind speed"] },
+] as const;
 
-const formatInteger = (value: number | null) =>
-  value === null ? "Sin datos" : new Intl.NumberFormat("es-CL", { maximumFractionDigits: 0 }).format(value);
+const normalizeMeasurementName = (name: string) => name.trim().toLocaleLowerCase("en");
 
-const getStationWeatherSummary = (station: MeteoStationPoint) => {
-  if (
-    station.humidityValue === null &&
-    station.temperatureValue === null &&
-    station.windValue === null &&
-    station.pressureValue === null
-  ) {
-    return { icon: CloudSun, label: "Sin datos", tone: "cloud" } as const;
-  }
-  if (station.humidityValue === null || station.temperatureValue === null) {
-    return { icon: CloudSun, label: "Medición parcial", tone: "cloud" } as const;
-  }
-  if (
-    station.humidityValue >= 52 ||
-    (station.temperatureValue <= 15.5 && station.humidityValue >= 47)
-  ) {
-    return {
-      icon: CloudRain,
-      label: "Precipitaciones",
-      tone: "rain",
-    } as const;
-  }
+const getDisplayedMeasurements = (measurements: MeteoMeasurement[]) =>
+  displayedVariables.flatMap((variable) => {
+    const matches = measurements.filter((measurement) => {
+      const measurementName = normalizeMeasurementName(measurement.measurementName);
+      return variable.aliases.some((alias) => alias === measurementName);
+    });
+    return matches.length > 0
+      ? matches.map((measurement, index) => ({
+        key: `${variable.name}-${measurement.portNumber ?? "port"}-${index}`,
+        label: variable.name,
+        measurement,
+      }))
+      : [{ key: variable.name, label: variable.name, measurement: null }];
+  });
 
-  if (station.humidityValue >= 44) {
-    return {
-      icon: CloudSun,
-      label: "Parcial nublado",
-      tone: "cloud",
-    } as const;
-  }
+const formatMeasurementValue = (value: number | null) =>
+  value === null ? "Sin datos" : new Intl.NumberFormat("es-CL", { maximumFractionDigits: 2 }).format(value);
 
-  return {
-    icon: Sun,
-    label: "Soleado",
-    tone: "sun",
-  } as const;
+const getMeasurement = (station: MeteoStationPoint, name: string) =>
+  station.measurements.find(
+    (measurement) => normalizeMeasurementName(measurement.measurementName) === normalizeMeasurementName(name),
+  ) ?? null;
+
+const formatCompactMeasurement = (measurement: MeteoMeasurement | null) =>
+  measurement === null
+    ? "Sin datos"
+    : `${formatMeasurementValue(measurement.value)}${measurement.unit ? ` ${measurement.unit}` : ""}`;
+
+const formatMeasurementSource = (measurement: MeteoMeasurement, now: Date) => {
+  const source = [
+    measurement.sensorName,
+    measurement.portNumber === null ? null : `Puerto ${measurement.portNumber}`,
+  ].filter(Boolean).join(" · ");
+  if (!measurement.recordedAt) return source;
+
+  const timestamp = formatShortDateTimeParts(measurement.recordedAt);
+  const age = formatRelativeAge(measurement.recordedAt, now).toLocaleLowerCase("es-CL");
+  return [source, `${timestamp.date} ${timestamp.time} · ${age}`].filter(Boolean).join(" · ");
 };
 
 export function MeteoView({
@@ -112,9 +122,6 @@ export function MeteoView({
 
       <div className="station-card-grid">
         {stations.map((station) => {
-          const weather = getStationWeatherSummary(station);
-          const WeatherIcon = weather.icon;
-
           return (
             <button
               key={station.id}
@@ -123,22 +130,15 @@ export function MeteoView({
               onClick={() => onSelectStation(station.id)}
             >
               <div className="station-card-head">
-                <div className="station-card-title">
-                  <strong>{station.name}</strong>
-                  <span className={`station-weather station-weather--${weather.tone}`}>
-                    <WeatherIcon size={14} />
-                    {weather.label}
-                  </span>
-                </div>
+                <div className="station-card-title"><strong>{station.name}</strong></div>
                 <span className={`status-pill ${freshnessClassMap[station.status]}`}>
                   {freshnessLabelMap[station.status]}
                 </span>
               </div>
               <div className="station-card-metrics">
-                <span>Temperatura {formatOneDecimal(station.temperatureValue)} °C</span>
-                <span>Humedad {formatInteger(station.humidityValue)} %</span>
-                <span>Viento {formatOneDecimal(station.windValue)} km/h</span>
-                <span>Presión {formatInteger(station.pressureValue)} hPa</span>
+                <span>Air Temperature {formatCompactMeasurement(getMeasurement(station, "Air Temperature"))}</span>
+                <span>Wind Speed {formatCompactMeasurement(getMeasurement(station, "Wind Speed"))}</span>
+                <span>Atmospheric Pressure {formatCompactMeasurement(getMeasurement(station, "Atmospheric Pressure"))}</span>
               </div>
             </button>
           );
@@ -178,23 +178,21 @@ export function MeteoView({
             ? "Sin datos disponibles"
             : `Medición de las ${selectedStationUpdate.time} del ${selectedStationUpdate.date} (${formatRelativeAge(selectedStation.lastUpdate, now).toLocaleLowerCase("es-CL")})`}
         >
-          <div className="detail-kpi-grid">
-            <article className="detail-kpi">
-              <span>Temperatura</span>
-              <strong>{formatOneDecimal(selectedStation.temperatureValue)} °C</strong>
-            </article>
-            <article className="detail-kpi">
-              <span>Humedad</span>
-              <strong>{formatInteger(selectedStation.humidityValue)} %</strong>
-            </article>
-            <article className="detail-kpi">
-              <span>Viento</span>
-              <strong>{formatOneDecimal(selectedStation.windValue)} km/h</strong>
-            </article>
-            <article className="detail-kpi">
-              <span>Presión</span>
-              <strong>{formatInteger(selectedStation.pressureValue)} hPa</strong>
-            </article>
+          <div className="meteo-measurement-grid">
+            {getDisplayedMeasurements(selectedStation.measurements).map(({ key, label, measurement }) => (
+              <article className="detail-kpi" key={key}>
+                <span>{label}</span>
+                <strong>
+                  {formatMeasurementValue(measurement?.value ?? null)}
+                  {measurement?.unit ? ` ${measurement.unit}` : ""}
+                </strong>
+                {measurement && formatMeasurementSource(measurement, now) && (
+                  <small className="meteo-measurement-source">
+                    {formatMeasurementSource(measurement, now)}
+                  </small>
+                )}
+              </article>
+            ))}
           </div>
 
           <div className="status-row">

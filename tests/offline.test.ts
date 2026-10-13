@@ -173,9 +173,23 @@ test("incomplete copies identify missing sections and ignore another account's r
 });
 
 test("partial weather readings retain the station without fabricating missing measurements", () => {
-  const stations = mapSnapshotToStations({ generatedAt: "2026-10-10", stations: [{ id: "s1", name: "Copiapó", lat: -27.3, lng: -70.3, lastUpdate: "2026-10-09", temperatureValue: 23, humidityValue: 40, windValue: null }] });
+  const stations = mapSnapshotToStations({ generatedAt: "2026-10-10", stations: [{
+    id: "s1",
+    name: "Copiapó",
+    lat: -27.3,
+    lng: -70.3,
+    lastUpdate: "2026-10-09",
+    temperatureValue: 23,
+    measurements: [{
+      measurementName: "Air Temperature",
+      portNumber: 1,
+      recordedAt: "2026-10-09T12:00:00Z",
+      sensorName: "ATMOS 41",
+      unit: "°C",
+      value: 23,
+    }],
+  }] });
   assert.equal(stations.length, 1);
   assert.equal(stations[0].temperatureValue, 23);
-  assert.equal(stations[0].windValue, null);
-  assert.equal(stations[0].pressureValue, null);
+  assert.deepEqual(stations[0].measurements.map((measurement) => measurement.measurementName), ["Air Temperature"]);
 });

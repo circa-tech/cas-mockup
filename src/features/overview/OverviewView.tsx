@@ -94,7 +94,6 @@ export function OverviewView({
     .map((station) => ({
       id: station.id,
       name: station.name.replace("Estación ", ""),
-      humidity: station.humidityValue,
       status: station.status,
       temperature: station.temperatureValue,
     }));
@@ -208,14 +207,12 @@ export function OverviewView({
                   <div className="overview-mini-table-head">
                     <span>Estación</span>
                     <span>Temp</span>
-                    <span>HR</span>
                     <span>Estado</span>
                   </div>
                   {meteoSnapshot.map((station) => (
                     <div key={station.id} className="overview-mini-table-row">
                       <span className="overview-mini-name">{station.name}</span>
                       <span>{station.temperature === null ? "Sin datos" : `${station.temperature.toFixed(1)}°C`}</span>
-                      <span>{station.humidity === null ? "Sin datos" : `${station.humidity.toFixed(0)}%`}</span>
                       <span className={`overview-mini-status ${station.status}`}>
                         {freshnessCompactLabelMap[station.status]}
                       </span>

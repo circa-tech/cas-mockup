@@ -501,7 +501,7 @@ select:focus-visible {
 .overview-mini-table-head,
 .overview-mini-table-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) 56px;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 56px;
   gap: 8px;
   align-items: center;
   padding: 7px 10px;
@@ -2231,35 +2231,19 @@ select:focus-visible {
   font-size: 15px;
 }
 
-.station-weather {
-  width: fit-content;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: 999px;
-  padding: 3px 8px;
+.meteo-measurement-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px;
+}
+
+.meteo-measurement-source {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
   font-size: 11px;
-  font-weight: 620;
-  letter-spacing: 0.01em;
-  border: 1px solid transparent;
-}
-
-.station-weather--sun {
-  color: hsl(26 78% 34%);
-  background: hsl(39 96% 92%);
-  border-color: hsl(39 68% 79%);
-}
-
-.station-weather--cloud {
-  color: hsl(208 42% 35%);
-  background: hsl(208 54% 94%);
-  border-color: hsl(208 44% 82%);
-}
-
-.station-weather--rain {
-  color: hsl(212 58% 34%);
-  background: hsl(212 62% 93%);
-  border-color: hsl(212 46% 81%);
+  line-height: 1.35;
 }
 
 .station-card-metrics {
@@ -2712,6 +2696,7 @@ select:focus-visible {
 
   .snow-chart-summary,
   .detail-kpi-grid,
+  .meteo-measurement-grid,
   .manual-two-col,
   .registry-coordinate-row {
     grid-template-columns: 1fr;
@@ -2783,7 +2768,7 @@ select:focus-visible {
 
   .overview-mini-table-head,
   .overview-mini-table-row {
-    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) 48px;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 48px;
     font-size: 11px;
   }
 }

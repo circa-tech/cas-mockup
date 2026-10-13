@@ -730,11 +730,18 @@ export type WellMapPoint = GeoPointBase & {
   provider: string;
 };
 
+export type MeteoMeasurement = {
+  measurementName: string;
+  portNumber: number | null;
+  recordedAt: string;
+  sensorName: string;
+  unit: string | null;
+  value: number | null;
+};
+
 export type MeteoStationPoint = GeoPointBase & {
-  humidityValue: number | null;
-  pressureValue: number | null;
+  measurements: MeteoMeasurement[];
   temperatureValue: number | null;
-  windValue: number | null;
 };
 
 export type WaterQualityRecord = {
@@ -1034,9 +1041,32 @@ const meteoSeedData: Omit<MeteoStationPoint, "status">[] = [
     lastUpdate: mockSantiagoIso("2026-03-22", "09:10:00"),
     sourceType: "telemetry",
     temperatureValue: 18.2,
-    humidityValue: 42,
-    windValue: 11.3,
-    pressureValue: 1012,
+    measurements: [
+      {
+        measurementName: "Air Temperature",
+        portNumber: 1,
+        recordedAt: mockSantiagoIso("2026-03-22", "09:10:00"),
+        sensorName: "ATMOS 41",
+        unit: "°C",
+        value: 18.2,
+      },
+      {
+        measurementName: "Wind Speed",
+        portNumber: 1,
+        recordedAt: mockSantiagoIso("2026-03-22", "09:10:00"),
+        sensorName: "ATMOS 41",
+        unit: "km/h",
+        value: 11.3,
+      },
+      {
+        measurementName: "Atmospheric Pressure",
+        portNumber: 1,
+        recordedAt: mockSantiagoIso("2026-03-22", "09:10:00"),
+        sensorName: "ATMOS 41",
+        unit: "hPa",
+        value: 1012,
+      },
+    ],
   },
   {
     id: "meteo-tierra-amarilla",
@@ -1046,9 +1076,32 @@ const meteoSeedData: Omit<MeteoStationPoint, "status">[] = [
     lastUpdate: mockSantiagoIso("2026-03-19", "06:20:00"),
     sourceType: "telemetry",
     temperatureValue: 17.4,
-    humidityValue: 47,
-    windValue: 8.6,
-    pressureValue: 1015,
+    measurements: [
+      {
+        measurementName: "Air Temperature",
+        portNumber: 1,
+        recordedAt: mockSantiagoIso("2026-03-19", "06:20:00"),
+        sensorName: "ATMOS 41",
+        unit: "°C",
+        value: 17.4,
+      },
+      {
+        measurementName: "Wind Speed",
+        portNumber: 1,
+        recordedAt: mockSantiagoIso("2026-03-19", "06:20:00"),
+        sensorName: "ATMOS 41",
+        unit: "km/h",
+        value: 8.6,
+      },
+      {
+        measurementName: "Atmospheric Pressure",
+        portNumber: 1,
+        recordedAt: mockSantiagoIso("2026-03-19", "06:20:00"),
+        sensorName: "ATMOS 41",
+        unit: "hPa",
+        value: 1015,
+      },
+    ],
   },
   {
     id: "meteo-jorquera",
@@ -1058,9 +1111,32 @@ const meteoSeedData: Omit<MeteoStationPoint, "status">[] = [
     lastUpdate: mockSantiagoIso("2026-03-21", "08:05:00"),
     sourceType: "telemetry",
     temperatureValue: 14.9,
-    humidityValue: 53,
-    windValue: 13.1,
-    pressureValue: 1010,
+    measurements: [
+      {
+        measurementName: "Air Temperature",
+        portNumber: 1,
+        recordedAt: mockSantiagoIso("2026-03-21", "08:05:00"),
+        sensorName: "ATMOS 41",
+        unit: "°C",
+        value: 14.9,
+      },
+      {
+        measurementName: "Wind Speed",
+        portNumber: 1,
+        recordedAt: mockSantiagoIso("2026-03-21", "08:05:00"),
+        sensorName: "ATMOS 41",
+        unit: "km/h",
+        value: 13.1,
+      },
+      {
+        measurementName: "Atmospheric Pressure",
+        portNumber: 1,
+        recordedAt: mockSantiagoIso("2026-03-21", "08:05:00"),
+        sensorName: "ATMOS 41",
+        unit: "hPa",
+        value: 1010,
+      },
+    ],
   },
 ];
 

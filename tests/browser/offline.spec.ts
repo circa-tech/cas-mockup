@@ -43,7 +43,7 @@ async function mockServices(context: BrowserContext, isOffline: () => boolean, f
     }
     const pageNumber = Number(new URL(route.request().url()).searchParams.get("page") ?? 1);
     let data: unknown;
-    if (path === "weather-stations/snapshot") data = { generatedAt: "2026-10-09", stations: [{ id: "station-1", name: "Estación guardada", lat: -27.3, lng: -70.5, lastUpdate: "2026-10-09T12:00:00Z", humidityValue: 41, pressureValue: null, temperatureValue: 23, windValue: 5 }] };
+    if (path === "weather-stations/snapshot") data = { generatedAt: "2026-10-09", stations: [{ id: "station-1", name: "Estación guardada", lat: -27.3, lng: -70.5, lastUpdate: "2026-10-09T12:00:00Z", temperatureValue: 23, measurements: [{ measurementName: "Air Temperature", portNumber: 1, recordedAt: "2026-10-09T12:00:00Z", sensorName: "ATMOS 41", unit: "°C", value: 23 }] }] };
     else if (path === "wells/groundwater-measurements") data = [{ wellId: "well-1", name: "Pozo guardado", lat: -27.3, lng: -70.5, groundwaterMeasurement: { measurementDate: "2026-10-09", measurementTime: "12:00:00", waterTableDepth: 22, flowRate: 3, source: "manual" } }];
     else if (path === "wells/admin/me") data = { canViewWells: true, canAddMeasurements: true, canManageCas: false, canCreateWells: true };
     else if (path.startsWith("wells/registry")) data = [];

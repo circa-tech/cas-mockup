@@ -1,5 +1,5 @@
 import { apiFetch } from "../offline/apiFetch";
-import { MeteoStationPoint } from "../data/mockupData";
+import type { MeteoMeasurement, MeteoStationPoint } from "../data/mockupData";
 import { throwApiError } from "./apiError";
 
 type WeatherStationSnapshot = {
@@ -9,17 +9,24 @@ type WeatherStationSnapshot = {
 };
 
 type WeatherStationApiPoint = {
-  humidityValue?: number | null;
   id: string;
   lastUpdate?: string | null;
   lat: number;
   lng: number;
   name: string;
-  pressureValue?: number | null;
+  measurements?: WeatherStationApiMeasurement[];
   sourceType?: "telemetry";
   status?: "fresh" | "warning" | "stale";
   temperatureValue?: number | null;
-  windValue?: number | null;
+};
+
+type WeatherStationApiMeasurement = {
+  measurementName: string;
+  portNumber?: number | null;
+  recordedAt?: string | null;
+  sensorName?: string | null;
+  unit?: string | null;
+  value?: number | null;
 };
 
 const apiBaseUrl = import.meta.env?.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
@@ -43,6 +50,15 @@ export const fetchWeatherStationPoints = async (
 const finiteMetric = (value: number | null | undefined) =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 
+const mapMeasurement = (measurement: WeatherStationApiMeasurement): MeteoMeasurement => ({
+  measurementName: measurement.measurementName,
+  portNumber: measurement.portNumber ?? null,
+  recordedAt: measurement.recordedAt ?? "",
+  sensorName: measurement.sensorName ?? "",
+  unit: measurement.unit ?? null,
+  value: finiteMetric(measurement.value),
+});
+
 // One unavailable sensor must not hide the entire station (or climate tab).
 export const mapSnapshotToStations = (snapshot: WeatherStationSnapshot): MeteoStationPoint[] => {
   const stations = snapshot.stations.flatMap((station) => {
@@ -56,9 +72,7 @@ export const mapSnapshotToStations = (snapshot: WeatherStationSnapshot): MeteoSt
       sourceType: "telemetry" as const,
       status: station.status ?? "stale",
       temperatureValue: finiteMetric(station.temperatureValue),
-      humidityValue: finiteMetric(station.humidityValue),
-      windValue: finiteMetric(station.windValue),
-      pressureValue: finiteMetric(station.pressureValue),
+      measurements: (station.measurements ?? []).map(mapMeasurement),
     }];
   });
 
@@ -75,9 +89,7 @@ export const mapSnapshotToStations = (snapshot: WeatherStationSnapshot): MeteoSt
       sourceType: "telemetry",
       status: "stale",
       temperatureValue: null,
-      humidityValue: null,
-      windValue: null,
-      pressureValue: null,
+      measurements: [],
     },
   ];
 };
