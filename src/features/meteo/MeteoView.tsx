@@ -27,6 +27,14 @@ const formatInteger = (value: number | null) =>
   value === null ? "Sin datos" : new Intl.NumberFormat("es-CL", { maximumFractionDigits: 0 }).format(value);
 
 const getStationWeatherSummary = (station: MeteoStationPoint) => {
+  if (
+    station.humidityValue === null &&
+    station.temperatureValue === null &&
+    station.windValue === null &&
+    station.pressureValue === null
+  ) {
+    return { icon: CloudSun, label: "Sin datos", tone: "cloud" } as const;
+  }
   if (station.humidityValue === null || station.temperatureValue === null) {
     return { icon: CloudSun, label: "Medición parcial", tone: "cloud" } as const;
   }
@@ -166,7 +174,9 @@ export function MeteoView({
 
         <Panel
           title={selectedStation.name}
-          subtitle={`Medición de las ${selectedStationUpdate.time} del ${selectedStationUpdate.date} (${formatRelativeAge(selectedStation.lastUpdate, now).toLocaleLowerCase("es-CL")})`}
+          subtitle={selectedStation.lastUpdate === "Sin datos"
+            ? "Sin datos disponibles"
+            : `Medición de las ${selectedStationUpdate.time} del ${selectedStationUpdate.date} (${formatRelativeAge(selectedStation.lastUpdate, now).toLocaleLowerCase("es-CL")})`}
         >
           <div className="detail-kpi-grid">
             <article className="detail-kpi">

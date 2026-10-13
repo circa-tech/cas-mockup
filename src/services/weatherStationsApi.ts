@@ -44,8 +44,8 @@ const finiteMetric = (value: number | null | undefined) =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 
 // One unavailable sensor must not hide the entire station (or climate tab).
-export const mapSnapshotToStations = (snapshot: WeatherStationSnapshot): MeteoStationPoint[] =>
-  snapshot.stations.flatMap((station) => {
+export const mapSnapshotToStations = (snapshot: WeatherStationSnapshot): MeteoStationPoint[] => {
+  const stations = snapshot.stations.flatMap((station) => {
     if (!Number.isFinite(station.lat) || !Number.isFinite(station.lng)) return [];
     return [{
       id: station.id,
@@ -61,3 +61,23 @@ export const mapSnapshotToStations = (snapshot: WeatherStationSnapshot): MeteoSt
       pressureValue: finiteMetric(station.pressureValue),
     }];
   });
+
+  if (stations.some((station) => station.id === "zentra-z6-05550")) return stations;
+
+  return [
+    ...stations,
+    {
+      id: "zentra-z6-05550",
+      name: "Lautaro",
+      lat: -28.0414415,
+      lng: -69.9828402,
+      lastUpdate: "Sin datos",
+      sourceType: "telemetry",
+      status: "stale",
+      temperatureValue: null,
+      humidityValue: null,
+      windValue: null,
+      pressureValue: null,
+    },
+  ];
+};
