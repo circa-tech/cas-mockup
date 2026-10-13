@@ -16,6 +16,12 @@ type MeteoViewProps = {
   status: RemoteLoadStatus;
 };
 
+type DisplayedMeasurement = {
+  key: string;
+  label: string;
+  measurement: MeteoMeasurement | null;
+};
+
 const displayedVariables = [
   { name: "Air Temperature", aliases: ["air temperature"] },
   { name: "Atmospheric Pressure", aliases: ["atmospheric pressure"] },
@@ -34,8 +40,8 @@ const displayedVariables = [
 
 const normalizeMeasurementName = (name: string) => name.trim().toLocaleLowerCase("en");
 
-const getDisplayedMeasurements = (measurements: MeteoMeasurement[]) =>
-  displayedVariables.flatMap((variable) => {
+const getDisplayedMeasurements = (measurements: MeteoMeasurement[]): DisplayedMeasurement[] =>
+  displayedVariables.flatMap<DisplayedMeasurement>((variable) => {
     const matches = measurements.filter((measurement) => {
       const measurementName = normalizeMeasurementName(measurement.measurementName);
       return variable.aliases.some((alias) => alias === measurementName);
