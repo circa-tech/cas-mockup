@@ -4,6 +4,10 @@ import { getOfflineState, updateOfflineState, useOfflineState } from "./state";
 import { listResponses, readResponse } from "./storage";
 import { snapshotCompleteness } from "./completeness";
 import { queryClient } from "../lib/queryClient";
+import { historyPreset } from "../utils/history";
+
+const defaultHistoryPath = (module: "et-lat" | "modis-snow", selection: Record<string, string> = {}) =>
+  `${module}/history?${new URLSearchParams({ ...selection, ...historyPreset(1), resolution: "auto", max_points: "1200" })}`;
 
 const apiBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
 const summaryPaths = ["weather-stations/snapshot", "et-lat/std-ae", "et-lat/serie-et", "modis-snow/coverage-series"];
@@ -18,6 +22,9 @@ let runRevision = 0;
 export function offlinePaths(role: string) {
   return [
     ...corePaths,
+    defaultHistoryPath("et-lat"),
+    defaultHistoryPath("et-lat", { sector_id: "19" }),
+    ...["ae", "jorquera", "pulido", "manflas"].map((area) => defaultHistoryPath("modis-snow", { area })),
     ...(role !== "public_user" ? ["wells/groundwater-measurements", "wells/admin/me", "wells/registry/mine"] : []),
     ...(["cas_user", "technical_admin", "general_admin"].includes(role)
       ? ["forum/threads?page=1&page_size=20"] : []),
@@ -81,6 +88,8 @@ export async function prepareOfflineData(refresh = false) {
   const downloadPath = "et-lat/data-cuad?cuadrante_id=273&variable=ETR";
   await runPhase([
     ...sectors.flatMap((id) => [`et-lat/serie-et?sector_id=${id}`, `et-lat/et-cult?sector_id=${id}`]),
+    ...sectors.map((id) => defaultHistoryPath("et-lat", { sector_id: String(id) })),
+    ...(Number.isInteger(parcelId) && parcelId > 0 ? [defaultHistoryPath("et-lat", { uso_id: String(parcelId) })] : []),
     ...(Number.isInteger(parcelId) && parcelId > 0 ? ["et-poly", "kc-poly", "lai-poly"].map((resource) => `et-lat/${resource}?uso_id=${parcelId}`) : []),
     ...(capabilities?.canManageCas ? ["wells/registry"] : []),
     ...(downloads ? [downloadPath] : []),
