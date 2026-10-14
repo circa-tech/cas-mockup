@@ -37,6 +37,7 @@ type SimpleLineChartProps = {
   minValue: number;
   mode?: "linear" | "step";
   primaryAxisLabel?: string;
+  primaryAxisReversed?: boolean;
   series: LineSeries[];
   secondaryMaxValue?: number;
   secondaryMinValue?: number;
@@ -88,6 +89,7 @@ export function SimpleLineChart({
   minValue,
   mode = "linear",
   primaryAxisLabel,
+  primaryAxisReversed = false,
   series,
   secondaryMaxValue,
   secondaryMinValue,
@@ -144,6 +146,7 @@ export function SimpleLineChart({
               yAxisId="primary"
               axisLine={{ stroke: "hsl(210 18% 84%)" }}
               domain={[minValue, maxValue]}
+              reversed={primaryAxisReversed}
               tick={{ fill: "hsl(215 14% 50%)", fontSize: 11 }}
               tickFormatter={(value: number) => value.toFixed(1)}
               tickLine={false}

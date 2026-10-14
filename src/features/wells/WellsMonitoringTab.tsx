@@ -433,7 +433,10 @@ export function WellsMonitoringTab({
         </Panel>
       </div>
 
-      <Panel title={`Nivel freático y otras variables · ${selectedWell.name}`}>
+      <Panel
+        title={`Nivel freático y otras variables · ${selectedWell.name}`}
+        subtitle="Profundidad en metros bajo el suelo; los valores mayores indican mayor profundidad."
+      >
         <fieldset className="well-chart-variable-selector">
           <legend>Origen de las mediciones</legend>
           <div className="well-chart-variable-options">
@@ -501,8 +504,9 @@ export function WellsMonitoringTab({
             maxValue={maxSeriesValue}
             minValue={minSeriesValue}
             mode="linear"
+            primaryAxisReversed
             series={selectedChartSeries}
-            primaryAxisLabel="Nivel freático (m)"
+            primaryAxisLabel="Profundidad (m)"
             secondaryMaxValue={maxSecondaryValue}
             secondaryMinValue={minSecondaryValue}
             unit="m"
