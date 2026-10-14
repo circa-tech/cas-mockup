@@ -39,6 +39,7 @@ type SimpleLineChartProps = {
   primaryAxisLabel?: string;
   primaryAxisReversed?: boolean;
   series: LineSeries[];
+  showDots?: boolean;
   secondaryMaxValue?: number;
   secondaryMinValue?: number;
   unit: string;
@@ -91,6 +92,7 @@ export function SimpleLineChart({
   primaryAxisLabel,
   primaryAxisReversed = false,
   series,
+  showDots = true,
   secondaryMaxValue,
   secondaryMinValue,
   unit,
@@ -206,7 +208,9 @@ export function SimpleLineChart({
                 animationDuration={780}
                 connectNulls={item.connectNulls ?? false}
                 dataKey={item.label}
-                dot={item.conditionPointColors
+                dot={!showDots
+                  ? false
+                  : item.conditionPointColors
                   ? (dotProps: DotItemDotProps) => {
                       if (typeof dotProps.cx !== "number" || typeof dotProps.cy !== "number") {
                         return null;

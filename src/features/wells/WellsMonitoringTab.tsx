@@ -496,7 +496,7 @@ export function WellsMonitoringTab({
               </label>
             ))}
           </div>
-          <p>El trazo distingue API y manual; el color del punto indica la condición seleccionada.</p>
+          <p>El trazo distingue el origen (API o manual); selecciona las condiciones que quieres incluir.</p>
         </fieldset>
         {selectedChartSeries.length > 0 ? (
           <SimpleLineChart
@@ -506,6 +506,7 @@ export function WellsMonitoringTab({
             mode="linear"
             primaryAxisReversed
             series={selectedChartSeries}
+            showDots={false}
             primaryAxisLabel="Profundidad (m)"
             secondaryMaxValue={maxSecondaryValue}
             secondaryMinValue={minSecondaryValue}
