@@ -4127,3 +4127,14 @@ body {
 .confirmation-dialog .confirmation-actions button.is-primary:hover { color: white; background: color-mix(in srgb, var(--blue) 82%, black); }
 .confirmation-dialog .confirmation-actions button.is-destructive:hover { color: white; background: color-mix(in srgb, var(--danger) 78%, black); }
 @media (max-width: 480px) { .confirmation-content { padding: 22px; } .confirmation-actions button { flex: 1 1 auto; } }
+.historical-series { min-width: 0; display: grid; gap: 12px; padding: 16px; }
+.history-presets, .history-period { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+.historical-series button { border: 1px solid hsl(210 18% 80%); border-radius: 8px; padding: 8px 12px; background: white; color: hsl(215 30% 30%); cursor: pointer; font: inherit; font-size: 13px; }
+.historical-series button[aria-pressed="true"] { background: hsl(202 65% 94%); border-color: hsl(202 65% 43%); color: hsl(202 65% 30%); }
+.historical-series button:disabled { opacity: .5; cursor: default; }
+.history-period label { display: grid; gap: 4px; font-size: 12px; color: hsl(215 20% 35%); }
+.history-period input { max-width: 100%; min-width: 0; padding: 8px; border: 1px solid hsl(210 18% 80%); border-radius: 8px; font: inherit; background: white; color: inherit; }
+.history-chart { min-width: 0; width: 100%; font-size: 11px; }
+.history-note { margin: 0; color: hsl(215 14% 42%); font-size: 12px; line-height: 1.5; }
+.history-zoom { justify-self: start; }
+@media (max-width: 640px) { .history-period label { flex: 1 1 120px; } .history-presets button { flex: 1 1 auto; } }

@@ -1,3 +1,4 @@
+import { HistoricalSeriesChart } from "../../components/HistoricalSeriesChart";
 import {
   Droplets,
   Gauge,
@@ -299,9 +300,9 @@ export function EtrSectorTab({
         </Panel>
 
         <Panel
-          title="Consumo durante la temporada (mm/día)"
+          title="Historial de consumo (mm/día)"
         >
-          {showOverviewData ? (
+          {isLoggedIn ? <HistoricalSeriesChart authIdToken={authIdToken} module="et-lat" /> : showOverviewData ? (
             <SimpleLineChart
               labelEvery={3}
               maxValue={1.8}
@@ -394,10 +395,10 @@ export function EtrSectorTab({
       </div>
 
       <Panel
-        title={`Consumo durante la temporada en ${selectedSector.sectorName}`}
+        title={`Historial de consumo en ${selectedSector.sectorName}`}
         className="panel-accent-blue"
       >
-        {showSelectedSectorData ? (
+        {isLoggedIn ? <HistoricalSeriesChart key={selectedSector.sectorId} authIdToken={authIdToken} module="et-lat" selection={{ sector_id: selectedSector.sectorId }} /> : showSelectedSectorData ? (
           <SimpleLineChart
             labelEvery={2}
             maxValue={selectedSeasonMax}

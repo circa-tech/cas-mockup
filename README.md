@@ -10,6 +10,27 @@ Copy `.env.example` to `.env.local` for local development and set:
 If Firebase is not configured, the mockup keeps the local demo login and mock
 station data.
 
+## ET and snow historical series
+
+Authenticated ET charts (whole valley, sector and parcel) and the four snow areas
+offer 1 year, 2 years, all available data since 2021, custom inclusive dates and
+a draggable zoom selector. Applying a zoom queries the selected interval again
+so monthly overviews can resolve into original observations. Monthly tooltips
+show the mean, minimum, maximum and observation count. Missing values remain
+gaps. Actual available dates are displayed; selecting 2021 does not imply the
+source has measurements for every date.
+
+This requires the new `cas-service-platform` history endpoints and the
+`cas-etl/pipelines/history` publication. Deploy the API, publish/audit the source
+history, then deploy this UI. Existing seasonal summary cards and Kc/LAI access
+are preserved. No browser connects to PostgreSQL or Firestore directly.
+
+Offline preparation includes the default one-year interval for the overview,
+supported sectors, initial parcel and snow areas. Other periods are saved when
+consulted, with the existing identity isolation, seven-day expiry and quota.
+An unvisited interval displays “Período no guardado”; exact date ranges form part
+of the cache key. This does not pre-download the full historical archive.
+
 ## Offline browsing
 
 After an online sign-in, the app prepares a read-only copy in the background.

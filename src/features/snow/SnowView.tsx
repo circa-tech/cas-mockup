@@ -152,6 +152,7 @@ export function SnowView({
 
       {activeSnowTab === "coverage" && (
         <SnowCoverageTab
+          authIdToken={authIdToken}
           basinsGeoJson={basinsGeoJson}
           basinsStatus={basinsStatus}
           basinsTone={basinsTone}

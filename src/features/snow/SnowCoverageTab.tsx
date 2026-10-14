@@ -1,3 +1,4 @@
+import { HistoricalSeriesChart } from "../../components/HistoricalSeriesChart";
 import { lazy } from "react";
 import { Panel } from "../../components/Panel";
 import { RemoteDataState } from "../../components/RemoteDataState";
@@ -12,6 +13,7 @@ const SnowCoverageMap = lazy(() =>
 );
 
 export function SnowCoverageTab({
+  authIdToken,
   basinsGeoJson,
   basinsStatus,
   basinsTone,
@@ -27,6 +29,7 @@ export function SnowCoverageTab({
   snowChartLabelEvery,
   snowChartsTone,
 }: {
+  authIdToken: string | null;
   basinsGeoJson: ModisSnowBasinsGeoJson | null;
   basinsStatus: "idle" | "loading" | "ready" | "error";
   basinsTone: "error" | "loading";
@@ -91,14 +94,13 @@ export function SnowCoverageTab({
             <div className="snow-description">
               <h3>Cobertura de nieve día a día (% del área)</h3>
               <p>
-                Estos gráficos muestran qué porcentaje del área tiene nieve cada día.
-                Si la línea de este año va sobre la del año anterior, hay más nieve
-                que el año pasado a la misma fecha.
+                Estos gráficos muestran qué porcentaje del área tiene nieve.
+                Selecciona un período para explorar las mediciones históricas disponibles desde 2021.
               </p>
             </div>
 
             <Panel title="Toda el área de estudio">
-              {showSnowCharts ? (
+              {isLoggedIn ? <HistoricalSeriesChart authIdToken={authIdToken} module="modis-snow" selection={{ area: "ae" }} /> : showSnowCharts ? (
                 <SimpleLineChart
                   labelEvery={snowChartLabelEvery}
                   maxValue={100}
@@ -126,7 +128,7 @@ export function SnowCoverageTab({
             </Panel>
 
             <Panel title="Cuenca del río Jorquera">
-              {showSnowCharts ? (
+              {isLoggedIn ? <HistoricalSeriesChart authIdToken={authIdToken} module="modis-snow" selection={{ area: "jorquera" }} /> : showSnowCharts ? (
                 <SimpleLineChart
                   labelEvery={snowChartLabelEvery}
                   maxValue={100}
@@ -154,7 +156,7 @@ export function SnowCoverageTab({
             </Panel>
 
             <Panel title="Cuenca del río Pulido">
-              {showSnowCharts ? (
+              {isLoggedIn ? <HistoricalSeriesChart authIdToken={authIdToken} module="modis-snow" selection={{ area: "pulido" }} /> : showSnowCharts ? (
                 <SimpleLineChart
                   labelEvery={snowChartLabelEvery}
                   maxValue={100}
@@ -182,7 +184,7 @@ export function SnowCoverageTab({
             </Panel>
 
             <Panel title="Cuenca del río Manflas">
-              {showSnowCharts ? (
+              {isLoggedIn ? <HistoricalSeriesChart authIdToken={authIdToken} module="modis-snow" selection={{ area: "manflas" }} /> : showSnowCharts ? (
                 <SimpleLineChart
                   labelEvery={snowChartLabelEvery}
                   maxValue={100}

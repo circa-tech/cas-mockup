@@ -1,3 +1,4 @@
+import { HistoricalSeriesChart } from "../../components/HistoricalSeriesChart";
 import { Info } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { lazy, useEffect, useMemo, useState } from "react";
@@ -402,7 +403,7 @@ export function EtrUsageTab({
         subtitle={`Parcela ${selectedUso.usoId} · ${usageRecord.cultivo}`}
         className="panel-accent-blue"
       >
-        {showUsageData ? (
+        {isLoggedIn ? <HistoricalSeriesChart key={selectedUso.usoId} authIdToken={authIdToken} module="et-lat" selection={{ uso_id: selectedUso.usoId }} /> : showUsageData ? (
           <SimpleLineChart
             labelEvery={3}
             maxValue={etrEtmaxDomain.max}
