@@ -1371,7 +1371,8 @@ select:focus-visible {
 }
 
 .registry-optional-section,
-.registry-optional-category {
+.registry-optional-category,
+.registry-required-category {
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -1449,6 +1450,27 @@ select:focus-visible {
   padding: 14px;
 }
 
+.water-right-totals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.water-right-totals input[readonly] {
+  background: hsl(210 20% 97%);
+  color: #263246;
+  font-weight: 650;
+}
+
+.registry-required-category > h3 {
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 13px 14px;
+  color: #202733;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .registry-utm-fields {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1467,6 +1489,10 @@ select:focus-visible {
   .registry-utm-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .water-right-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .registry-repeatable-fields {
@@ -1479,11 +1505,33 @@ select:focus-visible {
   justify-content: flex-end;
 }
 
+.registry-repeatable-actions .icon-text-button {
+  min-height: 36px;
+  padding: 0 12px;
+  box-shadow: none;
+}
+
 .water-right-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr)) 36px;
   gap: 10px;
   align-items: end;
+}
+
+.water-right-entry {
+  grid-template-columns: minmax(0, 1fr) 36px;
+  align-items: end;
+}
+
+.water-right-fields {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.water-right-fields label {
+  min-width: 0;
 }
 
 .icon-text-button,
@@ -2709,6 +2757,11 @@ select:focus-visible {
   }
 
   .water-right-row {
+    grid-template-columns: 1fr;
+  }
+
+  .water-right-fields,
+  .water-right-totals {
     grid-template-columns: 1fr;
   }
 

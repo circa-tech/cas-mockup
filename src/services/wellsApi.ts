@@ -25,8 +25,12 @@ export type CatchmentStatus = "operativa" | "deshabilitada" | "pozo_monitoreo";
 
 export type WaterRight = {
   anio?: number | string | null;
+  authorizedFlowRate?: string | number | null;
+  authorizedVolume?: string | number | null;
   cbr?: string | null;
   fojas?: string | null;
+  holderName?: string | null;
+  holderRut?: string | null;
   numero?: string | null;
 };
 
@@ -97,8 +101,6 @@ export type WellRegistryEntry = {
 
 export type CreateWellRegistryEntryPayload = {
   aquiferSector?: string | null;
-  authorizedFlowRate?: string | null;
-  authorizedVolume?: string | null;
   casId: string;
   centroControlRut?: string | null;
   catchmentStatus?: CatchmentStatus | null;

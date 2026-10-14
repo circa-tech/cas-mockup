@@ -1,7 +1,5 @@
 export type WellRegistryFormState = {
   aquiferSector: string;
-  authorizedFlowRate: string;
-  authorizedVolume: string;
   casId: string;
   catchmentStatus: string;
   centroControlRut: string;
@@ -40,8 +38,12 @@ export type WellRegistryFormState = {
   utmNorthing: string;
   waterRights: {
     anio: string;
+    authorizedFlowRate: string;
+    authorizedVolume: string;
     cbr: string;
     fojas: string;
+    holderName: string;
+    holderRut: string;
     numero: string;
   }[];
   wellDepth: string;

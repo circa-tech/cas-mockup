@@ -12,7 +12,16 @@ const StatusLeafletMap = lazy(() =>
   })),
 );
 
-const emptyWaterRight = () => ({ anio: "", cbr: "", fojas: "", numero: "" });
+const emptyWaterRight = () => ({
+  anio: "",
+  authorizedFlowRate: "",
+  authorizedVolume: "",
+  cbr: "",
+  fojas: "",
+  holderName: "",
+  holderRut: "",
+  numero: "",
+});
 
 // Solo centra la vista inicial del mapa; nunca se copia al formulario ni al payload.
 const COPIAPO_MAP_CENTER: [number, number] = [-27.3668, -70.3323];
@@ -39,10 +48,19 @@ const waterRightLabel = {
   numero: "Número",
 } as const;
 
+const sumWaterRights = (
+  waterRights: WellRegistryFormState["waterRights"],
+  field: "authorizedFlowRate" | "authorizedVolume",
+) => {
+  const values = waterRights.map((right) => Number.parseFloat(right[field]));
+  if (values.length === 0 || values.some((value) => !Number.isFinite(value) || value < 0)) {
+    return "";
+  }
+  return values.reduce((total, value) => total + value, 0).toFixed(2);
+};
+
 const entryToForm = (entry: WellRegistryEntry): WellRegistryFormState => ({
   aquiferSector: entry.aquiferSector ?? "",
-  authorizedFlowRate: stringValue(entry.authorizedFlowRate),
-  authorizedVolume: stringValue(entry.authorizedVolume),
   casId: entry.casId,
   catchmentStatus: entry.catchmentStatus ?? "",
   centroControlRut: entry.centroControlRut ?? "",
@@ -89,8 +107,12 @@ const entryToForm = (entry: WellRegistryEntry): WellRegistryFormState => ({
     entry.waterRights && entry.waterRights.length > 0
       ? entry.waterRights.map((right) => ({
           anio: stringValue(right.anio),
+          authorizedFlowRate: stringValue(right.authorizedFlowRate),
+          authorizedVolume: stringValue(right.authorizedVolume),
           cbr: right.cbr ?? "",
           fojas: right.fojas ?? "",
+          holderName: right.holderName ?? "",
+          holderRut: right.holderRut ?? "",
           numero: right.numero ?? "",
         }))
       : [emptyWaterRight()],
@@ -380,6 +402,24 @@ export function WellRegistryEditor({
           </section>
         </div>
 
+        <section className="registry-required-category" aria-labelledby="water-rights-heading">
+          <h3 id="water-rights-heading">Derechos de aprovechamiento *</h3>
+          <div className="registry-category-fields">
+            <WaterRightsEditor form={form} onChange={onChange} />
+
+            <div className="water-right-totals">
+              <label>
+                <span>Caudal autorizado total (L/s)</span>
+                <input readOnly value={sumWaterRights(form.waterRights, "authorizedFlowRate")} />
+              </label>
+              <label>
+                <span>Volumen anual autorizado total (m³/año)</span>
+                <input readOnly value={sumWaterRights(form.waterRights, "authorizedVolume")} />
+              </label>
+            </div>
+          </div>
+        </section>
+
         <details className="registry-optional-section">
           <summary>
             <span>Datos opcionales</span>
@@ -473,34 +513,6 @@ export function WellRegistryEditor({
                   value={form.locationReference}
                   placeholder="Sector norte del predio"
                   onChange={(event) => onChange({ locationReference: event.target.value })}
-                />
-              </label>
-            </OptionalGroup>
-
-            <OptionalGroup title="Derechos de aprovechamiento">
-              <label>
-                <span>Caudal autorizado (L/s)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.authorizedFlowRate}
-                  placeholder="12.50"
-                  onChange={(event) => onChange({ authorizedFlowRate: event.target.value })}
-                />
-              </label>
-
-              <WaterRightsEditor form={form} onChange={onChange} />
-
-              <label>
-                <span>Volumen anual autorizado (m³/año)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.authorizedVolume}
-                  placeholder="120000.00"
-                  onChange={(event) => onChange({ authorizedVolume: event.target.value })}
                 />
               </label>
             </OptionalGroup>
@@ -804,22 +816,80 @@ function WaterRightsEditor({
         </button>
       </div>
       {form.waterRights.map((right, index) => (
-        <div className="water-right-row" key={index}>
-          {(["fojas", "numero", "anio", "cbr"] as const).map((field) => (
-            <label key={field}>
-              <span>{waterRightLabel[field]}</span>
+        <div className="water-right-row water-right-entry" key={index}>
+          <div className="water-right-fields">
+            {(["fojas", "numero", "anio", "cbr"] as const).map((field) => (
+              <label key={field}>
+                <span>{waterRightLabel[field]}</span>
+                <input
+                  type={field === "anio" ? "number" : "text"}
+                  step={field === "anio" ? "1" : undefined}
+                  value={right[field]}
+                  onChange={(event) => {
+                    const waterRights = [...form.waterRights];
+                    waterRights[index] = { ...right, [field]: event.target.value };
+                    onChange({ waterRights });
+                  }}
+                />
+              </label>
+            ))}
+            <label>
+              <span>Caudal autorizado (L/s) *</span>
               <input
-                type={field === "anio" ? "number" : "text"}
-                step={field === "anio" ? "1" : undefined}
-                value={right[field]}
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                value={right.authorizedFlowRate}
                 onChange={(event) => {
                   const waterRights = [...form.waterRights];
-                  waterRights[index] = { ...right, [field]: event.target.value };
+                  waterRights[index] = { ...right, authorizedFlowRate: event.target.value };
                   onChange({ waterRights });
                 }}
               />
             </label>
-          ))}
+            <label>
+              <span>Volumen anual autorizado (m³/año) *</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                value={right.authorizedVolume}
+                onChange={(event) => {
+                  const waterRights = [...form.waterRights];
+                  waterRights[index] = { ...right, authorizedVolume: event.target.value };
+                  onChange({ waterRights });
+                }}
+              />
+            </label>
+            <label>
+              <span>Nombre del titular *</span>
+              <input
+                type="text"
+                required
+                value={right.holderName}
+                onChange={(event) => {
+                  const waterRights = [...form.waterRights];
+                  waterRights[index] = { ...right, holderName: event.target.value };
+                  onChange({ waterRights });
+                }}
+              />
+            </label>
+            <label>
+              <span>RUT del titular *</span>
+              <input
+                type="text"
+                required
+                value={right.holderRut}
+                onChange={(event) => {
+                  const waterRights = [...form.waterRights];
+                  waterRights[index] = { ...right, holderRut: event.target.value };
+                  onChange({ waterRights });
+                }}
+              />
+            </label>
+          </div>
           <button
             type="button"
             className="icon-only-button"

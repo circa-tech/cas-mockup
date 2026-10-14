@@ -51,8 +51,12 @@ const parseOptionalMetadataNumber = (value: string): number | null => {
 
 const emptyWaterRight = () => ({
   anio: "",
+  authorizedFlowRate: "",
+  authorizedVolume: "",
   cbr: "",
   fojas: "",
+  holderName: "",
+  holderRut: "",
   numero: "",
 });
 
@@ -65,8 +69,6 @@ const emptyOwnerContact = () => ({
 
 const emptyWellRegistryForm = (): WellRegistryFormState => ({
   aquiferSector: "",
-  authorizedFlowRate: "",
-  authorizedVolume: "",
   casId: "",
   catchmentStatus: "",
   centroControlRut: "",
@@ -159,11 +161,6 @@ const buildWellRegistryPayload = (
 
   const lat = Number.parseFloat(form.lat);
   const lng = Number.parseFloat(form.lng);
-  const authorizedFlowRate =
-    form.authorizedFlowRate.trim() === ""
-      ? null
-      : Number.parseFloat(form.authorizedFlowRate);
-  const authorizedVolume = parseOptionalMetadataNumber(form.authorizedVolume);
   const wellDepth = parseOptionalMetadataNumber(form.wellDepth);
   const pumpDepth = parseOptionalMetadataNumber(form.pumpDepth);
   const habilitationDiameter = parseOptionalMetadataNumber(form.habilitationDiameter);
@@ -177,16 +174,25 @@ const buildWellRegistryPayload = (
   const waterRights = form.waterRights
     .map((right) => ({
       anio: right.anio.trim() === "" ? null : Number.parseInt(right.anio, 10),
+      authorizedFlowRate: right.authorizedFlowRate.trim() === ""
+        ? null
+        : Number.parseFloat(right.authorizedFlowRate),
+      authorizedVolume: right.authorizedVolume.trim() === ""
+        ? null
+        : Number.parseFloat(right.authorizedVolume),
       cbr: right.cbr.trim() || null,
       fojas: right.fojas.trim() || null,
+      holderName: right.holderName.trim() || null,
+      holderRut: right.holderRut.trim() || null,
       numero: right.numero.trim() || null,
-    }))
-    .filter((right) =>
-      right.fojas !== null ||
-      right.numero !== null ||
-      right.anio !== null ||
-      right.cbr !== null
-    );
+    }));
+  const invalidWaterRight = waterRights.find((right) =>
+    right.authorizedFlowRate === null || !Number.isFinite(right.authorizedFlowRate) ||
+    right.authorizedFlowRate < 0 ||
+    right.authorizedVolume === null || !Number.isFinite(right.authorizedVolume) ||
+    right.authorizedVolume < 0 ||
+    right.holderName === null || right.holderRut === null
+  );
   const ownerContacts = form.ownerContacts
     .map((contact) => ({
       email: contact.email.trim() || null,
@@ -201,8 +207,6 @@ const buildWellRegistryPayload = (
       contact.email !== null
     );
   const invalidMetadataNumber = [
-    ["Caudal autorizado", authorizedFlowRate],
-    ["Volumen autorizado", authorizedVolume],
     ["Profundidad pozo", wellDepth],
     ["Profundidad bomba", pumpDepth],
     ["Diámetro habilitación", habilitationDiameter],
@@ -219,6 +223,14 @@ const buildWellRegistryPayload = (
   if (invalidMetadataNumber) {
     return { error: `${invalidMetadataNumber[0]} debe ser un número positivo.` };
   }
+  if (waterRights.length === 0) {
+    return { error: "Debes registrar al menos un derecho de aprovechamiento." };
+  }
+  if (invalidWaterRight) {
+    return {
+      error: "Cada derecho debe incluir caudal, volumen anual, nombre y RUT del titular válidos.",
+    };
+  }
   if (waterRights.some((right) => right.anio !== null && !Number.isFinite(right.anio))) {
     return { error: "Año de derecho de aprovechamiento debe ser un número válido." };
   }
@@ -234,8 +246,6 @@ const buildWellRegistryPayload = (
       centroControlRut: form.centroControlRut || null,
       catchmentStatus: toCatchmentStatus(form.catchmentStatus),
       aquiferSector: form.aquiferSector || null,
-      authorizedFlowRate: authorizedFlowRate === null ? null : authorizedFlowRate.toFixed(2),
-      authorizedVolume: authorizedVolume === null ? null : authorizedVolume.toFixed(2),
       wellDepth: wellDepth === null ? null : wellDepth.toFixed(2),
       pumpDepth: pumpDepth === null ? null : pumpDepth.toFixed(2),
       habilitationDiameter:
