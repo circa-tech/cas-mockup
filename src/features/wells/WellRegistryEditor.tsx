@@ -56,7 +56,10 @@ const sumWaterRights = (
   if (values.length === 0 || values.some((value) => !Number.isFinite(value) || value < 0)) {
     return "";
   }
-  return values.reduce((total, value) => total + value, 0).toFixed(2);
+  return new Intl.NumberFormat("es-CL", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(values.reduce((total, value) => total + value, 0));
 };
 
 const entryToForm = (entry: WellRegistryEntry): WellRegistryFormState => ({
@@ -403,7 +406,20 @@ export function WellRegistryEditor({
         </div>
 
         <section className="registry-required-category" aria-labelledby="water-rights-heading">
-          <h3 id="water-rights-heading">Derechos de aprovechamiento *</h3>
+          <div className="registry-required-heading">
+            <div>
+              <h3 id="water-rights-heading">Derechos de aprovechamiento *</h3>
+              <p>Registra cada derecho por separado. Los totales se calculan automáticamente.</p>
+            </div>
+            <button
+              type="button"
+              className="icon-text-button"
+              onClick={() => onChange({ waterRights: [...form.waterRights, emptyWaterRight()] })}
+            >
+              <Plus size={16} aria-hidden="true" />
+              Agregar derecho
+            </button>
+          </div>
           <div className="registry-category-fields">
             <WaterRightsEditor form={form} onChange={onChange} />
 
@@ -803,20 +819,25 @@ function WaterRightsEditor({
 }) {
   return (
     <div className="registry-repeatable-fields">
-      <div className="registry-repeatable-actions">
-        <button
-          type="button"
-          className="icon-text-button"
-          onClick={() =>
-            onChange({ waterRights: [...form.waterRights, emptyWaterRight()] })
-          }
-        >
-          <Plus size={16} aria-hidden="true" />
-          Agregar derecho
-        </button>
-      </div>
       {form.waterRights.map((right, index) => (
-        <div className="water-right-row water-right-entry" key={index}>
+        <div className="water-right-card" key={index}>
+          <div className="water-right-card-heading">
+            <strong>Derecho {index + 1}</strong>
+            <button
+              type="button"
+              className="icon-only-button"
+              title={`Quitar derecho ${index + 1}`}
+              aria-label={`Quitar derecho ${index + 1}`}
+              disabled={form.waterRights.length === 1}
+              onClick={() =>
+                onChange({
+                  waterRights: form.waterRights.filter((_, itemIndex) => itemIndex !== index),
+                })
+              }
+            >
+              <Trash2 size={16} aria-hidden="true" />
+            </button>
+          </div>
           <div className="water-right-fields">
             {(["fojas", "numero", "anio", "cbr"] as const).map((field) => (
               <label key={field}>
@@ -890,20 +911,6 @@ function WaterRightsEditor({
               />
             </label>
           </div>
-          <button
-            type="button"
-            className="icon-only-button"
-            title="Quitar derecho"
-            aria-label="Quitar derecho"
-            disabled={form.waterRights.length === 1}
-            onClick={() =>
-              onChange({
-                waterRights: form.waterRights.filter((_, itemIndex) => itemIndex !== index),
-              })
-            }
-          >
-            <Trash2 size={16} aria-hidden="true" />
-          </button>
         </div>
       ))}
     </div>
