@@ -64,7 +64,7 @@ export type WellRegistryEntry = {
   casName: string;
   centroControlRut?: string | null;
   catchmentStatus?: CatchmentStatus | null;
-  codigoObra: string;
+  codigoObra: string | null;
   createdAt: string;
   datum?: string | null;
   fieldContactEmail?: string | null;
@@ -104,7 +104,7 @@ export type CreateWellRegistryEntryPayload = {
   casId: string;
   centroControlRut?: string | null;
   catchmentStatus?: CatchmentStatus | null;
-  codigoObra: string;
+  codigoObra: string | null;
   datum?: string | null;
   fieldContactEmail?: string | null;
   fieldContactPhone?: string | null;
@@ -168,7 +168,7 @@ export type WellWriter = {
 };
 
 export type IngestWellMeasurementPayload = {
-  codigoObra: string;
+  wellId: string;
   companyRut: string;
   conductivity: string | null;
   flowRate: string;
@@ -408,7 +408,7 @@ export const ingestWellMeasurement = async (
     headers: {
       measurementSource: "manual",
       sourceTimestamp: toSourceTimestamp(new Date()),
-      workCode: payload.codigoObra,
+      wellId: payload.wellId,
     },
     method: "POST",
   });
@@ -422,7 +422,7 @@ export const ingestWellMeasurementsBatch = async (
   const response = await requestWells("groundwater-measurements/batch", idToken, {
     body: JSON.stringify({
       measurements: payloads.map((payload) => ({
-        workCode: payload.codigoObra,
+        wellId: payload.wellId,
         ...toApiMeasurement(payload),
       })),
     }),

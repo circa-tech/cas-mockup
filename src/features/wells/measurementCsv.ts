@@ -1,5 +1,6 @@
 import type {
   IngestWellMeasurementPayload,
+  WellRegistryEntry,
   WaterLevelCondition,
 } from "../../services/wellsApi";
 
@@ -100,7 +101,8 @@ const isValidTime = (value: string) => {
 
 export const parseMeasurementCsv = (
   input: string,
-  allowedWorkCodes: ReadonlySet<string>,
+  allowedWells: ReadonlyArray<Pick<WellRegistryEntry, "id" | "codigoObra">>,
+  fallbackWellId: string,
 ): IngestWellMeasurementPayload[] => {
   const [headerRow, ...dataRows] = parseCsv(input);
   if (!headerRow || dataRows.length === 0) {
@@ -123,9 +125,15 @@ export const parseMeasurementCsv = (
   const columnIndex = new Map(headers.map((header, index) => [header, index]));
   const readCell = (row: string[], header: string) => row[columnIndex.get(header) ?? -1] ?? "";
   const logicalKeys = new Set<string>();
+  const allowedWellIds = new Set(allowedWells.map((well) => well.id));
+  const wellsByCode = new Map(
+    allowedWells.filter((well) => well.codigoObra).map((well) => [well.codigoObra, well.id]),
+  );
 
   return dataRows.map((row, index) => {
     const rowNumber = index + 2;
+    const workCode = readCell(row, "codigoObra");
+    const wellId = workCode ? wellsByCode.get(workCode) : fallbackWellId;
     const waterLevelConditionValue = readCell(row, "waterLevelCondition");
     if (row.length !== measurementCsvHeaders.length) {
       throw new Error(
@@ -133,7 +141,7 @@ export const parseMeasurementCsv = (
       );
     }
     const payload: IngestWellMeasurementPayload = {
-      codigoObra: readCell(row, "codigoObra"),
+      wellId: wellId ?? "",
       companyRut: readCell(row, "companyRut"),
       conductivity: readCell(row, "conductivity") || null,
       flowRate: readCell(row, "flowRate"),
@@ -153,6 +161,7 @@ export const parseMeasurementCsv = (
     };
 
     const optionalHeaders = new Set([
+      "codigoObra",
       "waterTableDepth",
       "waterLevelCondition",
       "pressure",
@@ -171,13 +180,10 @@ export const parseMeasurementCsv = (
     if (missingValues.length > 0) {
       throw new Error(`Fila ${rowNumber}: faltan valores en ${missingValues.join(", ")}.`);
     }
-    if (!/^OB-\d{4}-[1-9]\d*$/.test(payload.codigoObra)) {
-      throw new Error(
-        `Fila ${rowNumber}: codigoObra debe usar el formato OB-0101-11, sin ceros iniciales en el último bloque.`,
-      );
-    }
-    if (!allowedWorkCodes.has(payload.codigoObra)) {
-      throw new Error(`Fila ${rowNumber}: el pozo ${payload.codigoObra} no está registrado.`);
+    if (!payload.wellId || !allowedWellIds.has(payload.wellId)) {
+      throw new Error(workCode
+        ? `Fila ${rowNumber}: el pozo ${workCode} no está disponible para cargar mediciones.`
+        : `Fila ${rowNumber}: selecciona un pozo para las filas sin código de obra.`);
     }
     if (!/^\d{7,8}-[\dkK]$/.test(payload.companyRut)) {
       throw new Error(`Fila ${rowNumber}: companyRut debe usar el formato 77555666-7.`);
@@ -235,7 +241,7 @@ export const parseMeasurementCsv = (
     }
 
     const logicalKey = [
-      payload.codigoObra,
+      payload.wellId,
       payload.measurementDate,
       payload.measurementTime,
     ].join("|");
@@ -248,8 +254,8 @@ export const parseMeasurementCsv = (
   });
 };
 
-export const downloadMeasurementCsvTemplate = (workCode: string) => {
-  const exampleWorkCode = workCode || "OB-0101-11";
+export const downloadMeasurementCsvTemplate = (workCode: string | null) => {
+  const exampleWorkCode = workCode ?? "";
   const content = [
     measurementCsvHeaders.join(","),
     [

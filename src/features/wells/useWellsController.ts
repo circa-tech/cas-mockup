@@ -105,7 +105,7 @@ const emptyWellRegistryForm = (): WellRegistryFormState => ({
 });
 
 const emptyWellMeasurementForm = (): WellMeasurementFormState => ({
-  codigoObra: "",
+  wellId: "",
   companyRut: "",
   conductivity: "",
   flowRate: "",
@@ -124,9 +124,6 @@ const emptyWellMeasurementForm = (): WellMeasurementFormState => ({
 const getWellCreationErrorMessage = (error: unknown) => {
   if (error instanceof ApiRequestError) {
     if (error.status === 409) return "Este código de obra ya está registrado.";
-    if (error.status === 422 && /codigoObra|codigo_obra|work code/i.test(error.detail)) {
-      return "Código de obra inválido. Usa el formato OB-0101-11, sin ceros iniciales en el último bloque.";
-    }
     if (error.status === 422 && /casId|cas_id/i.test(error.detail)) {
       return "Debes seleccionar una CAS válida.";
     }
@@ -151,13 +148,7 @@ const buildWellRegistryPayload = (
   form: WellRegistryFormState,
 ): { error: string } | { payload: CreateWellRegistryEntryPayload } => {
   const workCode = form.codigoObra.trim();
-  if (!/^OB-\d{4}-[1-9]\d*$/.test(workCode) || !form.casId) {
-    return {
-      error: !form.casId
-        ? "Debes seleccionar una CAS válida."
-        : "Código de obra inválido. Usa el formato OB-0101-11.",
-    };
-  }
+  if (!form.casId) return { error: "Debes seleccionar una CAS válida." };
 
   const lat = Number.parseFloat(form.lat);
   const lng = Number.parseFloat(form.lng);
@@ -238,7 +229,7 @@ const buildWellRegistryPayload = (
   return {
     payload: {
       casId: form.casId,
-      codigoObra: workCode,
+      codigoObra: workCode || null,
       lat,
       lng,
       name: form.name,
@@ -397,15 +388,6 @@ export function useWellsController({
     }
   }, [selectedWellId, wells]);
 
-  useEffect(() => {
-    if (!wellMeasurementForm.codigoObra && wellRegistryEntries.length) {
-      setWellMeasurementForm((previous) => ({
-        ...previous,
-        codigoObra: wellRegistryEntries[0].codigoObra,
-      }));
-    }
-  }, [wellMeasurementForm.codigoObra, wellRegistryEntries]);
-
   const refreshWells = async () => {
     if (!authIdToken) return [];
     const result = await measurementsQuery.refetch();
@@ -434,7 +416,7 @@ export function useWellsController({
       }));
       setWellRegistryStatus("ready");
       setWellRegistryMessage(
-        `Pozo ${created.name} (${created.codigoObra}) asociado a ${created.casCode}.`,
+        `Pozo ${created.name} asociado a ${created.casCode}.`,
       );
     } catch (error) {
       setWellRegistryStatus("error");
@@ -462,7 +444,7 @@ export function useWellsController({
       await registryQuery.refetch();
       await refreshWells();
       setWellRegistryStatus("ready");
-      setWellRegistryMessage(`Pozo ${updated.name} (${updated.codigoObra}) actualizado.`);
+      setWellRegistryMessage(`Pozo ${updated.name} actualizado.`);
     } catch (error) {
       setWellRegistryStatus("error");
       setWellRegistryMessage(getWellCreationErrorMessage(error));
@@ -506,8 +488,8 @@ export function useWellsController({
         waterLevelCondition: toWaterLevelCondition(wellMeasurementForm.waterLevelCondition),
       });
       const nextWells = await refreshWells();
-      if (nextWells.some((well) => well.id === wellMeasurementForm.codigoObra)) {
-        setSelectedWellId(wellMeasurementForm.codigoObra);
+      if (nextWells.some((well) => well.id === wellMeasurementForm.wellId)) {
+        setSelectedWellId(wellMeasurementForm.wellId);
       }
       setWellMeasurementStatus("ready");
       setWellMeasurementMessage("Medición guardada correctamente.");
@@ -531,18 +513,14 @@ export function useWellsController({
     }
   };
 
-  const handleWellMeasurementCsvUpload = async (file: File) => {
+  const handleWellMeasurementCsvUpload = async (file: File, fallbackWellId: string) => {
     if (!authIdToken) return false;
     setWellMeasurementCsvStatus("loading");
     setWellMeasurementCsvMessage(null);
     try {
       const writableIds = new Set(await fetchWritableWellIds(authIdToken));
-      const allowed = new Set(
-        wellRegistryEntries
-          .filter((entry) => writableIds.has(entry.id))
-          .map((entry) => entry.codigoObra),
-      );
-      const payloads = parseMeasurementCsv(await file.text(), allowed);
+      const allowed = wellRegistryEntries.filter((entry) => writableIds.has(entry.id));
+      const payloads = parseMeasurementCsv(await file.text(), allowed, fallbackWellId);
       const result = await ingestWellMeasurementsBatch(authIdToken, payloads);
       await refreshWells();
       setWellMeasurementCsvStatus("ready");

@@ -65,7 +65,7 @@ export function WellsView({
     event: FormEvent<HTMLFormElement>,
   ) => Promise<void>;
   onWellMeasurementChange: (next: Partial<WellMeasurementFormState>) => void;
-  onWellMeasurementCsvUpload: (file: File) => Promise<boolean>;
+  onWellMeasurementCsvUpload: (file: File, fallbackWellId: string) => Promise<boolean>;
   onWellMeasurementSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onSelectWell: (wellId: string) => void;
   selectedWellId: string;

@@ -138,7 +138,7 @@ export function WellWritersPanel({
         <div>
           <span className="well-writers-kicker">POZO SELECCIONADO</span>
           <h5 id="well-writers-context-heading">{selectedWell?.name ?? "Selecciona un pozo"}</h5>
-          <p>{selectedWell ? `${selectedWell.codigoObra} · ${selectedWell.casCode}` : "Elige un pozo para administrar sus accesos."}</p>
+          <p>{selectedWell ? `${selectedWell.codigoObra ?? "Sin código de obra"} · ${selectedWell.casCode}` : "Elige un pozo para administrar sus accesos."}</p>
         </div>
         <label>
           <span>Pozo</span>
@@ -153,7 +153,7 @@ export function WellWritersPanel({
           >
             {!availableWells.length && <option value="">Sin pozos disponibles</option>}
             {availableWells.map((well) => (
-              <option key={well.id} value={well.id}>{well.codigoObra} · {well.name}</option>
+              <option key={well.id} value={well.id}>{well.name} · {well.codigoObra ?? `${well.casCode} (${well.lat.toFixed(4)}, ${well.lng.toFixed(4)})`}</option>
             ))}
           </select>
         </label>

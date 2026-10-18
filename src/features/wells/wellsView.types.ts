@@ -51,7 +51,7 @@ export type WellRegistryFormState = {
 
 
 export type WellMeasurementFormState = {
-  codigoObra: string;
+  wellId: string;
   companyRut: string;
   conductivity: string;
   flowRate: string;
