@@ -41,13 +41,14 @@ export function WellMeasurementIngestPanel({
   individualStatus: RemoteLoadStatus;
   message: string | null;
   onChange: (next: Partial<WellMeasurementFormState>) => void;
-  onCsvUpload: (file: File) => Promise<boolean>;
+  onCsvUpload: (file: File, fallbackWellId: string) => Promise<boolean>;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const hasRegistryEntries = entries.length > 0;
   const isMeasurementOperationLoading =
     individualStatus === "loading" || csvStatus === "loading";
   const [selectedCsvFile, setSelectedCsvFile] = useState<File | null>(null);
+  const [csvWellId, setCsvWellId] = useState("");
 
   return (
     <div className="measurement-upload-grid">
@@ -74,15 +75,15 @@ export function WellMeasurementIngestPanel({
           <label>
             <span>Pozo *</span>
             <select
-              value={form.codigoObra}
-              onChange={(event) => onChange({ codigoObra: event.target.value })}
+              value={form.wellId}
+              onChange={(event) => onChange({ wellId: event.target.value })}
               required
               disabled={!hasRegistryEntries}
             >
               <option value="">Selecciona un pozo</option>
               {entries.map((entry) => (
-                <option key={entry.id} value={entry.codigoObra}>
-                  {entry.name} - {entry.codigoObra}
+                <option key={entry.id} value={entry.id}>
+                  {entry.name} · {entry.codigoObra ?? `${entry.casCode} (${entry.lat.toFixed(4)}, ${entry.lng.toFixed(4)})`}
                 </option>
               ))}
             </select>
@@ -287,11 +288,23 @@ export function WellMeasurementIngestPanel({
             type="button"
             className="csv-template-action"
             disabled={!hasRegistryEntries}
-            onClick={() => downloadMeasurementCsvTemplate(entries[0]?.codigoObra ?? "")}
+            onClick={() => downloadMeasurementCsvTemplate(entries.find((entry) => entry.id === csvWellId)?.codigoObra ?? null)}
           >
             <Download size={16} />
             Descargar plantilla CSV
           </button>
+          <label>
+            <span>Pozo para filas sin código de obra</span>
+            <select value={csvWellId} onChange={(event) => setCsvWellId(event.target.value)} disabled={!hasRegistryEntries}>
+              <option value="">Selecciona un pozo si el CSV tiene filas sin código</option>
+              {entries.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.name} · {entry.codigoObra ?? `${entry.casCode} (${entry.lat.toFixed(4)}, ${entry.lng.toFixed(4)})`}
+                </option>
+              ))}
+            </select>
+            <small className="field-help">Las filas con código usan el pozo indicado en el archivo.</small>
+          </label>
           <input
             accept=".csv,text/csv"
             type="file"
@@ -313,7 +326,7 @@ export function WellMeasurementIngestPanel({
               if (!selectedCsvFile) {
                 return;
               }
-              const uploaded = await onCsvUpload(selectedCsvFile);
+              const uploaded = await onCsvUpload(selectedCsvFile, csvWellId);
               if (uploaded) {
                 setSelectedCsvFile(null);
               }

@@ -67,7 +67,7 @@ const entryToForm = (entry: WellRegistryEntry): WellRegistryFormState => ({
   casId: entry.casId,
   catchmentStatus: entry.catchmentStatus ?? "",
   centroControlRut: entry.centroControlRut ?? "",
-  codigoObra: entry.codigoObra,
+  codigoObra: entry.codigoObra ?? "",
   datum: COPIAPO_DATUM,
   fieldContactEmail: entry.fieldContactEmail ?? "",
   fieldContactPhone: entry.fieldContactPhone ?? "",
@@ -205,13 +205,8 @@ export function WellRegistryEditor({
         : { lat: "", lng: "", huso: COPIAPO_UTM_HUSO, datum: COPIAPO_DATUM }),
     });
   };
-  const workCodeError =
-    status === "error" && message?.startsWith("Código de obra inválido")
-      ? message
-      : null;
-
   const handleWellDelete = async (entry: WellRegistryEntry) => {
-    if (!(await confirm({ title: "¿Eliminar este pozo?", description: `Se eliminará el pozo ${entry.codigoObra} del registro activo.`, confirmLabel: "Eliminar pozo", destructive: true }))) return;
+    if (!(await confirm({ title: "¿Eliminar este pozo?", description: `Se eliminará el pozo ${entry.name} del registro activo.`, confirmLabel: "Eliminar pozo", destructive: true }))) return;
     await onDeleteWell(entry.id);
     if (editingWellId === entry.id) setEditingWellId(null);
   };
@@ -245,7 +240,7 @@ export function WellRegistryEditor({
         </div>
         <div className="registry-primary-grid">
           <section className="registry-required-card" aria-labelledby="registry-required-heading">
-            <h4 id="registry-required-heading">Datos obligatorios</h4>
+            <h4 id="registry-required-heading">Datos principales</h4>
             <label>
               <span>CAS *</span>
               <select
@@ -271,21 +266,13 @@ export function WellRegistryEditor({
 
             <div className="manual-two-col">
               <label>
-                <span>Código de obra DGA *</span>
+                <span>Código de obra (opcional)</span>
                 <input
                   type="text"
                   value={form.codigoObra}
-                  placeholder="OB-0101-11"
+                  placeholder="Ingresa un código si el pozo lo tiene"
                   onChange={(event) => onChange({ codigoObra: event.target.value })}
-                  aria-describedby={workCodeError ? "well-code-error" : undefined}
-                  aria-invalid={Boolean(workCodeError)}
-                  required
                 />
-                {workCodeError && (
-                  <small id="well-code-error" className="field-error" role="alert">
-                    {workCodeError}
-                  </small>
-                )}
               </label>
               <label>
                 <span>Nombre *</span>
@@ -738,7 +725,7 @@ export function WellRegistryEditor({
             </button>
           )}
         </div>
-        {message && !workCodeError && (
+        {message && (
           <p
             className={`form-feedback ${status === "ready" ? "is-success" : "is-error"}`}
             role={status === "error" ? "alert" : "status"}
@@ -755,7 +742,7 @@ export function WellRegistryEditor({
             <div className="registry-row" key={entry.id}>
               <div>
                 <strong>{entry.name}</strong>
-                <span>{entry.codigoObra} · {entry.casCode}</span>
+                <span>{entry.codigoObra ?? "Sin código de obra"} · {entry.casCode}</span>
               </div>
               <span>
                 {entry.authorizedFlowRate !== null && entry.authorizedFlowRate !== undefined
@@ -769,7 +756,7 @@ export function WellRegistryEditor({
                       type="button"
                       className="icon-only-button"
                       title="Editar pozo"
-                      aria-label={`Editar pozo ${entry.codigoObra}`}
+                      aria-label={`Editar pozo ${entry.name}`}
                       disabled={status === "loading"}
                       onClick={() => {
                         setEditingWellId(entry.id);
@@ -784,7 +771,7 @@ export function WellRegistryEditor({
                       type="button"
                       className="icon-only-button"
                       title="Eliminar pozo"
-                      aria-label={`Eliminar pozo ${entry.codigoObra}`}
+                      aria-label={`Eliminar pozo ${entry.name}`}
                       disabled={status === "loading"}
                       onClick={() => void handleWellDelete(entry)}
                     >
