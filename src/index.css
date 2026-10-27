@@ -2399,26 +2399,289 @@ select:focus-visible {
   color: #2f8152;
 }
 
+.well-chart-controls {
+  display: grid;
+  grid-template-columns: minmax(165px, 0.9fr) minmax(180px, 1fr) minmax(230px, 1.4fr) minmax(220px, 1.25fr);
+  align-items: start;
+  gap: 16px;
+  margin: 14px 14px 0;
+}
+
+.well-chart-panel {
+  position: relative;
+  overflow: visible;
+}
+
+.well-chart-panel:focus-within {
+  z-index: 10;
+}
+
+.well-chart-plot-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 360px;
+}
+
+.well-chart-plot-area > .simple-chart {
+  width: 100%;
+}
+
+.well-chart-resolution-note {
+  align-self: flex-start;
+  margin: 0 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.well-chart-plot-area .well-chart-no-data {
+  margin: 0;
+  text-align: center;
+}
+
 .well-chart-variable-selector {
   display: grid;
+  align-content: start;
   gap: 10px;
-  margin: 14px 14px 0;
+  min-width: 0;
+  margin: 0;
   padding: 0;
   border: 0;
   color: var(--text);
   font-size: 13px;
 }
 
-.well-chart-variable-selector legend {
-  margin-bottom: 8px;
+.well-chart-select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  padding: 0 12px;
+  font: inherit;
+}
+
+.well-chart-multiselect {
+  position: relative;
+  min-width: 0;
+}
+
+.well-chart-multiselect-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  list-style: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.well-chart-multiselect-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.well-chart-multiselect-trigger::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 150ms ease;
+}
+
+.well-chart-multiselect[open] > .well-chart-multiselect-trigger::after {
+  transform: translateY(2px) rotate(225deg);
+}
+
+.well-chart-multiselect-trigger:focus-visible {
+  outline: 2px solid hsl(205 78% 42%);
+  outline-offset: 2px;
+}
+
+.well-chart-multiselect-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(30 45 66 / 16%);
+}
+
+.well-chart-multiselect-menu label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.well-chart-multiselect-menu label:hover {
+  background: #f2f6fa;
+}
+
+.well-chart-multiselect-menu input {
+  accent-color: var(--brand, #1468a3);
+}
+
+.well-detail-well-selector {
+  width: 100%;
+  max-width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  padding: 0 10px;
+  font-size: 14px;
   font-weight: 600;
 }
 
-.well-chart-variable-selector p {
+.well-detail-selector-title {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.well-detail-selector-title > span {
+  line-height: 1.2;
+}
+
+.well-geographic-summary {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 14px;
+  padding: 0 16px;
+}
+
+.well-map-panel > .panel-header {
+  border-bottom: 0;
+}
+
+.well-geographic-summary > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.well-geographic-summary dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.well-geographic-summary dd {
   margin: 0;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.well-registry-details {
+  padding: 12px 14px 14px;
+}
+
+.well-registry-details dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.well-registry-details dl > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 8px 9px;
+  border: 1px solid #e4eaf4;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.well-registry-details dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.well-registry-details dd {
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .well-geographic-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .well-registry-details dl {
+    grid-template-columns: 1fr;
+  }
+}
+
+.well-all-wells-disclosure > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.well-all-wells-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.well-all-wells-disclosure > summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  flex: none;
+  margin-left: auto;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 150ms ease;
+}
+
+.well-all-wells-disclosure[open] > summary::after {
+  transform: rotate(225deg);
+}
+
+.well-all-wells-disclosure > summary:focus-visible {
+  outline: 2px solid hsl(205 78% 42%);
+  outline-offset: -3px;
+}
+
+.well-all-wells-count {
+  min-width: 28px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #edf3f9;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 400;
+  font-weight: 600;
+  text-align: center;
+}
+
+.well-chart-variable-selector legend {
+  margin-bottom: 8px;
+  font-weight: 600;
 }
 
 .well-chart-condition-key {
@@ -2453,35 +2716,16 @@ select:focus-visible {
   background: rgb(135, 166, 197);
 }
 
-.well-chart-variable-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
+@media (max-width: 1100px) {
+  .well-chart-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
-.well-chart-variable-options label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 30px;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.well-chart-variable-options input {
-  accent-color: var(--brand, #1468a3);
-}
-
-.well-chart-condition-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.well-chart-condition-option i {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
+@media (max-width: 760px) {
+  .well-chart-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .well-chart-no-data {

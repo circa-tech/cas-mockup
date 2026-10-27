@@ -48,6 +48,11 @@ export const queryKeys = {
       ["wells", scope(token), "admin-status"] as const,
     measurements: (token: string | null) =>
       ["wells", scope(token), "measurements"] as const,
+    history: (
+      token: string | null,
+      wellId: string,
+      range: { start_date?: string; end_date: string },
+    ) => ["wells", scope(token), "history", wellId, range] as const,
     registry: (token: string | null, mine: boolean) =>
       ["wells", scope(token), mine ? "registry-mine" : "registry"] as const,
     writable: (token: string | null) =>

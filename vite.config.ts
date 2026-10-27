@@ -22,4 +22,12 @@ export default defineConfig({
       runtimeCaching: [],
     },
   })],
+  server: {
+    proxy: {
+      "/api": {
+        target: "http://api:8000",
+        changeOrigin: true,
+      },
+    },
+  },
 });
