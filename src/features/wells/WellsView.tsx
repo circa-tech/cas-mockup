@@ -198,6 +198,7 @@ export function WellsView({
 
   return (
     <WellsMonitoringTab
+      authIdToken={authIdToken}
       errorMessage={errorMessage}
       isLoggedIn={isLoggedIn}
       now={now}
@@ -205,6 +206,7 @@ export function WellsView({
       selectedWellId={selectedWellId}
       status={status}
       subnav={wellsSubnav}
+      wellRegistryEntries={wellRegistryEntries}
       wells={wells}
     />
   );

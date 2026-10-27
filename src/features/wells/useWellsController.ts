@@ -356,6 +356,12 @@ export function useWellsController({
   );
 
   useEffect(() => {
+    if (wells.length > 0 && !wells.some((well) => well.id === selectedWellId)) {
+      setSelectedWellId(wells[0].id);
+    }
+  }, [selectedWellId, wells]);
+
+  useEffect(() => {
     if (!hasAuthenticatedApiSession || !authIdToken) {
       setWellRegistryStatus("idle");
       setWellRegistryMessage(null);

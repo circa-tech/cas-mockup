@@ -20,6 +20,29 @@ type GroundwaterMeasurement = {
   waterLevelCondition?: WaterLevelCondition | null;
 };
 
+export type WellMeasurementHistoryPoint = {
+  measurement_id: string;
+  measured_at: string;
+  source: "api" | "manual" | null;
+  water_level_condition: "static" | "dynamic" | "unknown" | null;
+  values: Record<string, number | null>;
+  minimum?: Record<string, number | null>;
+  maximum?: Record<string, number | null>;
+  count?: Record<string, number>;
+};
+
+export type WellMeasurementHistoryResponse = {
+  well_id: string;
+  start_date: string | null;
+  end_date: string;
+  available_from: string | null;
+  available_to: string | null;
+  generated_at: string;
+  version: string;
+  resolution: "native" | "monthly";
+  points: WellMeasurementHistoryPoint[];
+};
+
 export type WaterLevelCondition = "static" | "dynamic" | "unknown";
 export type CatchmentStatus = "operativa" | "deshabilitada" | "pozo_monitoreo";
 
@@ -45,6 +68,7 @@ type WellMeasurement = {
   aquiferSector?: string | null;
   codigoObra?: string | null;
   createdAt?: string | null;
+  dailyChange?: string | number | null;
   groundwaterMeasurement: GroundwaterMeasurement;
   id?: number | null;
   lat?: number | null;
@@ -209,6 +233,33 @@ export const fetchWellMapPoints = async (idToken: string | null): Promise<WellMa
   });
   if (!response.ok) await throwApiError(response, "Wells measurements");
   return mapMeasurementsToWells((await response.json()) as WellMeasurement[]);
+};
+
+export const fetchWellMeasurementHistory = async (
+  idToken: string | null,
+  wellId: string,
+  range: { start_date?: string; end_date: string },
+  signal?: AbortSignal,
+): Promise<WellMeasurementHistoryResponse> => {
+  if (!apiBaseUrl) {
+    throw new Error("Missing VITE_API_BASE_URL");
+  }
+  const params = new URLSearchParams({
+    wellId,
+    end_date: range.end_date,
+    resolution: "auto",
+    max_points: "1200",
+  });
+  if (range.start_date) params.set("start_date", range.start_date);
+  const response = await apiFetch(
+    `${apiBaseUrl}/api/v1/wells/groundwater-measurements/history?${params}`,
+    {
+      headers: { Authorization: `Bearer ${idToken}` },
+      signal,
+    },
+  );
+  if (!response.ok) await throwApiError(response, "Wells measurement history");
+  return response.json() as Promise<WellMeasurementHistoryResponse>;
 };
 
 export const fetchWellsAdminStatus = async (
@@ -569,6 +620,7 @@ const mapMeasurementsToWells = (measurements: WellMeasurement[]): WellMapPoint[]
       sourceType: "telemetry",
       provider: latest.provider ?? "Sin proveedor",
       aquiferSector: latest.aquiferSector ?? "Sin sector",
+      dailyChange: toNumber(latest.dailyChange) ?? undefined,
       levelSeries: buildLevelSeries(sortedRows),
       measurementSeriesByVariable: buildMeasurementSeriesByVariable(sortedRows),
       status: "stale",

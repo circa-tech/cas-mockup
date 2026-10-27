@@ -84,7 +84,7 @@ export function OverviewView({
       id: well.id,
       name: well.name.replace("Pozo ", ""),
       level: getCurrentValue(well.levelSeries),
-      dailyChange: getDailyChangeValue(well.levelSeries),
+      dailyChange: well.dailyChange ?? getDailyChangeValue(well.levelSeries),
       status: well.status,
     }));
 

@@ -18,7 +18,7 @@ export const canonicalUrl = (input: string | URL) => {
 // must never enter the offline response store.
 export function canSaveResponse(url: string) {
   const path = new URL(url).pathname;
-  return /^\/api\/v1\/(weather-stations\/snapshot|modis-snow\/(history|coverage-series|basins-geojson|latest-image)|et-lat\/(history|std-ae|serie-et|et-cult|mapa-sectores|mapa-cult|mapa-cuadrantes|et-poly|kc-poly|lai-poly|data-cuad)|wells\/(groundwater-measurements|admin\/me|registry(?:\/mine)?)|forum\/threads(?:\/[^/]+(?:\/posts)?)?)$/.test(path);
+  return /^\/api\/v1\/(weather-stations\/snapshot|modis-snow\/(history|coverage-series|basins-geojson|latest-image)|et-lat\/(history|std-ae|serie-et|et-cult|mapa-sectores|mapa-cult|mapa-cuadrantes|et-poly|kc-poly|lai-poly|data-cuad)|wells\/(groundwater-measurements(?:\/history)?|admin\/me|registry(?:\/mine)?)|forum\/threads(?:\/[^/]+(?:\/posts)?)?)$/.test(path);
 }
 
 function savedResponse(entry: SavedResponse) {
