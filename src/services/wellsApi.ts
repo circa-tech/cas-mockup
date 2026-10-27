@@ -22,6 +22,7 @@ type GroundwaterMeasurement = {
 
 export type WellMeasurementHistoryPoint = {
   measurement_id: string;
+  measurement_date: string;
   measured_at: string;
   source: "api" | "manual" | null;
   water_level_condition: "static" | "dynamic" | "unknown" | null;
@@ -39,7 +40,7 @@ export type WellMeasurementHistoryResponse = {
   available_to: string | null;
   generated_at: string;
   version: string;
-  resolution: "native" | "monthly";
+  resolution: "native" | "daily";
   points: WellMeasurementHistoryPoint[];
 };
 

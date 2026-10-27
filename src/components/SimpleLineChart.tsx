@@ -1,5 +1,6 @@
 import {
   CartesianGrid,
+  Brush,
   Legend,
   Line,
   LineChart,
@@ -9,6 +10,7 @@ import {
   YAxis,
   type DotItemDotProps,
 } from "recharts";
+import { useMemo } from "react";
 import { RemoteDataState } from "./RemoteDataState";
 
 export type LinePoint = {
@@ -40,6 +42,7 @@ type SimpleLineChartProps = {
   primaryAxisReversed?: boolean;
   series: LineSeries[];
   showDots?: boolean;
+  showBrush?: boolean;
   secondaryMaxValue?: number;
   secondaryMinValue?: number;
   unit: string;
@@ -93,12 +96,13 @@ export function SimpleLineChart({
   primaryAxisReversed = false,
   series,
   showDots = true,
+  showBrush = false,
   secondaryMaxValue,
   secondaryMinValue,
   unit,
   xLabelAngle = 0,
 }: SimpleLineChartProps) {
-  const rows = buildRows(series);
+  const rows = useMemo(() => buildRows(series), [series]);
   if (!rows.length) {
     return (
       <RemoteDataState
@@ -117,8 +121,8 @@ export function SimpleLineChart({
   return (
     <div className="simple-chart">
       <div className="simple-chart-recharts-shell">
-        <ResponsiveContainer height={338} width="100%">
-          <LineChart data={rows} margin={{ bottom: hasRotatedLabels ? 18 : 22, left: 8, right: hasSecondaryAxis ? 18 : 8, top: 12 }}>
+        <ResponsiveContainer height={showBrush ? 382 : 338} width="100%">
+          <LineChart data={rows} margin={{ bottom: showBrush ? 42 : hasRotatedLabels ? 18 : 22, left: 8, right: hasSecondaryAxis ? 18 : 8, top: 12 }}>
             <CartesianGrid stroke="hsl(210 18% 89%)" strokeDasharray="3 3" vertical={false} />
             <XAxis
               angle={xLabelAngle}
@@ -253,6 +257,14 @@ export function SimpleLineChart({
                 type={mode === "step" ? "stepAfter" : "monotone"}
               />
             ))}
+            {showBrush && rows.length > 1 && (
+              <Brush
+                dataKey="label"
+                height={26}
+                travellerWidth={10}
+                tickFormatter={(value) => String(value)}
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>

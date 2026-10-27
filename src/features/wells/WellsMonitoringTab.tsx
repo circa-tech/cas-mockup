@@ -309,6 +309,7 @@ const historyMetricByVariable: Record<WellMeasurementVariable, string> = {
 const toHistoryLinePoint = (
   point: WellMeasurementHistoryPoint,
   variable: WellMeasurementVariable,
+  resolution: WellMeasurementHistoryResponse["resolution"],
 ): LinePoint[] => {
   const value = point.values[historyMetricByVariable[variable]];
   const timestamp = Date.parse(point.measured_at);
@@ -316,9 +317,7 @@ const toHistoryLinePoint = (
   return [{
     label: new Intl.DateTimeFormat("es-CL", {
       day: "2-digit",
-      hour: "2-digit",
-      hourCycle: "h23",
-      minute: "2-digit",
+      ...(resolution === "native" ? { hour: "2-digit", hourCycle: "h23" as const, minute: "2-digit" } : {}),
       month: "2-digit",
     }).format(new Date(timestamp)),
     timestamp,
@@ -329,7 +328,7 @@ const toHistoryLinePoint = (
   }];
 };
 
-const collapseMonthlyVariablePoints = (
+const collapseDailyVariablePoints = (
   points: WellMeasurementHistoryPoint[],
   variable: WellMeasurementVariable,
 ) => {
@@ -337,7 +336,7 @@ const collapseMonthlyVariablePoints = (
   const groups = new Map<string, WellMeasurementHistoryPoint[]>();
   for (const point of points) {
     if (point.values[metric] === null || point.values[metric] === undefined) continue;
-    const key = `${point.measured_at.slice(0, 7)}:${point.source ?? "unknown"}`;
+    const key = `${point.measurement_date}:${point.source ?? "unknown"}`;
     groups.set(key, [...(groups.get(key) ?? []), point]);
   }
 
@@ -366,12 +365,12 @@ const buildHistoricalMeasurementSeries = (
 ): NonNullable<WellMapPoint["measurementSeriesByVariable"]> => {
   const result: NonNullable<WellMapPoint["measurementSeriesByVariable"]> = {};
   for (const variable of chartVariables) {
-    const variablePoints = resolution === "monthly" && variable.value !== "waterTableDepth"
-      ? collapseMonthlyVariablePoints(points, variable.value)
+    const variablePoints = resolution === "daily" && variable.value !== "waterTableDepth"
+      ? collapseDailyVariablePoints(points, variable.value)
       : points;
     const bySource = (source?: MeasurementSource) => variablePoints
       .filter((point) => source === undefined || point.source === source)
-      .flatMap((point) => toHistoryLinePoint(point, variable.value));
+      .flatMap((point) => toHistoryLinePoint(point, variable.value, resolution));
     result[variable.value] = {
       all: bySource(),
       manual: bySource("manual"),
@@ -843,22 +842,24 @@ export function WellsMonitoringTab({
             />
           ) : selectedChartSeries.length > 0 ? (
             <>
-              {isLoggedIn && historyQuery.data?.resolution === "monthly" && (
+              {isLoggedIn && historyQuery.data?.resolution === "daily" && (
                 <p className="well-chart-resolution-note">
-                  El período tiene muchos datos; se muestran promedios mensuales.
+                  El período tiene muchos datos; se muestran promedios diarios.
                 </p>
               )}
             <SimpleLineChart
+              key={`${historyWellId}-${selectedChartPeriod}-${historyRange.start_date ?? "all"}-${historyRange.end_date}`}
               labelEvery={Math.max(1, Math.ceil(chartLabelCount / 18))}
               maxValue={maxSeriesValue}
               minValue={minSeriesValue}
               mode="linear"
               primaryAxisReversed
-              series={selectedChartSeries}
-              showDots={false}
               primaryAxisLabel="Profundidad (m)"
               secondaryMaxValue={maxSecondaryValue}
               secondaryMinValue={minSecondaryValue}
+              series={selectedChartSeries}
+              showDots={false}
+              showBrush
               unit="m"
               xLabelAngle={-40}
             />
