@@ -11,6 +11,7 @@ import {
   fetchWellMeasurementHistory,
   type WellMeasurementHistoryPoint,
   type WellMeasurementHistoryResponse,
+  type WellMeasurementHistoryResolution,
   type WellRegistryEntry,
 } from "../../services/wellsApi";
 import { queryKeys } from "../../lib/queryKeys";
@@ -173,34 +174,34 @@ const toLevelChartSeries = (
   well: WellMapPoint,
   selectedConditions: SelectableLevelCondition[],
   selectedSources: MeasurementSource[],
+  showDailyPoints: boolean,
 ): LineSeries[] => {
   const levelBySource = well.measurementSeriesByVariable?.waterTableDepth;
-  const conditions = {
-    static: chartPalette.chart5,
-    dynamic: chartPalette.chart3,
-    unknown: chartPalette.chart7,
-  };
   return ([
-    { source: "api" as const, label: "Medición API", points: levelBySource?.telemetry ?? [], color: chartPalette.chart1, marker: "circle" as const },
-    { source: "manual" as const, label: "Medición manual", points: levelBySource?.manual ?? [], color: chartPalette.chart4, marker: "square" as const },
-  ]).flatMap(({ source, label, points, color, marker }) => {
+    { source: "api" as const, label: "Medición API", points: levelBySource?.telemetry ?? [], color: chartPalette.chart1 },
+    { source: "manual" as const, label: "Medición manual", points: levelBySource?.manual ?? [], color: chartPalette.chart4 },
+  ]).flatMap(({ source, label, points, color }) => {
     if (!selectedSources.includes(source)) return [];
-    const visiblePoints = points.filter((point) => {
-      const condition = point.condition ?? "unknown";
-      return condition === "unknown" || selectedConditions.includes(condition);
+    return ([
+      { condition: "static" as const, conditionLabel: "estático", markerShape: "circle" as const, strokeDasharray: null },
+      { condition: "dynamic" as const, conditionLabel: "dinámico", markerShape: "square" as const, strokeDasharray: "6 4" },
+    ]).flatMap(({ condition, conditionLabel, markerShape, strokeDasharray }) => {
+      if (!selectedConditions.includes(condition)) return [];
+      const conditionPoints = points.filter((point) => point.condition === condition);
+      return conditionPoints.length > 0
+        ? [{
+            label: `${label} · Nivel ${conditionLabel}`,
+            color,
+            points: conditionPoints,
+            markerShape,
+            showDots: showDailyPoints,
+            ...(strokeDasharray ? { strokeDasharray } : {}),
+            unit: "m",
+            yAxisId: "primary" as const,
+            connectNulls: true,
+          }]
+        : [];
     });
-    return visiblePoints.length > 0
-    ? [{
-        label,
-        color,
-        points: visiblePoints,
-        markerShape: marker,
-        conditionPointColors: conditions,
-        unit: "m",
-        yAxisId: "primary" as const,
-        connectNulls: true,
-      }]
-    : [];
   });
 };
 
@@ -270,14 +271,28 @@ const filterSeriesByPeriod = (
   series: LineSeries[],
   period: ChartPeriod,
   now: Date,
+  resolution: WellMeasurementHistoryResponse["resolution"],
 ): LineSeries[] => {
   const start = getPeriodStart(now, period);
   if (start === null) return series;
 
+  const startOfDay = (timestamp: number) => {
+    const date = new Date(timestamp);
+    date.setHours(0, 0, 0, 0);
+    return date.getTime();
+  };
+  const endOfDay = (timestamp: number) => {
+    const date = new Date(timestamp);
+    date.setHours(23, 59, 59, 999);
+    return date.getTime();
+  };
+  const startTimestamp = resolution === "daily" ? startOfDay(start) : start;
+  const endTimestamp = resolution === "daily" ? endOfDay(now.getTime()) : now.getTime();
+
   return series.map((item) => ({
     ...item,
     points: item.points.filter((point) =>
-      point.timestamp !== undefined && point.timestamp >= start && point.timestamp <= now.getTime(),
+      point.timestamp !== undefined && point.timestamp >= startTimestamp && point.timestamp <= endTimestamp,
     ),
   }));
 };
@@ -297,6 +312,9 @@ const getChartHistoryRange = (now: Date, period: ChartPeriod) => {
   };
 };
 
+const getChartHistoryResolution = (period: ChartPeriod): WellMeasurementHistoryResolution =>
+  period === "24h" || period === "7d" ? "native" : "daily";
+
 const historyMetricByVariable: Record<WellMeasurementVariable, string> = {
   waterTableDepth: "water_table_depth",
   flowRate: "flow_rate",
@@ -306,13 +324,21 @@ const historyMetricByVariable: Record<WellMeasurementVariable, string> = {
   totalizer: "totalizer",
 };
 
+const getDailyTimestamp = (measurementDate: string) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(measurementDate);
+  if (!match) return Number.NaN;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12).getTime();
+};
+
 const toHistoryLinePoint = (
   point: WellMeasurementHistoryPoint,
   variable: WellMeasurementVariable,
   resolution: WellMeasurementHistoryResponse["resolution"],
 ): LinePoint[] => {
   const value = point.values[historyMetricByVariable[variable]];
-  const timestamp = Date.parse(point.measured_at);
+  const timestamp = resolution === "daily"
+    ? getDailyTimestamp(point.measurement_date)
+    : Date.parse(point.measured_at);
   if (value === null || value === undefined || !Number.isFinite(timestamp)) return [];
   return [{
     label: new Intl.DateTimeFormat("es-CL", {
@@ -394,6 +420,7 @@ export function WellsMonitoringTab({
 }: WellsMonitoringTabProps) {
   const [selectedChartPeriod, setSelectedChartPeriod] = useState<ChartPeriod>("24h");
   const historyRange = getChartHistoryRange(now, selectedChartPeriod);
+  const historyResolution = getChartHistoryResolution(selectedChartPeriod);
   const chartWellId = wells.find((well) => well.id === selectedWellId)?.id
     ?? wells[0]?.id
     ?? selectedWellId;
@@ -401,12 +428,16 @@ export function WellsMonitoringTab({
     (entry) => entry.id === chartWellId || entry.codigoObra === chartWellId,
   )?.id ?? chartWellId;
   const historyQuery = useQuery({
-    queryKey: queryKeys.wells.history(authIdToken, historyWellId, historyRange),
+    queryKey: queryKeys.wells.history(authIdToken, historyWellId, historyRange, historyResolution),
     queryFn: ({ signal }) => fetchWellMeasurementHistory(
       authIdToken,
       historyWellId,
       historyRange,
-      signal,
+      {
+        resolution: historyResolution,
+        maxPoints: historyResolution === "native" ? 20_000 : 1_200,
+        signal,
+      },
     ),
     enabled: isLoggedIn && status === "ready" && Boolean(authIdToken && historyWellId && wells.length > 0),
     staleTime: 5 * 60 * 1000,
@@ -529,17 +560,21 @@ export function WellsMonitoringTab({
       ? well.lastUpdate
       : latest;
   }, "");
+  const chartResolution = isLoggedIn
+    ? historyQuery.data?.resolution ?? historyResolution
+    : "native";
   const primaryChartSeries = filterSeriesByPeriod(toLevelChartSeries(
     chartWell,
     selectedLevelConditions,
     selectedMeasurementSources,
-  ), selectedChartPeriod, now);
+    chartResolution === "daily",
+  ), selectedChartPeriod, now, chartResolution);
   const selectedLevelPoints = primaryChartSeries.flatMap((series) => series.points);
   const secondaryChartSeries = filterSeriesByPeriod(selectedSecondaryVariable
     ? secondaryChartVariables
       .filter((variable) => variable.value === selectedSecondaryVariable)
       .flatMap((variable) => toVariableChartSeries(chartWell, variable, selectedMeasurementSources))
-    : [], selectedChartPeriod, now);
+    : [], selectedChartPeriod, now, chartResolution);
   const selectedChartSeries = primaryChartSeries.length > 0
     ? [...primaryChartSeries, ...secondaryChartSeries]
     : [];

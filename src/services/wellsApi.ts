@@ -32,6 +32,8 @@ export type WellMeasurementHistoryPoint = {
   count?: Record<string, number>;
 };
 
+export type WellMeasurementHistoryResolution = "native" | "daily";
+
 export type WellMeasurementHistoryResponse = {
   well_id: string;
   start_date: string | null;
@@ -40,7 +42,7 @@ export type WellMeasurementHistoryResponse = {
   available_to: string | null;
   generated_at: string;
   version: string;
-  resolution: "native" | "daily";
+  resolution: WellMeasurementHistoryResolution;
   points: WellMeasurementHistoryPoint[];
 };
 
@@ -240,7 +242,11 @@ export const fetchWellMeasurementHistory = async (
   idToken: string | null,
   wellId: string,
   range: { start_date?: string; end_date: string },
-  signal?: AbortSignal,
+  options: {
+    maxPoints?: number;
+    resolution?: "auto" | WellMeasurementHistoryResolution;
+    signal?: AbortSignal;
+  } = {},
 ): Promise<WellMeasurementHistoryResponse> => {
   if (!apiBaseUrl) {
     throw new Error("Missing VITE_API_BASE_URL");
@@ -248,15 +254,15 @@ export const fetchWellMeasurementHistory = async (
   const params = new URLSearchParams({
     wellId,
     end_date: range.end_date,
-    resolution: "auto",
-    max_points: "1200",
+    resolution: options.resolution ?? "auto",
+    max_points: String(options.maxPoints ?? 1200),
   });
   if (range.start_date) params.set("start_date", range.start_date);
   const response = await apiFetch(
     `${apiBaseUrl}/api/v1/wells/groundwater-measurements/history?${params}`,
     {
       headers: { Authorization: `Bearer ${idToken}` },
-      signal,
+      signal: options.signal,
     },
   );
   if (!response.ok) await throwApiError(response, "Wells measurement history");

@@ -27,6 +27,7 @@ export type LineSeries = {
   label: string;
   markerShape?: "circle" | "square";
   points: LinePoint[];
+  showDots?: boolean;
   strokeDasharray?: string;
   unit?: string;
   yAxisId?: "primary" | "secondary";
@@ -212,7 +213,7 @@ export function SimpleLineChart({
                 animationDuration={780}
                 connectNulls={item.connectNulls ?? false}
                 dataKey={item.label}
-                dot={!showDots
+                dot={!(showDots || item.showDots)
                   ? false
                   : item.conditionPointColors
                   ? (dotProps: DotItemDotProps) => {
@@ -247,6 +248,21 @@ export function SimpleLineChart({
                             stroke={item.color}
                             strokeWidth={1.5}
                           />;
+                    }
+                  : item.markerShape === "square"
+                  ? (dotProps: DotItemDotProps) => {
+                      if (typeof dotProps.cx !== "number" || typeof dotProps.cy !== "number") {
+                        return null;
+                      }
+                      return <rect
+                        height={6}
+                        width={6}
+                        x={dotProps.cx - 3}
+                        y={dotProps.cy - 3}
+                        fill={item.color}
+                        stroke={item.color}
+                        strokeWidth={1.5}
+                      />;
                     }
                   : { r: 2 }}
                 isAnimationActive
