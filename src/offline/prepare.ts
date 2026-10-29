@@ -4,10 +4,18 @@ import { getOfflineState, updateOfflineState, useOfflineState } from "./state";
 import { listResponses, readResponse } from "./storage";
 import { snapshotCompleteness } from "./completeness";
 import { queryClient } from "../lib/queryClient";
-import { historyPreset } from "../utils/history";
+import { HISTORY_START, historyPreset } from "../utils/history";
 
 const defaultHistoryPath = (module: "et-lat" | "modis-snow", selection: Record<string, string> = {}) =>
   `${module}/history?${new URLSearchParams({ ...selection, ...historyPreset(1), resolution: "auto", max_points: "1200" })}`;
+const fullSnowHistoryPath = (area: string) =>
+  `modis-snow/history?${new URLSearchParams({
+    area,
+    start_date: HISTORY_START,
+    end_date: new Date().toISOString().slice(0, 10),
+    resolution: "native",
+    max_points: "5000",
+  })}`;
 
 const apiBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
 const summaryPaths = ["weather-stations/snapshot", "et-lat/std-ae", "et-lat/serie-et", "modis-snow/coverage-series"];
@@ -24,7 +32,7 @@ export function offlinePaths(role: string) {
     ...corePaths,
     defaultHistoryPath("et-lat"),
     defaultHistoryPath("et-lat", { sector_id: "19" }),
-    ...["ae", "jorquera", "pulido", "manflas"].map((area) => defaultHistoryPath("modis-snow", { area })),
+    ...["ae", "jorquera", "pulido", "manflas"].map(fullSnowHistoryPath),
     ...(role !== "public_user" ? ["wells/groundwater-measurements", "wells/admin/me", "wells/registry/mine"] : []),
     ...(["cas_user", "technical_admin", "general_admin"].includes(role)
       ? ["forum/threads?page=1&page_size=20"] : []),

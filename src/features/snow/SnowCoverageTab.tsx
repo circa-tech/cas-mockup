@@ -1,10 +1,10 @@
-import { HistoricalSeriesChart } from "../../components/HistoricalSeriesChart";
 import { lazy } from "react";
 import { Panel } from "../../components/Panel";
 import { RemoteDataState } from "../../components/RemoteDataState";
-import { SimpleLineChart, type LineSeries } from "../../components/SimpleLineChart";
+import type { LineSeries } from "../../components/SimpleLineChart";
 import type { ModisSnowBasinsGeoJson } from "../../services/modisSnowApi";
 import { formatDate } from "../../utils/date";
+import { SnowSeasonComparison } from "./SnowSeasonComparison";
 
 const SnowCoverageMap = lazy(() =>
   import("./SnowCoverageMap").then((module) => ({
@@ -25,9 +25,6 @@ export function SnowCoverageTab({
   manflasSeries,
   overviewSeries,
   pulidoSeries,
-  showSnowCharts,
-  snowChartLabelEvery,
-  snowChartsTone,
 }: {
   authIdToken: string | null;
   basinsGeoJson: ModisSnowBasinsGeoJson | null;
@@ -46,9 +43,6 @@ export function SnowCoverageTab({
   manflasSeries: LineSeries[];
   overviewSeries: LineSeries[];
   pulidoSeries: LineSeries[];
-  showSnowCharts: boolean;
-  snowChartLabelEvery: number;
-  snowChartsTone: "error" | "loading";
 }) {
   const latestImageSubtitle = latestSnowImage.date
     ? `imagen del ${formatDate(latestSnowImage.date)}`
@@ -94,122 +88,20 @@ export function SnowCoverageTab({
             <div className="snow-description">
               <h3>Cobertura de nieve día a día (% del área)</h3>
               <p>
-                Estos gráficos muestran qué porcentaje del área tiene nieve.
-                Selecciona un período para explorar las mediciones históricas disponibles desde 2021.
+                Compara la evolución diaria de la cobertura nival entre temporadas.
+                Puedes cambiar los años para revisar períodos con datos disponibles.
               </p>
             </div>
-
-            <Panel title="Toda el área de estudio">
-              {isLoggedIn ? <HistoricalSeriesChart authIdToken={authIdToken} module="modis-snow" selection={{ area: "ae" }} /> : showSnowCharts ? (
-                <SimpleLineChart
-                  labelEvery={snowChartLabelEvery}
-                  maxValue={100}
-                  minValue={0}
-                  series={overviewSeries}
-                  unit="Cobertura (%)"
-                  xLabelAngle={-32}
-                />
-              ) : (
-                <RemoteDataState
-                  className="is-chart"
-                  title={
-                    snowChartsTone === "error"
-                      ? "Cobertura no disponible"
-                      : "Cargando cobertura"
-                  }
-                  message={
-                    snowChartsTone === "error"
-                      ? "El servicio no respondió con la serie real de cobertura."
-                      : "Consultando serie real de cobertura MODIS."
-                  }
-                  tone={snowChartsTone}
-                />
-              )}
-            </Panel>
-
-            <Panel title="Cuenca del río Jorquera">
-              {isLoggedIn ? <HistoricalSeriesChart authIdToken={authIdToken} module="modis-snow" selection={{ area: "jorquera" }} /> : showSnowCharts ? (
-                <SimpleLineChart
-                  labelEvery={snowChartLabelEvery}
-                  maxValue={100}
-                  minValue={0}
-                  series={jorqueraSeries}
-                  unit="Cobertura (%)"
-                  xLabelAngle={-32}
-                />
-              ) : (
-                <RemoteDataState
-                  className="is-chart"
-                  title={
-                    snowChartsTone === "error"
-                      ? "Jorquera no disponible"
-                      : "Cargando Jorquera"
-                  }
-                  message={
-                    snowChartsTone === "error"
-                      ? "El servicio no respondió con la serie real de Jorquera."
-                      : "Esperando datos reales de FSCA para Jorquera."
-                  }
-                  tone={snowChartsTone}
-                />
-              )}
-            </Panel>
-
-            <Panel title="Cuenca del río Pulido">
-              {isLoggedIn ? <HistoricalSeriesChart authIdToken={authIdToken} module="modis-snow" selection={{ area: "pulido" }} /> : showSnowCharts ? (
-                <SimpleLineChart
-                  labelEvery={snowChartLabelEvery}
-                  maxValue={100}
-                  minValue={0}
-                  series={pulidoSeries}
-                  unit="Cobertura (%)"
-                  xLabelAngle={-32}
-                />
-              ) : (
-                <RemoteDataState
-                  className="is-chart"
-                  title={
-                    snowChartsTone === "error"
-                      ? "Pulido no disponible"
-                      : "Cargando Pulido"
-                  }
-                  message={
-                    snowChartsTone === "error"
-                      ? "El servicio no respondió con la serie real de Pulido."
-                      : "Esperando datos reales de FSCA para Pulido."
-                  }
-                  tone={snowChartsTone}
-                />
-              )}
-            </Panel>
-
-            <Panel title="Cuenca del río Manflas">
-              {isLoggedIn ? <HistoricalSeriesChart authIdToken={authIdToken} module="modis-snow" selection={{ area: "manflas" }} /> : showSnowCharts ? (
-                <SimpleLineChart
-                  labelEvery={snowChartLabelEvery}
-                  maxValue={100}
-                  minValue={0}
-                  series={manflasSeries}
-                  unit="Cobertura (%)"
-                  xLabelAngle={-32}
-                />
-              ) : (
-                <RemoteDataState
-                  className="is-chart"
-                  title={
-                    snowChartsTone === "error"
-                      ? "Manflas no disponible"
-                      : "Cargando Manflas"
-                  }
-                  message={
-                    snowChartsTone === "error"
-                      ? "El servicio no respondió con la serie real de Manflas."
-                      : "Esperando datos reales de FSCA para Manflas."
-                  }
-                  tone={snowChartsTone}
-                />
-              )}
-            </Panel>
+            <SnowSeasonComparison
+              authIdToken={authIdToken}
+              demoSeriesByArea={{
+                ae: overviewSeries,
+                jorquera: jorqueraSeries,
+                pulido: pulidoSeries,
+                manflas: manflasSeries,
+              }}
+              isLoggedIn={isLoggedIn}
+            />
           </div>
         </div>
   );
