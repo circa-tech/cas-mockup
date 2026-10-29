@@ -14,9 +14,7 @@ import {
 import { queryKeys } from "../../lib/queryKeys";
 import {
   fetchModisSnowBasinsGeoJson,
-  fetchModisSnowCoverageSeries,
   fetchModisSnowLatestImage,
-  toModisSnowLineSeries,
 } from "../../services/modisSnowApi";
 import { SnowBalanceTab } from "./SnowBalanceTab";
 import { SnowCoverageTab } from "./SnowCoverageTab";
@@ -32,12 +30,6 @@ export function SnowView({
 }) {
   const [activeSnowTab, setActiveSnowTab] = useState<"coverage" | "balance">("coverage");
   const enabled = isLoggedIn;
-  const coverageQuery = useQuery({
-    queryKey: queryKeys.snow.coverage(authIdToken),
-    queryFn: () => fetchModisSnowCoverageSeries(authIdToken!),
-    enabled,
-    staleTime: 30 * 60 * 1000,
-  });
   const imageQuery = useQuery({
     queryKey: queryKeys.snow.image(authIdToken),
     queryFn: () => fetchModisSnowLatestImage(authIdToken!),
@@ -50,18 +42,6 @@ export function SnowView({
     enabled,
     staleTime: Infinity,
   });
-  const overviewSeries = enabled
-    ? toModisSnowLineSeries(coverageQuery.data?.ae ?? [])
-    : snowOverviewSeries;
-  const jorqueraSeries = enabled
-    ? toModisSnowLineSeries(coverageQuery.data?.jorquera ?? [])
-    : snowJorqueraSeries;
-  const pulidoSeries = enabled
-    ? toModisSnowLineSeries(coverageQuery.data?.pulido ?? [])
-    : snowPulidoSeries;
-  const manflasSeries = enabled
-    ? toModisSnowLineSeries(coverageQuery.data?.manflas ?? [])
-    : snowManflasSeries;
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   useEffect(() => {
     if (!imageQuery.data?.blob) { setImageUrl(null); return; }
@@ -100,10 +80,6 @@ export function SnowView({
     setSelectedBalanceYear(availableBalanceYears[0] ?? snowBalanceLatestYear);
   }, [availableBalanceYears, selectedBalanceYear]);
 
-  const snowChartLabelEvery = Math.max(
-    1,
-    Math.ceil((overviewSeries[0]?.points.length ?? 0) / 8),
-  );
   const imageStatus = !enabled
     ? "idle"
     : imageQuery.isPending
@@ -118,8 +94,6 @@ export function SnowView({
       : (basinsQuery.isError && !basinsQuery.data)
         ? "error"
         : "ready";
-  const showSnowCharts = !isLoggedIn || Boolean(coverageQuery.data);
-  const snowChartsTone = (coverageQuery.isError && !coverageQuery.data) ? "error" : "loading";
   const imageTone = (imageQuery.isError && !imageQuery.data) ? "error" : "loading";
   const basinsTone = (basinsQuery.isError && !basinsQuery.data) ? "error" : "loading";
 
@@ -159,14 +133,11 @@ export function SnowView({
           imageStatus={imageStatus}
           imageTone={imageTone}
           isLoggedIn={isLoggedIn}
-          jorqueraSeries={jorqueraSeries}
+          jorqueraSeries={snowJorqueraSeries}
           latestSnowImage={latestSnowImage}
-          manflasSeries={manflasSeries}
-          overviewSeries={overviewSeries}
-          pulidoSeries={pulidoSeries}
-          showSnowCharts={showSnowCharts}
-          snowChartLabelEvery={snowChartLabelEvery}
-          snowChartsTone={snowChartsTone}
+          manflasSeries={snowManflasSeries}
+          overviewSeries={snowOverviewSeries}
+          pulidoSeries={snowPulidoSeries}
         />
       )}
 
