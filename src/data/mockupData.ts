@@ -20,7 +20,7 @@ export const views: { id: ViewId; label: string }[] = [
   { id: "etr", label: "Evapotranspiración" },
   { id: "snow", label: "Nieve" },
   { id: "wells", label: "Pozos" },
-  { id: "meteo", label: "Clima" },
+  { id: "meteo", label: "Meteo" },
   { id: "forum", label: "Foro" },
   { id: "admin", label: "Admin" },
   { id: "tutorials", label: "Ayuda" },

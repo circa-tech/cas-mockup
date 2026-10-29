@@ -84,7 +84,7 @@ export function MeteoView({
     return (
       <div className="view-stack">
         <div className="view-intro">
-          <h2>Clima en el valle</h2>
+          <h2>Meteorología en el valle</h2>
           <p>Últimas mediciones de las estaciones meteorológicas del valle. Toca una estación para ver su detalle.</p>
         </div>
 
@@ -111,7 +111,7 @@ export function MeteoView({
   return (
     <div className="view-stack">
       <div className="view-intro">
-        <h2>Clima en el valle</h2>
+        <h2>Meteorología en el valle</h2>
         <p>Últimas mediciones de las estaciones meteorológicas del valle. Toca una estación para ver su detalle.</p>
       </div>
 
