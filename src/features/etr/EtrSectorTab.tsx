@@ -278,7 +278,7 @@ export function EtrSectorTab({
         >
           {showOverviewData ? (
             <SimpleBarChart
-              chartHeight={338}
+              chartHeight={418}
               groups={overviewBarGroups}
               maxValue={overviewBarMaxValue}
               tickStep={5}
