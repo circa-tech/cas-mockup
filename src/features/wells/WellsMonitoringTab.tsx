@@ -423,7 +423,7 @@ export function WellsMonitoringTab({
   wellRegistryEntries,
   wells,
 }: WellsMonitoringTabProps) {
-  const [selectedChartPeriod, setSelectedChartPeriod] = useState<ChartPeriod>("24h");
+  const [selectedChartPeriod, setSelectedChartPeriod] = useState<ChartPeriod>("7d");
   const historyRange = getChartHistoryRange(now, selectedChartPeriod);
   const historyResolution = getChartHistoryResolution(selectedChartPeriod);
   const chartWellId = wells.find((well) => well.id === selectedWellId)?.id
