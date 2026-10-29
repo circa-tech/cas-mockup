@@ -62,6 +62,10 @@ const sourceLabelMap = {
   manual: "Medición manual",
 } as const;
 
+type LevelCondition = NonNullable<LinePoint["condition"]>;
+type MeasurementSource = "api" | "manual";
+type SelectableLevelCondition = Exclude<LevelCondition, "unknown">;
+
 const chartVariables: { value: WellMeasurementVariable; label: string; unit: string }[] = [
   { value: "waterTableDepth", label: "Nivel freático", unit: "m" },
   { value: "flowRate", label: "Caudal", unit: "L/s" },
@@ -74,18 +78,19 @@ const chartVariables: { value: WellMeasurementVariable; label: string; unit: str
 const secondaryChartVariables = chartVariables.filter(
   (variable) => variable.value !== "waterTableDepth",
 );
-const chartVariableColor: Record<WellMeasurementVariable, string> = {
-  waterTableDepth: chartPalette.chart1,
-  flowRate: chartPalette.chart2,
-  pressure: chartPalette.chart4,
-  ph: chartPalette.chart5,
-  conductivity: chartPalette.chart6,
-  totalizer: chartPalette.chart8,
+const levelSeriesColors: Record<MeasurementSource, Record<SelectableLevelCondition, string>> = {
+  api: { static: "#1D4ED8", dynamic: "#0F766E" },
+  manual: { static: "#A16207", dynamic: "#BE123C" },
+};
+const secondarySeriesColors: Record<WellMeasurementVariable, Record<MeasurementSource, string>> = {
+  waterTableDepth: { api: "#1D4ED8", manual: "#A16207" },
+  flowRate: { api: "#15803D", manual: "#C2410C" },
+  pressure: { api: "#0369A1", manual: "#6B21A8" },
+  ph: { api: "#4338CA", manual: "#9D174D" },
+  conductivity: { api: "#3F6212", manual: "#B91C1C" },
+  totalizer: { api: "#475569", manual: "#713F12" },
 };
 
-type LevelCondition = NonNullable<LinePoint["condition"]>;
-type MeasurementSource = "api" | "manual";
-type SelectableLevelCondition = Exclude<LevelCondition, "unknown">;
 type ChartPeriod = "24h" | "7d" | "1m" | "3m" | "6m" | "1y" | "all";
 
 const chartPeriodOptions: { value: ChartPeriod; label: string }[] = [
@@ -178,22 +183,22 @@ const toLevelChartSeries = (
 ): LineSeries[] => {
   const levelBySource = well.measurementSeriesByVariable?.waterTableDepth;
   return ([
-    { source: "api" as const, label: "Medición API", points: levelBySource?.telemetry ?? [], color: chartPalette.chart1 },
-    { source: "manual" as const, label: "Medición manual", points: levelBySource?.manual ?? [], color: chartPalette.chart4 },
-  ]).flatMap(({ source, label, points, color }) => {
+    { source: "api" as const, label: "Medición API", points: levelBySource?.telemetry ?? [] },
+    { source: "manual" as const, label: "Medición manual", points: levelBySource?.manual ?? [] },
+  ]).flatMap(({ source, label, points }) => {
     if (!selectedSources.includes(source)) return [];
     return ([
-      { condition: "static" as const, conditionLabel: "estático", markerShape: "circle" as const, strokeDasharray: null },
-      { condition: "dynamic" as const, conditionLabel: "dinámico", markerShape: "square" as const, strokeDasharray: "6 4" },
-    ]).flatMap(({ condition, conditionLabel, markerShape, strokeDasharray }) => {
+      { condition: "static" as const, conditionLabel: "estático", strokeDasharray: null },
+      { condition: "dynamic" as const, conditionLabel: "dinámico", strokeDasharray: "6 4" },
+    ]).flatMap(({ condition, conditionLabel, strokeDasharray }) => {
       if (!selectedConditions.includes(condition)) return [];
       const conditionPoints = points.filter((point) => point.condition === condition);
       return conditionPoints.length > 0
         ? [{
             label: `${label} · Nivel ${conditionLabel}`,
-            color,
+            color: levelSeriesColors[source][condition],
             points: conditionPoints,
-            markerShape,
+            markerShape: "circle",
             showDots: showDailyPoints,
             ...(strokeDasharray ? { strokeDasharray } : {}),
             unit: "m",
@@ -212,14 +217,14 @@ const toVariableChartSeries = (
 ): LineSeries[] => {
   const sourceSeries = well.measurementSeriesByVariable?.[variable.value];
   return ([
-    { source: "api" as const, label: "telemetría", points: sourceSeries?.telemetry ?? [], marker: "circle" as const },
-    { source: "manual" as const, label: "manual", points: sourceSeries?.manual ?? [], marker: "square" as const },
-  ]).flatMap(({ source, label, points, marker }) => selectedSources.includes(source) && points.length > 0
+    { source: "api" as const, label: "telemetría", points: sourceSeries?.telemetry ?? [] },
+    { source: "manual" as const, label: "manual", points: sourceSeries?.manual ?? [] },
+  ]).flatMap(({ source, label, points }) => selectedSources.includes(source) && points.length > 0
     ? [{
         label: `${variable.label} · ${label}`,
-        color: chartVariableColor[variable.value],
+        color: secondarySeriesColors[variable.value][source],
         points,
-        markerShape: marker,
+        markerShape: "circle",
         unit: variable.unit,
         yAxisId: "secondary" as const,
         connectNulls: true,
@@ -884,6 +889,7 @@ export function WellsMonitoringTab({
               )}
             <SimpleLineChart
               key={`${historyWellId}-${selectedChartPeriod}-${historyRange.start_date ?? "all"}-${historyRange.end_date}`}
+              dotRadius={3.5}
               labelEvery={Math.max(1, Math.ceil(chartLabelCount / 18))}
               maxValue={maxSeriesValue}
               minValue={minSeriesValue}
@@ -893,7 +899,8 @@ export function WellsMonitoringTab({
               secondaryMaxValue={maxSecondaryValue}
               secondaryMinValue={minSecondaryValue}
               series={selectedChartSeries}
-              showDots={false}
+              fillDots
+              showDots
               showBrush
               unit="m"
               xLabelAngle={-40}

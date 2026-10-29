@@ -39,10 +39,12 @@ type SimpleLineChartProps = {
   maxValue: number;
   minValue: number;
   mode?: "linear" | "step";
+  dotRadius?: number;
   primaryAxisLabel?: string;
   primaryAxisReversed?: boolean;
   series: LineSeries[];
   showDots?: boolean;
+  fillDots?: boolean;
   showBrush?: boolean;
   secondaryMaxValue?: number;
   secondaryMinValue?: number;
@@ -93,10 +95,12 @@ export function SimpleLineChart({
   maxValue,
   minValue,
   mode = "linear",
+  dotRadius = 2,
   primaryAxisLabel,
   primaryAxisReversed = false,
   series,
   showDots = true,
+  fillDots = false,
   showBrush = false,
   secondaryMaxValue,
   secondaryMinValue,
@@ -232,10 +236,10 @@ export function SimpleLineChart({
                       const fill = item.conditionPointColors?.[condition] ?? item.color;
                       return item.markerShape === "square"
                         ? <rect
-                            height={7}
-                            width={7}
-                            x={dotProps.cx - 3.5}
-                            y={dotProps.cy - 3.5}
+                            height={dotRadius * 2}
+                            width={dotRadius * 2}
+                            x={dotProps.cx - dotRadius}
+                            y={dotProps.cy - dotRadius}
                             fill={fill}
                             stroke={item.color}
                             strokeWidth={1.5}
@@ -243,7 +247,7 @@ export function SimpleLineChart({
                         : <circle
                             cx={dotProps.cx}
                             cy={dotProps.cy}
-                            r={3.5}
+                            r={dotRadius}
                             fill={fill}
                             stroke={item.color}
                             strokeWidth={1.5}
@@ -255,16 +259,19 @@ export function SimpleLineChart({
                         return null;
                       }
                       return <rect
-                        height={6}
-                        width={6}
-                        x={dotProps.cx - 3}
-                        y={dotProps.cy - 3}
+                        height={dotRadius * 2}
+                        width={dotRadius * 2}
+                        x={dotProps.cx - dotRadius}
+                        y={dotProps.cy - dotRadius}
                         fill={item.color}
                         stroke={item.color}
                         strokeWidth={1.5}
                       />;
                     }
-                  : { r: 2 }}
+                  : {
+                      r: dotRadius,
+                      ...(fillDots ? { fill: item.color, stroke: item.color } : {}),
+                    }}
                 isAnimationActive
                 name={item.label}
                 stroke={item.color}
