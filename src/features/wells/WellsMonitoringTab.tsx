@@ -64,7 +64,7 @@ const sourceLabelMap = {
 
 type LevelCondition = NonNullable<LinePoint["condition"]>;
 type MeasurementSource = "api" | "manual";
-type SelectableLevelCondition = Exclude<LevelCondition, "unknown">;
+type SelectableLevelCondition = LevelCondition;
 
 const chartVariables: { value: WellMeasurementVariable; label: string; unit: string }[] = [
   { value: "waterTableDepth", label: "Nivel freático", unit: "m" },
@@ -79,8 +79,8 @@ const secondaryChartVariables = chartVariables.filter(
   (variable) => variable.value !== "waterTableDepth",
 );
 const levelSeriesColors: Record<MeasurementSource, Record<SelectableLevelCondition, string>> = {
-  api: { static: "#1D4ED8", dynamic: "#0F766E" },
-  manual: { static: "#A16207", dynamic: "#BE123C" },
+  api: { static: "#1D4ED8", dynamic: "#0F766E", unknown: "#64748B" },
+  manual: { static: "#A16207", dynamic: "#BE123C", unknown: "#7C3AED" },
 };
 const secondarySeriesColors: Record<WellMeasurementVariable, Record<MeasurementSource, string>> = {
   waterTableDepth: { api: "#1D4ED8", manual: "#A16207" },
@@ -110,6 +110,7 @@ const measurementSourceOptions: { value: MeasurementSource; label: string }[] = 
 const levelConditionOptions: { value: SelectableLevelCondition; label: string }[] = [
   { value: "static", label: "Nivel estático" },
   { value: "dynamic", label: "Nivel dinámico" },
+  { value: "unknown", label: "Otra" },
 ];
 
 const formatMeters = (value: number) =>
@@ -190,12 +191,15 @@ const toLevelChartSeries = (
     return ([
       { condition: "static" as const, conditionLabel: "estático", strokeDasharray: null },
       { condition: "dynamic" as const, conditionLabel: "dinámico", strokeDasharray: "6 4" },
+      { condition: "unknown" as const, conditionLabel: "Otra", strokeDasharray: "2 3" },
     ]).flatMap(({ condition, conditionLabel, strokeDasharray }) => {
       if (!selectedConditions.includes(condition)) return [];
       const conditionPoints = points.filter((point) => point.condition === condition);
       return conditionPoints.length > 0
         ? [{
-            label: `${label} · Nivel ${conditionLabel}`,
+            label: condition === "unknown"
+              ? `${label} · ${conditionLabel}`
+              : `${label} · Nivel ${conditionLabel}`,
             color: levelSeriesColors[source][condition],
             points: conditionPoints,
             markerShape: "circle",
@@ -449,10 +453,10 @@ export function WellsMonitoringTab({
   });
   const [selectedSecondaryVariable, setSelectedSecondaryVariable] = useState<WellMeasurementVariable | null>(null);
   const [selectedLevelConditions, setSelectedLevelConditions] = useState<SelectableLevelCondition[]>([
-    "static", "dynamic",
+    "static", "dynamic", "unknown",
   ]);
   const [selectedMeasurementSources, setSelectedMeasurementSources] = useState<MeasurementSource[]>([
-    "manual",
+    "api", "manual",
   ]);
   const measurementSourceSummary = selectedMeasurementSources.length === measurementSourceOptions.length
     ? "Medición API y manual"
@@ -461,7 +465,7 @@ export function WellsMonitoringTab({
       .map((source) => source.label)
       .join(", ") || "Ningún origen";
   const levelConditionSummary = selectedLevelConditions.length === levelConditionOptions.length
-    ? "Nivel estático y dinámico"
+    ? "Todos los tipos de nivel"
     : levelConditionOptions
       .filter((condition) => selectedLevelConditions.includes(condition.value))
       .map((condition) => condition.label)
