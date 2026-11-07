@@ -469,3 +469,28 @@ test("saved history presets survive a next-day offline reload and refresh on rec
   await expect(chart.getByText(/Mostrando el período guardado/)).toHaveCount(0);
   await expect(chart.getByLabel("Hasta", { exact: true })).toHaveValue(nextEnd);
 });
+
+
+test("chart download contains the plotted daily values and Chile dates", async ({ page, context }) => {
+  await mockServices(context, () => false);
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => route.fulfill({ json: {
+    well_id: "well-1", resolution: "daily", points: [{ measurement_id: "daily", measurement_date: "2026-10-09",
+      measured_at: "2026-10-09T21:00:00Z", source: "api", water_level_condition: "static",
+      values: { water_table_depth: 12.345, flow_rate: 0 }, count: { water_table_depth: 24, flow_rate: 24 } }],
+  } }));
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  await page.locator("select").filter({ has: page.locator('option[value="all"]') }).selectOption("all");
+  const pendingDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Descargar datos", exact: true }).click();
+  const download = await pendingDownload;
+  expect(download.suggestedFilename()).toMatch(/Pozo_Pozo_guardado_Caudal.*2026-10-09.*xlsx$/);
+  const ExcelJS = (await import("exceljs")).default;
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile((await download.path())!);
+  const sheet = workbook.worksheets[0];
+  expect(sheet.getCell("A2").value).toEqual(new Date("2026-10-09T12:00:00Z"));
+  expect(sheet.getCell("B2").value).toBe(12.345);
+  expect(sheet.getCell("C2").value).toBe("Estático");
+  expect(sheet.getCell("D2").value).toBe(0);
+});

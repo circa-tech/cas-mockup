@@ -21,6 +21,7 @@ export type LinePoint = {
 };
 
 export type LineSeries = {
+  source?: "api" | "manual";
   color: string;
   connectNulls?: boolean;
   conditionPointColors?: Partial<Record<"static" | "dynamic" | "unknown", string>>;

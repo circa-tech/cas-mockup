@@ -1,3 +1,5 @@
+import { chartExportFilename, createChartWorkbook, plottedWellRows } from "./wellChartExport";
+import { downloadWorkbook } from "../../utils/workbook";
 import { Droplets, Gauge, Radio, Waves } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -24,7 +26,7 @@ import {
   type WellMeasurementVariable,
 } from "../../data/mockupData";
 import type { RemoteLoadStatus } from "../../types/remote";
-import { formatRelativeAge, formatShortDateTime } from "../../utils/date";
+import { chileTimeZone, dateInChile, toZonedDateTimeIso, formatRelativeAge, formatShortDateTime } from "../../utils/date";
 import { freshnessClassMap, freshnessLabelMap } from "../../utils/freshness";
 import {
   getCurrentValue,
@@ -200,6 +202,7 @@ const toLevelChartSeries = (
             label: condition === "unknown"
               ? `${label} · ${conditionLabel}`
               : `${label} · Nivel ${conditionLabel}`,
+            source,
             color: levelSeriesColors[source][condition],
             points: conditionPoints,
             markerShape: "circle",
@@ -226,6 +229,7 @@ const toVariableChartSeries = (
   ]).flatMap(({ source, label, points }) => selectedSources.includes(source) && points.length > 0
     ? [{
         label: `${variable.label} · ${label}`,
+        source,
         color: secondarySeriesColors[variable.value][source],
         points,
         markerShape: "circle",
@@ -306,12 +310,7 @@ const filterSeriesByPeriod = (
   }));
 };
 
-const formatLocalDateParam = (date: Date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
+const formatLocalDateParam = dateInChile;
 
 const getChartHistoryRange = (now: Date, period: ChartPeriod) => {
   const start = getPeriodStart(now, period);
@@ -336,7 +335,7 @@ const historyMetricByVariable: Record<WellMeasurementVariable, string> = {
 const getDailyTimestamp = (measurementDate: string) => {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(measurementDate);
   if (!match) return Number.NaN;
-  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12).getTime();
+  return Date.parse(toZonedDateTimeIso(measurementDate.slice(0, 10), "12:00:00") ?? "");
 };
 
 const toHistoryLinePoint = (
@@ -351,6 +350,7 @@ const toHistoryLinePoint = (
   if (value === null || value === undefined || !Number.isFinite(timestamp)) return [];
   return [{
     label: new Intl.DateTimeFormat("es-CL", {
+      timeZone: chileTimeZone,
       day: "2-digit",
       ...(resolution === "native" ? { hour: "2-digit", hourCycle: "h23" as const, minute: "2-digit" } : {}),
       month: "2-digit",
@@ -427,6 +427,8 @@ export function WellsMonitoringTab({
   wellRegistryEntries,
   wells,
 }: WellsMonitoringTabProps) {
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [selectedChartPeriod, setSelectedChartPeriod] = useState<ChartPeriod>("7d");
   const historyRange = getChartHistoryRange(now, selectedChartPeriod);
   const historyResolution = getChartHistoryResolution(selectedChartPeriod);
@@ -593,6 +595,7 @@ export function WellsMonitoringTab({
   const selectedChartSeries = primaryChartSeries.length > 0
     ? [...primaryChartSeries, ...secondaryChartSeries]
     : [];
+  const exportRows = plottedWellRows(primaryChartSeries, secondaryChartSeries);
   const chartLabelCount = new Set(
     selectedChartSeries.flatMap((item) => item.points.map((point) => point.label)),
   ).size;
@@ -798,6 +801,20 @@ export function WellsMonitoringTab({
         title={`Nivel freático y otras variables · ${selectedWell.name}`}
         subtitle="Profundidad en metros bajo el suelo; los valores mayores indican mayor profundidad."
       >
+        <button type="button" className="secondary-button" disabled={exporting || exportRows.length === 0 || (isLoggedIn && (historyQuery.isPending || historyQuery.isError))}
+          onClick={async () => {
+            setExporting(true);
+            setExportError(null);
+            try {
+              await downloadWorkbook(await createChartWorkbook(exportRows, secondaryAxisLabel),
+                chartExportFilename(selectedWell.name, secondaryAxisLabel ?? "Nivel", exportRows));
+            } catch {
+              setExportError("No pudimos preparar el archivo. Intenta descargarlo nuevamente.");
+            } finally { setExporting(false); }
+          }}>
+          {exporting ? "Preparando archivo…" : "Descargar datos"}
+        </button>
+        {exportError && <p role="alert">{exportError}</p>}
         <div className="well-chart-controls">
           <fieldset className="well-chart-variable-selector">
             <legend>Período</legend>

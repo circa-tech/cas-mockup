@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.2",
+    "exceljs": "4.4.0",
     "firebase": "^12.13.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.577.0",
