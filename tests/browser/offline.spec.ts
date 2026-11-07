@@ -469,3 +469,20 @@ test("saved history presets survive a next-day offline reload and refresh on rec
   await expect(chart.getByText(/Mostrando el período guardado/)).toHaveCount(0);
   await expect(chart.getByLabel("Hasta", { exact: true })).toHaveValue(nextEnd);
 });
+
+test("well chart explains flow outside the selected 24-hour window", async ({ page, context }) => {
+  await page.clock.setFixedTime(new Date("2026-10-09T16:00:00Z"));
+  await mockServices(context, () => false);
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => route.fulfill({ json: {
+    well_id: "well-1", resolution: "native", points: [
+      { measurement_id: "old", measurement_date: "2026-10-08", measured_at: "2026-10-08T04:00:00Z",
+        source: "api", water_level_condition: "dynamic", values: { water_table_depth: 20, flow_rate: 3 } },
+      { measurement_id: "recent", measurement_date: "2026-10-09", measured_at: "2026-10-09T15:00:00Z",
+        source: "api", water_level_condition: "unknown", values: { water_table_depth: 21, flow_rate: null } },
+    ],
+  } }));
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  await page.locator("select").filter({ has: page.locator('option[value="24h"]') }).selectOption("24h");
+  await expect(page.getByText("Sin datos de caudal en el período", { exact: true })).toBeVisible();
+});
