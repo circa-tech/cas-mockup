@@ -494,3 +494,41 @@ test("chart download contains the plotted daily values and Chile dates", async (
   expect(sheet.getCell("C2").value).toBe("Estático");
   expect(sheet.getCell("D2").value).toBe(0);
 });
+
+test("titular is optional at the well and absent from measurements", async ({ page, context }) => {
+  await mockServices(context, () => false);
+  await context.route("**/api/v1/wells/admin/me", (route) => route.fulfill({ json: { canViewWells: true, canAddMeasurements: true, canCreateWells: true, canManageWells: true, canManageCas: false } }));
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => route.fulfill({ json: { well_id: "well-1", resolution: "native", points: [] } }));
+  let saved: Record<string, unknown> | null = null;
+  const registry = { id: "well-1", name: "Pozo guardado", codigoObra: null, casId: "cas-1", casCode: "CAS", casName: "CAS", lat: -27.3, lng: -70.5, active: true, utmEasting: 350000, utmNorthing: 6970000,
+    waterRights: [{ holderName: "Titular derecho", holderRut: "12345678-5", authorizedFlowRate: 2, authorizedVolume: 100 }], ownerContacts: [{ representative: "Contacto existente" }] };
+  await context.route("**/api/v1/wells/registry/mine", (route) => route.fulfill({ json: [registry] }));
+  await context.route("**/api/v1/wells/registry/writable", (route) => route.fulfill({ json: ["well-1"] }));
+  await context.route("**/api/v1/wells/cas/mine", (route) => route.fulfill({ json: [{ id: "cas-1", code: "CAS", name: "CAS", active: true }] }));
+  await context.route("**/api/v1/wells/registry/well-1", (route) => {
+    saved = route.request().postDataJSON();
+    return route.fulfill({ json: { ...registry, ...saved } });
+  });
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  await page.getByRole("tab", { name: "Agregar medición", exact: true }).click();
+  await expect(page.getByLabel(/^RUT de quien mide/)).toBeVisible();
+  await expect(page.getByText("RUT del titular *", { exact: true })).toHaveCount(0);
+  await page.getByRole("tab", { name: "Administrar pozos", exact: true }).click();
+  await page.getByRole("button", { name: "Editar pozo Pozo guardado" }).click();
+  await page.getByText("Datos opcionales", { exact: true }).click();
+  await page.locator("summary").filter({ hasText: /^Titular$/ }).click();
+  const rut = page.getByLabel("RUT del titular del pozo", { exact: true });
+  const name = page.getByLabel("Nombre o razón social", { exact: true });
+  await expect(name).toHaveValue("");
+  await rut.fill("12.345.678-9");
+  await page.getByRole("button", { name: "Guardar cambios", exact: true }).click();
+  await expect(page.getByText("El RUT ingresado no es válido. Revisa el número y el dígito verificador.", { exact: true })).toBeVisible();
+  expect(saved).toBeNull();
+  await rut.fill("12.345.678-5");
+  await page.getByRole("button", { name: "Guardar cambios", exact: true }).click();
+  await expect.poll(() => saved?.titularRut).toBe("12345678-5");
+  expect(saved?.titularName).toBeNull();
+  expect(saved?.ownerContacts).toEqual([{ representative: "Contacto existente", rut: null, email: null, phone: null }]);
+  expect(saved?.waterRights).toEqual(expect.arrayContaining([expect.objectContaining({ holderName: "Titular derecho", holderRut: "12345678-5" })]));
+});

@@ -92,19 +92,6 @@ export function WellMeasurementIngestPanel({
 
           <div className="manual-two-col">
             <label>
-              <span>RUT del titular *</span>
-              <input
-                type="text"
-                value={form.companyRut}
-                placeholder="77555666-7"
-                onChange={(event) => onChange({ companyRut: event.target.value })}
-                required
-              />
-              <small className="field-help">
-                RUT de la empresa o persona titular del derecho de agua.
-              </small>
-            </label>
-            <label>
               <span>RUT de quien mide *</span>
               <input
                 type="text"
