@@ -1,25 +1,40 @@
+import { buildLineChartRows, type LineChartBrushRange } from "../../components/lineChartData";
 import type { LineSeries } from "../../components/SimpleLineChart";
 import { createWorkbook, excelDateFormat, excelDateInChile } from "../../utils/workbook";
 
-export type PlottedWellRow = { timestamp: number; level: number; type: string; secondary: number | null };
+export type PlottedWellRow = { timestamp: number; level: number | null; type: string | null; secondary: number | null };
 const types = { static: "Estático", dynamic: "Dinámico", unknown: "Otra" };
 
 /** Receives the exact filtered/aggregated series passed to the chart. Never re-fetches raw data. */
-export const plottedWellRows = (primary: LineSeries[], secondary: LineSeries[]): PlottedWellRow[] => {
-  const secondaryBySourceTime = new Map<string, number>();
+export const plottedWellRows = (
+  primary: LineSeries[], secondary: LineSeries[], brushRange?: LineChartBrushRange,
+): PlottedWellRow[] => {
+  const validPoint = (point: LineSeries["points"][number]) => point.timestamp !== undefined && Number.isFinite(point.timestamp) && Number.isFinite(point.value);
+  // The whole chart requires a primary value. A zoomed window can contain only secondary readings.
+  if (!primary.some((series) => series.points.some(validPoint))) return [];
+  const chartRows = buildLineChartRows([...primary, ...secondary]);
+  const visibleTimestamps = new Set((brushRange
+    ? chartRows.slice(brushRange.startIndex, brushRange.endIndex + 1)
+    : chartRows).map((row) => row.timestamp));
+  const visible = (point: LineSeries["points"][number]) => validPoint(point) && visibleTimestamps.has(point.timestamp);
+  const secondaryBySourceTime = new Map<string, { timestamp: number; value: number }>();
   for (const series of secondary) {
-    for (const point of series.points) {
-      if (point.timestamp !== undefined && Number.isFinite(point.value)) {
-        secondaryBySourceTime.set(`${series.source}:${point.timestamp}`, point.value);
-      }
+    for (const point of series.points.filter(visible)) {
+      secondaryBySourceTime.set(`${series.source}:${point.timestamp}`, { timestamp: point.timestamp!, value: point.value });
     }
   }
-  return primary.flatMap((series) => series.points.flatMap((point) =>
-    point.timestamp !== undefined && Number.isFinite(point.timestamp) && Number.isFinite(point.value)
-      ? [{ timestamp: point.timestamp, level: point.value, type: types[point.condition ?? "unknown"],
-          secondary: secondaryBySourceTime.get(`${series.source}:${point.timestamp}`) ?? null }]
-      : [],
-  )).sort((a, b) => a.timestamp - b.timestamp);
+  const primaryKeys = new Set<string>();
+  const rows: PlottedWellRow[] = primary.flatMap((series) => series.points.filter(visible).map((point) => {
+    const key = `${series.source}:${point.timestamp}`;
+    primaryKeys.add(key);
+    return { timestamp: point.timestamp!, level: point.value, type: types[point.condition ?? "unknown"],
+      secondary: secondaryBySourceTime.get(key)?.value ?? null };
+  }));
+  // Daily static/dynamic levels can share a key; keep each plotted level, then add unmatched flow.
+  for (const [key, point] of secondaryBySourceTime) if (!primaryKeys.has(key)) rows.push({
+    timestamp: point.timestamp, level: null, type: null, secondary: point.value,
+  });
+  return rows.sort((a, b) => a.timestamp - b.timestamp);
 };
 
 export const createChartWorkbook = async (rows: PlottedWellRow[], secondaryLabel?: string) => {
