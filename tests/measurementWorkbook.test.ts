@@ -133,3 +133,12 @@ test("storage precision limits reject excessive fractional digits before submiss
   sheet.getRow(3).getCell("flowRate").value = "99999999." + "9".repeat(20);
   assert.equal(parseMeasurementWorkbook(workbook, wells, "a", now).payloads[0].flowRate, "99999999." + "9".repeat(20));
 });
+
+
+test("saved formula results behave as values while missing results request a correction", async () => {
+  const { workbook, sheet } = await prepare(true);
+  sheet.getRow(3).getCell("flowRate").value = { formula: "1+2", result: 3 };
+  assert.equal(parseMeasurementWorkbook(workbook, wells, "a", now).payloads[0].flowRate, "3");
+  sheet.getRow(3).getCell("flowRate").value = { formula: "1+2" };
+  assert.throws(() => parseMeasurementWorkbook(workbook, wells, "a", now), /resultado guardado/);
+});

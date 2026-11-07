@@ -90,8 +90,13 @@ export const downloadMeasurementTemplate = async (selectedWell?: Well) =>
 const scalar = (value: CellValue): string | number | boolean | Date | null => {
   if (value === null || value === undefined || typeof value !== "object" || value instanceof Date) return value ?? null;
   if ("richText" in value) return value.richText.map((part) => part.text).join("");
-  // Formula results may be stale; require the user to paste values instead.
-  throw new Error("Copia y pega el resultado como valor, sin fórmulas ni enlaces.");
+  // Read saved results only; never execute spreadsheet formulas or follow links.
+  if ("formula" in value || "sharedFormula" in value) {
+    if (value.result !== undefined) return scalar(value.result);
+    throw new Error("La fórmula no tiene un resultado guardado. Abre la planilla en Excel, calcula y guarda los cambios, o pega el resultado como valor.");
+  }
+  if ("text" in value) return value.text;
+  throw new Error("Esta celda contiene un error. Revisa el valor en Excel antes de cargarla.");
 };
 const textValue = (value: unknown) => value === null || value === undefined ? "" : String(value).trim();
 export const normalizeMeasurementRut = (value: string): string | null => {
