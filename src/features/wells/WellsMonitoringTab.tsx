@@ -451,7 +451,7 @@ export function WellsMonitoringTab({
     enabled: isLoggedIn && status === "ready" && Boolean(authIdToken && historyWellId && wells.length > 0),
     staleTime: 5 * 60 * 1000,
   });
-  const [selectedSecondaryVariable, setSelectedSecondaryVariable] = useState<WellMeasurementVariable | null>(null);
+  const [selectedSecondaryVariable, setSelectedSecondaryVariable] = useState<WellMeasurementVariable | null>("flowRate");
   const [selectedLevelConditions, setSelectedLevelConditions] = useState<SelectableLevelCondition[]>([
     "static", "dynamic", "unknown",
   ]);
@@ -579,6 +579,12 @@ export function WellsMonitoringTab({
     chartResolution === "daily",
   ), selectedChartPeriod, now, chartResolution);
   const selectedLevelPoints = primaryChartSeries.flatMap((series) => series.points);
+  const secondaryVariable = secondaryChartVariables.find(
+    (variable) => variable.value === selectedSecondaryVariable,
+  );
+  const secondaryAxisLabel = secondaryVariable
+    ? `${secondaryVariable.label}${secondaryVariable.unit ? ` (${secondaryVariable.unit})` : ""}`
+    : undefined;
   const secondaryChartSeries = filterSeriesByPeriod(selectedSecondaryVariable
     ? secondaryChartVariables
       .filter((variable) => variable.value === selectedSecondaryVariable)
@@ -891,6 +897,11 @@ export function WellsMonitoringTab({
                   El período tiene muchos datos; se muestran promedios diarios.
                 </p>
               )}
+              {selectedSecondaryVariable === "flowRate" && secondaryChartSeries.length === 0 && (
+                <p className="well-chart-resolution-note" role="status">
+                  Sin datos de caudal en el período
+                </p>
+              )}
             <SimpleLineChart
               key={`${historyWellId}-${selectedChartPeriod}-${historyRange.start_date ?? "all"}-${historyRange.end_date}`}
               dotRadius={3.5}
@@ -899,7 +910,8 @@ export function WellsMonitoringTab({
               minValue={minSeriesValue}
               mode="linear"
               primaryAxisReversed
-              primaryAxisLabel="Profundidad (m)"
+              primaryAxisLabel="Nivel freático (m)"
+              secondaryAxisLabel={secondaryAxisLabel}
               secondaryMaxValue={maxSecondaryValue}
               secondaryMinValue={minSecondaryValue}
               series={selectedChartSeries}
