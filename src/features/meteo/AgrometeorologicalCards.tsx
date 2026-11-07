@@ -24,10 +24,14 @@ export function AgrometeorologicalCards({ data, now }: { data?: MeteoAgrometeoro
           <strong>{formatMeteoValue(frost ? frostMonthReading(data, now) : reading.today, frost ? 0 : 2, definition.unit)}</strong>
           <small className="meteo-measurement-sensor">{frost ? "Mes actual" : "Hoy (hasta ahora)"}</small>
         </>}
-        <dl className="meteo-daily-statistics"><div>
-          <dt>{reading?.active ? "Temporada" : reading ? `Temporada ${reading.label} cerrada` : "Temporada"}</dt>
+        {reading && !reading.active && <>
+          <strong>{formatMeteoValue(reading.total, frost ? 0 : 2, definition.unit)}</strong>
+          <small className="meteo-measurement-sensor">Temporada {reading.label} cerrada</small>
+        </>}
+        {reading?.active && <dl className="meteo-daily-statistics"><div>
+          <dt>Temporada</dt>
           <dd>{formatMeteoValue(reading?.total, frost ? 0 : 2, definition.unit)}</dd>
-        </div></dl>
+        </div></dl>}
         {reading?.active && reading.includesToday && <small className="meteo-measurement-sensor">incluye hoy (hasta ahora)</small>}
         {reading?.availableFrom && <small className="meteo-measurement-sensor">Datos desde {formatDate(reading.availableFrom)}</small>}
       </article>;
