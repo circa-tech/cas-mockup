@@ -1,3 +1,4 @@
+import type { LineChartBrushRange } from "../../components/lineChartData";
 import { chartExportFilename, createChartWorkbook, plottedWellRows } from "./wellChartExport";
 import { downloadWorkbook } from "../../utils/workbook";
 import { Droplets, Gauge, Radio, Waves } from "lucide-react";
@@ -427,6 +428,7 @@ export function WellsMonitoringTab({
   wellRegistryEntries,
   wells,
 }: WellsMonitoringTabProps) {
+  const [chartBrush, setChartBrush] = useState<{ scope: string; range: LineChartBrushRange } | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [selectedChartPeriod, setSelectedChartPeriod] = useState<ChartPeriod>("7d");
@@ -592,10 +594,18 @@ export function WellsMonitoringTab({
       .filter((variable) => variable.value === selectedSecondaryVariable)
       .flatMap((variable) => toVariableChartSeries(chartWell, variable, selectedMeasurementSources))
     : [], selectedChartPeriod, now, chartResolution);
-  const selectedChartSeries = primaryChartSeries.length > 0
+  const selectedChartSeries = selectedLevelPoints.length > 0
     ? [...primaryChartSeries, ...secondaryChartSeries]
     : [];
-  const exportRows = plottedWellRows(primaryChartSeries, secondaryChartSeries);
+  // Scope the brush to both the selection and the delivered data. A new scope starts at full range.
+  const brushScope = JSON.stringify([
+    historyWellId, selectedChartPeriod, historyRange.start_date, historyRange.end_date,
+    selectedSecondaryVariable, selectedLevelConditions, selectedMeasurementSources,
+    isLoggedIn ? historyQuery.dataUpdatedAt : chartWell.measurementSeriesByVariable,
+  ]);
+  if (chartBrush && chartBrush.scope !== brushScope) setChartBrush(null);
+  const brushRange = chartBrush?.scope === brushScope ? chartBrush.range : undefined;
+  const exportRows = plottedWellRows(primaryChartSeries, secondaryChartSeries, brushRange);
   const chartLabelCount = new Set(
     selectedChartSeries.flatMap((item) => item.points.map((point) => point.label)),
   ).size;
@@ -920,7 +930,9 @@ export function WellsMonitoringTab({
                 </p>
               )}
             <SimpleLineChart
-              key={`${historyWellId}-${selectedChartPeriod}-${historyRange.start_date ?? "all"}-${historyRange.end_date}`}
+              key={brushScope}
+              brushRange={brushRange}
+              onBrushRangeChange={(range) => setChartBrush({ scope: brushScope, range })}
               dotRadius={3.5}
               labelEvery={Math.max(1, Math.ceil(chartLabelCount / 18))}
               maxValue={maxSeriesValue}

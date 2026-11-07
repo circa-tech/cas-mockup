@@ -38,3 +38,37 @@ test("Excel Chile wall-clock conversion observes seasonal UTC offsets", () => {
   assert.equal(excelDateInChile(Date.parse("2026-07-01T02:00:00Z")).toISOString(), "2026-06-30T22:00:00.000Z");
   assert.equal(excelDateInChile(Date.parse("2026-11-01T02:00:00Z")).toISOString(), "2026-10-31T23:00:00.000Z");
 });
+
+test("export unions source/timestamp keys, preserves category rows and writes blank primary cells", async () => {
+  const primary = [series("api", 10), { ...series("api", 11), points: [{ timestamp, label: "9 oct", value: 11, condition: "static" as const }] }];
+  const secondary = [series("api", 3), series("manual", 0), { ...series("api", 4), points: [{ timestamp: timestamp + 3600000, label: "9 oct 13:00", value: 4 }] }];
+  const rows = plottedWellRows(primary, secondary);
+  assert.deepEqual(rows, [
+    { timestamp, level: 10, type: "Dinámico", secondary: 3 },
+    { timestamp, level: 11, type: "Estático", secondary: 3 },
+    { timestamp, level: null, type: null, secondary: 0 },
+    { timestamp: timestamp + 3600000, level: null, type: null, secondary: 4 },
+  ]);
+  const workbook = await readWorkbook(new Uint8Array(await writeWorkbook(await createChartWorkbook(rows, "Caudal (L/s)"))).buffer);
+  assert.equal(workbook.worksheets[0].getCell("B4").value, null);
+  assert.equal(workbook.worksheets[0].getCell("C4").value, null);
+  assert.equal(workbook.worksheets[0].getCell("D4").value, 0);
+});
+
+test("brush uses the chart's sorted union timeline, including a window containing only flow", () => {
+  const primary = [{ ...series("api", 50), points: [
+    { timestamp: timestamp + 4e3, label: "last", value: 50, condition: "dynamic" as const },
+    { timestamp, label: "first", value: 10, condition: "static" as const },
+  ] }];
+  const secondary = [{ ...series("api", 20), points: [
+    { timestamp: timestamp + 3e3, label: "flow3", value: 30 },
+    { timestamp: timestamp + 1e3, label: "flow1", value: 0 },
+    { timestamp: timestamp + 2e3, label: "flow2", value: 20 },
+  ] }];
+  assert.deepEqual(plottedWellRows(primary, secondary, { startIndex: 1, endIndex: 2 }), [
+    { timestamp: timestamp + 1e3, level: null, type: null, secondary: 0 },
+    { timestamp: timestamp + 2e3, level: null, type: null, secondary: 20 },
+  ]);
+  assert.equal(plottedWellRows([{ ...primary[0], points: [] }], secondary).length, 0);
+  assert.equal(plottedWellRows(primary, secondary).length, 5);
+});

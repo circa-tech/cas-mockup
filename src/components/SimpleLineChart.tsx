@@ -11,6 +11,7 @@ import {
   type DotItemDotProps,
 } from "recharts";
 import { useMemo } from "react";
+import { buildLineChartRows, type LineChartBrushRange } from "./lineChartData";
 import { RemoteDataState } from "./RemoteDataState";
 
 export type LinePoint = {
@@ -47,6 +48,8 @@ type SimpleLineChartProps = {
   showDots?: boolean;
   fillDots?: boolean;
   showBrush?: boolean;
+  brushRange?: LineChartBrushRange;
+  onBrushRangeChange?: (range: LineChartBrushRange) => void;
   secondaryMaxValue?: number;
   secondaryMinValue?: number;
   secondaryAxisLabel?: string;
@@ -54,42 +57,6 @@ type SimpleLineChartProps = {
   xLabelAngle?: number;
 };
 
-type ChartRow = {
-  label: string;
-  timestamp?: number;
-  [key: string]: number | string | undefined;
-};
-
-const buildRows = (series: LineSeries[]): ChartRow[] => {
-  if (series.length === 0) {
-    return [];
-  }
-
-  const rowsByKey = new Map<string, ChartRow>();
-  const insertionOrder = new Map<string, number>();
-  series.forEach((item) => {
-    item.points.forEach((point) => {
-      const key = point.timestamp === undefined ? `label:${point.label}` : `time:${point.timestamp}`;
-      let row = rowsByKey.get(key);
-      if (!row) {
-        row = { label: point.label, ...(point.timestamp === undefined ? {} : { timestamp: point.timestamp }) };
-        rowsByKey.set(key, row);
-        insertionOrder.set(key, insertionOrder.size);
-      }
-      row[item.label] = point.value;
-      if (point.condition) row[`${item.label}__condition`] = point.condition;
-    });
-  });
-
-  return [...rowsByKey.entries()]
-    .sort(([leftKey, left], [rightKey, right]) => {
-      if (left.timestamp !== undefined && right.timestamp !== undefined) {
-        return left.timestamp - right.timestamp;
-      }
-      return (insertionOrder.get(leftKey) ?? 0) - (insertionOrder.get(rightKey) ?? 0);
-    })
-    .map(([, row]) => row);
-};
 
 export function SimpleLineChart({
   xAxisLabel = "Fecha",
@@ -104,13 +71,15 @@ export function SimpleLineChart({
   showDots = true,
   fillDots = false,
   showBrush = false,
+  brushRange,
+  onBrushRangeChange,
   secondaryMaxValue,
   secondaryMinValue,
   secondaryAxisLabel,
   unit,
   xLabelAngle = 0,
 }: SimpleLineChartProps) {
-  const rows = useMemo(() => buildRows(series), [series]);
+  const rows = useMemo(() => buildLineChartRows(series), [series]);
   if (!rows.length) {
     return (
       <RemoteDataState
@@ -293,6 +262,11 @@ export function SimpleLineChart({
             {showBrush && rows.length > 1 && (
               <Brush
                 dataKey="label"
+                startIndex={onBrushRangeChange ? brushRange?.startIndex ?? 0 : undefined}
+                endIndex={onBrushRangeChange ? brushRange?.endIndex ?? rows.length - 1 : undefined}
+                onChange={onBrushRangeChange ? ({ startIndex, endIndex }) => {
+                  if (startIndex !== undefined && endIndex !== undefined) onBrushRangeChange({ startIndex, endIndex });
+                } : undefined}
                 height={26}
                 travellerWidth={10}
                 tickFormatter={(value) => String(value)}
