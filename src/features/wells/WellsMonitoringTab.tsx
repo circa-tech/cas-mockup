@@ -724,7 +724,7 @@ export function WellsMonitoringTab({
               <article className="detail-kpi" key={label}>
                 <span>{label}</span>
                 <strong>{reading ? formatMeters(reading.value) : "Sin registros"}</strong>
-                {reading && <time dateTime={reading.measuredAt}>{formatShortDateTime(reading.measuredAt)}</time>}
+                {reading && <time dateTime={reading.measuredAt}>{new Intl.DateTimeFormat("es-CL", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(reading.measuredAt))}</time>}
               </article>
             ))}
             <article className="detail-kpi">
