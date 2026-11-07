@@ -26,3 +26,11 @@ test("CSV rows without a work code require a selected well", () => {
     /selecciona un pozo/,
   );
 });
+
+test("legacy titular values are ignored and the new format needs no titular column", () => {
+  const legacy = parseMeasurementCsv(`${headers}\nOB-0101-11,${measurement.replace("77555666-7", "not a rut")}`, wells, "")[0];
+  assert.equal("companyRut" in legacy, false);
+  const currentHeaders = headers.replace("companyRut,", "");
+  const currentRow = measurement.replace("77555666-7,", "");
+  assert.deepEqual(parseMeasurementCsv(`${currentHeaders}\nOB-0101-11,${currentRow}`, wells, "")[0], legacy);
+});

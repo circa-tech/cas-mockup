@@ -87,6 +87,8 @@ const entryToForm = (entry: WellRegistryEntry): WellRegistryFormState => ({
   lng: stringValue(entry.lng),
   name: entry.name,
   observations: entry.observations ?? "",
+  titularName: entry.titularName ?? "",
+  titularRut: entry.titularRut ?? "",
   ownerContacts:
     entry.ownerContacts && entry.ownerContacts.length > 0
       ? entry.ownerContacts.map((contact) => ({
@@ -429,6 +431,13 @@ export function WellRegistryEditor({
             <small>Completa los que tengas disponibles</small>
           </summary>
           <div className="registry-optional-content">
+            <OptionalGroup title="Titular">
+              <div className="manual-two-col">
+                <label><span>Nombre o razón social</span><input value={form.titularName} onChange={(event) => onChange({ titularName: event.target.value })} /></label>
+                <label><span>RUT del titular del pozo</span><input value={form.titularRut} placeholder="12.345.678-5" onChange={(event) => onChange({ titularRut: event.target.value })} /></label>
+              </div>
+              <small>Ambos datos son opcionales y se pueden completar por separado.</small>
+            </OptionalGroup>
             <OptionalGroup title="Telemetría y estado">
               <div className="manual-two-col">
                 <label>
@@ -742,6 +751,7 @@ export function WellRegistryEditor({
             <div className="registry-row" key={entry.id}>
               <div>
                 <strong>{entry.name}</strong>
+                {(entry.titularName || entry.titularRut) && <span>Titular: {[entry.titularName, entry.titularRut].filter(Boolean).join(" · ")}</span>}
                 <span>{entry.codigoObra ?? "Sin código de obra"} · {entry.casCode}</span>
               </div>
               <span>

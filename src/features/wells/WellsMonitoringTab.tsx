@@ -734,6 +734,14 @@ export function WellsMonitoringTab({
           <section className="well-registry-details" aria-label="Datos técnicos del pozo">
             <dl>
               <div>
+                <dt>Titular</dt>
+                <dd>{selectedWellRegistryEntry?.titularName || "Sin dato"}</dd>
+              </div>
+              <div>
+                <dt>RUT del titular</dt>
+                <dd>{selectedWellRegistryEntry?.titularRut || "Sin dato"}</dd>
+              </div>
+              <div>
                 <dt>Código de obra</dt>
                 <dd>{selectedWellRegistryEntry?.codigoObra || "Sin dato"}</dd>
               </div>

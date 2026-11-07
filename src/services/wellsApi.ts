@@ -82,6 +82,8 @@ type WellMeasurement = {
 };
 
 export type WellRegistryEntry = {
+  titularName?: string | null;
+  titularRut?: string | null;
   active: boolean;
   aquiferSector?: string | null;
   authorizedFlowRate?: string | number | null;
@@ -127,6 +129,8 @@ export type WellRegistryEntry = {
 };
 
 export type CreateWellRegistryEntryPayload = {
+  titularName?: string | null;
+  titularRut?: string | null;
   aquiferSector?: string | null;
   casId: string;
   centroControlRut?: string | null;
@@ -196,7 +200,6 @@ export type WellWriter = {
 
 export type IngestWellMeasurementPayload = {
   wellId: string;
-  companyRut: string;
   conductivity: string | null;
   flowRate: string;
   isOperating: boolean | null;
@@ -501,7 +504,6 @@ const invalidateWells = (idToken: string | null) =>
 
 const toApiMeasurement = (payload: IngestWellMeasurementPayload) => ({
   credentials: {
-    companyRut: payload.companyRut,
     userRut: payload.userRut,
   },
   groundwaterMeasurement: {

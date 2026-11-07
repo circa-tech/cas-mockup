@@ -1,3 +1,4 @@
+import { normalizeTitularRut, invalidTitularRutMessage } from "./titular";
 import { useQuery } from "@tanstack/react-query";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { getFreshnessStatus, staleThresholdDaysDefault, wellMapPoints } from "../../data/mockupData";
@@ -92,6 +93,8 @@ const emptyWellRegistryForm = (): WellRegistryFormState => ({
   lng: "",
   name: "",
   observations: "",
+  titularName: "",
+  titularRut: "",
   ownerContacts: [emptyOwnerContact()],
   provider: "",
   pumpDepth: "",
@@ -106,7 +109,6 @@ const emptyWellRegistryForm = (): WellRegistryFormState => ({
 
 const emptyWellMeasurementForm = (): WellMeasurementFormState => ({
   wellId: "",
-  companyRut: "",
   conductivity: "",
   flowRate: "",
   isOperating: "",
@@ -148,6 +150,8 @@ const buildWellRegistryPayload = (
   form: WellRegistryFormState,
 ): { error: string } | { payload: CreateWellRegistryEntryPayload } => {
   const workCode = form.codigoObra.trim();
+  const titularRut = normalizeTitularRut(form.titularRut);
+  if (form.titularRut.trim() && !titularRut) return { error: invalidTitularRutMessage };
   if (!form.casId) return { error: "Debes seleccionar una CAS válida." };
 
   const lat = Number.parseFloat(form.lat);
@@ -245,6 +249,8 @@ const buildWellRegistryPayload = (
       flowmeterBrand: form.flowmeterBrand || null,
       flowmeterModel: form.flowmeterModel || null,
       flowmeterInstallationDate: form.flowmeterInstallationDate || null,
+      titularName: form.titularName.trim() || null,
+      titularRut,
       ownerContacts,
       fieldContactRepresentative: form.fieldContactRepresentative || null,
       fieldContactPhone: form.fieldContactPhone || null,
