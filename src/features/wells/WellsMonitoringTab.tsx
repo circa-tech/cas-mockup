@@ -717,10 +717,16 @@ export function WellsMonitoringTab({
           }
         >
           <div className="detail-kpi-grid">
-            <article className="detail-kpi">
-              <span>Profundidad del agua</span>
-              <strong>{formatMeters(getCurrentValue(selectedWell.levelSeries))}</strong>
-            </article>
+            {([
+              ["Nivel dinámico", selectedWell.latestDynamicLevel],
+              ["Nivel estático", selectedWell.latestStaticLevel],
+            ] as const).map(([label, reading]) => (
+              <article className="detail-kpi" key={label}>
+                <span>{label}</span>
+                <strong>{reading ? formatMeters(reading.value) : "Sin registros"}</strong>
+                {reading && <time dateTime={reading.measuredAt}>{formatShortDateTime(reading.measuredAt)}</time>}
+              </article>
+            ))}
             <article className="detail-kpi">
               <span>Desde la medición anterior</span>
               <strong>{dailyChangeDescription}</strong>
@@ -942,8 +948,8 @@ export function WellsMonitoringTab({
                 <div className="comparison-metrics">
                   <div><span>Profundidad</span><strong>{formatMeters(well.currentLevel)}</strong></div>
                   <div>
-                    <span>Variación</span>
-                    <strong>{well.dailyChange >= 0 ? "+" : ""}{formatMeters(well.dailyChange)}</strong>
+                    <span>Caudal</span>
+                    <strong>{well.latestFlow ? `${formatOptionalNumber(well.latestFlow.value, 2)} L/s` : "Sin dato"}</strong>
                   </div>
                 </div>
                 <MiniSparkline
