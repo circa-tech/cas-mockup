@@ -587,8 +587,16 @@ test("chart export follows the brush and includes secondary-only readings", asyn
   expect(full.sheet.getCell("C3").value).toBeNull();
   expect(full.sheet.getCell("D3").value).toBe(0);
   const narrowToSecondaryOnly = async () => {
-    for (let step = 0; step < 3; step++) await page.getByRole("slider").last().press("ArrowLeft");
-    await page.getByRole("slider").first().press("ArrowRight");
+    const right = page.getByRole("slider").last();
+    for (let step = 0; step < 3; step++) {
+      const previous = await right.getAttribute("aria-valuenow");
+      await right.press("ArrowLeft");
+      await expect(right).not.toHaveAttribute("aria-valuenow", previous!);
+    }
+    const left = page.getByRole("slider").first();
+    const previous = await left.getAttribute("aria-valuenow");
+    await left.press("ArrowRight");
+    await expect(left).not.toHaveAttribute("aria-valuenow", previous!);
   };
   await narrowToSecondaryOnly();
   const zoomed = await readDownload();
