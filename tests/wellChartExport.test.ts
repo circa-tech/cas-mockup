@@ -32,6 +32,17 @@ test("genuine Excel roundtrip retains numeric cells, dates in Chile and Spanish 
   assert.equal(sheet.getCell("A2").numFmt, "dd-mm-yyyy hh:mm");
   assert.equal(sheet.getCell("B2").value, 15.125);
   assert.equal(sheet.getCell("D2").value, 3.56);
+
+  const primaryOnly = await readWorkbook(new Uint8Array(await writeWorkbook(
+    await createChartWorkbook(plottedWellRows([series("api", 15.125)], [])),
+  )).buffer);
+  const primarySheet = primaryOnly.worksheets[0];
+  assert.equal(primarySheet.columnCount, 3);
+  assert.deepEqual(Array.from(primarySheet.getRow(1).values).slice(1), ["Fecha", "Nivel", "Tipo"]);
+  assert.equal(primarySheet.autoFilter, "A1:C1");
+  assert.equal((primarySheet.getCell("A2").value as Date).toISOString(), "2026-10-09T12:00:00.000Z");
+  assert.equal(primarySheet.getCell("B2").value, 15.125);
+  assert.equal(primarySheet.getCell("C2").value, "Dinámico");
 });
 
 test("Excel Chile wall-clock conversion observes seasonal UTC offsets", () => {

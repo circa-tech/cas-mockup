@@ -44,15 +44,15 @@ export const createChartWorkbook = async (rows: PlottedWellRow[], secondaryLabel
     { header: "Fecha", key: "date", width: 23 },
     { header: "Nivel", key: "level", width: 18 },
     { header: "Tipo", key: "type", width: 18 },
-    { header: secondaryLabel || "Sin variable secundaria", key: "secondary", width: 26 },
+    ...(secondaryLabel ? [{ header: secondaryLabel, key: "secondary", width: 26 }] : []),
   ];
   for (const row of rows) sheet.addRow({ date: excelDateInChile(row.timestamp), ...row });
   sheet.getColumn("date").numFmt = excelDateFormat;
   sheet.getColumn("level").numFmt = "0.###############";
-  sheet.getColumn("secondary").numFmt = "0.###############";
+  if (secondaryLabel) sheet.getColumn("secondary").numFmt = "0.###############";
   sheet.getRow(1).font = { bold: true };
   sheet.views = [{ state: "frozen", ySplit: 1 }];
-  sheet.autoFilter = "A1:D1";
+  sheet.autoFilter = secondaryLabel ? "A1:D1" : "A1:C1";
   return workbook;
 };
 
