@@ -914,7 +914,7 @@ export function WellsMonitoringTab({
                   El período tiene muchos datos; se muestran promedios diarios.
                 </p>
               )}
-              {selectedSecondaryVariable === "flowRate" && secondaryChartSeries.length === 0 && (
+              {selectedSecondaryVariable === "flowRate" && secondaryChartSeries.every((series) => series.points.length === 0) && (
                 <p className="well-chart-resolution-note" role="status">
                   Sin datos de caudal en el período
                 </p>
