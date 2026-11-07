@@ -532,3 +532,95 @@ test("titular is optional at the well and absent from measurements", async ({ pa
   expect(saved?.ownerContacts).toEqual([{ representative: "Contacto existente", rut: null, email: null, phone: null }]);
   expect(saved?.waterRights).toEqual(expect.arrayContaining([expect.objectContaining({ holderName: "Titular derecho", holderRut: "12345678-5" })]));
 });
+
+test("well chart explains flow outside the selected 24-hour window", async ({ page, context }) => {
+  await page.clock.setFixedTime(new Date("2026-10-09T16:00:00Z"));
+  await mockServices(context, () => false);
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => route.fulfill({ json: {
+    well_id: "well-1", resolution: "native", points: [
+      { measurement_id: "old", measurement_date: "2026-10-08", measured_at: "2026-10-08T04:00:00Z",
+        source: "api", water_level_condition: "dynamic", values: { water_table_depth: 20, flow_rate: 3 } },
+      { measurement_id: "recent", measurement_date: "2026-10-09", measured_at: "2026-10-09T15:00:00Z",
+        source: "api", water_level_condition: "unknown", values: { water_table_depth: 21, flow_rate: null } },
+    ],
+  } }));
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  await page.locator("select").filter({ has: page.locator('option[value="24h"]') }).selectOption("24h");
+  await expect(page.getByText("Sin datos de caudal en el período", { exact: true })).toBeVisible();
+});
+
+test("chart export follows the brush and includes secondary-only readings", async ({ page, context }) => {
+  await page.clock.setFixedTime(new Date("2026-10-09T16:00:00Z"));
+  await mockServices(context, () => false);
+  await context.route("**/api/v1/wells/groundwater-measurements", (route) => route.fulfill({ json:
+    [1, 2].map((id) => ({ wellId: `well-${id}`, name: `Pozo ${id}`, lat: -27.3, lng: -70.5,
+      groundwaterMeasurement: { measurementDate: "2026-10-09", measurementTime: "12:00:00", waterTableDepth: 22, source: "api" } })),
+  }));
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => {
+    const well = new URL(route.request().url()).searchParams.get("wellId");
+    const points = [1, 2, 3, 4, 5, 6].map((day) => ({ measurement_id: String(day), measurement_date: `2026-10-0${day}`,
+      measured_at: `2026-10-0${day}T15:00:00Z`, source: "api", water_level_condition: "dynamic",
+      values: { water_table_depth: well === "well-1" && [1, 4, 6].includes(day) ? day * 10 : null, flow_rate: day === 2 ? 0 : day, ph: day },
+    }));
+    points.push({ ...points[3], measurement_id: "manual", source: "manual", values: { water_table_depth: null, flow_rate: 9, ph: 9 } });
+    return route.fulfill({ json: { well_id: well, resolution: "daily", points } });
+  });
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  await page.locator("select").filter({ has: page.locator('option[value="all"]') }).selectOption("all");
+  const ExcelJS = (await import("exceljs")).default;
+  const readDownload = async () => {
+    const pending = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Descargar datos", exact: true }).click();
+    const download = await pending;
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile((await download.path())!);
+    return { sheet: workbook.worksheets[0], filename: download.suggestedFilename() };
+  };
+  const full = await readDownload();
+  expect(full.sheet.rowCount).toBe(8);
+  expect(full.sheet.getCell("B5").value).toBe(40);
+  expect(full.sheet.getCell("B6").value).toBeNull();
+  expect(full.sheet.getCell("D6").value).toBe(9);
+  expect(full.sheet.getCell("B3").value).toBeNull();
+  expect(full.sheet.getCell("C3").value).toBeNull();
+  expect(full.sheet.getCell("D3").value).toBe(0);
+  const narrowToSecondaryOnly = async () => {
+    for (let step = 0; step < 3; step++) await page.getByRole("slider").last().press("ArrowLeft");
+    await page.getByRole("slider").first().press("ArrowRight");
+  };
+  await narrowToSecondaryOnly();
+  const zoomed = await readDownload();
+  expect(zoomed.filename).toMatch(/2026-10-02_2026-10-03.xlsx$/);
+  expect(zoomed.sheet.rowCount).toBe(3);
+  expect(zoomed.sheet.getCell("B2").value).toBeNull();
+  expect(zoomed.sheet.getCell("C2").value).toBeNull();
+  expect(zoomed.sheet.getCell("D2").value).toBe(0);
+  expect(zoomed.sheet.getCell("B3").value).toBeNull();
+  expect(zoomed.sheet.getCell("C3").value).toBeNull();
+  expect(zoomed.sheet.getCell("D3").value).toBe(3);
+  const secondary = page.locator("fieldset").filter({ has: page.locator("legend", { hasText: "Variable del eje secundario" }) }).locator("select");
+  await secondary.selectOption("ph");
+  expect((await readDownload()).sheet.rowCount).toBe(8);
+  await secondary.selectOption("flowRate");
+  expect((await readDownload()).sheet.rowCount).toBe(8); // Returning to the old selection must not restore its old brush.
+  await narrowToSecondaryOnly();
+  const period = page.locator("select").filter({ has: page.locator('option[value="all"]') });
+  await period.selectOption("1m");
+  expect((await readDownload()).sheet.rowCount).toBe(8);
+  await period.selectOption("all");
+  expect((await readDownload()).sheet.rowCount).toBe(8);
+  await narrowToSecondaryOnly();
+  await page.getByText("Medición API y manual", { exact: true }).click();
+  await page.getByLabel("Medición manual", { exact: true }).uncheck();
+  expect((await readDownload()).sheet.rowCount).toBe(7);
+  await page.getByLabel("Medición manual", { exact: true }).check();
+  expect((await readDownload()).sheet.rowCount).toBe(8);
+  await narrowToSecondaryOnly();
+  await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-2");
+  await expect(page.getByText("No hay mediciones de nivel freático para los filtros seleccionados.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Descargar datos", exact: true })).toBeDisabled();
+  await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-1");
+  expect((await readDownload()).sheet.rowCount).toBe(8);
+});
