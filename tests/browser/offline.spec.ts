@@ -243,7 +243,7 @@ test("initial summary failures recover on the home page during preparation", asy
   await page.evaluate(() => window.dispatchEvent(new Event("offline")));
   await page.getByRole("button", { name: "Meteo", exact: true }).click();
   await expect(page.getByText("Estación guardada").first()).toBeVisible();
-  await expect(page.getByText("Presión Sin datos hPa")).toBeVisible();
+  await expect(page.locator('[data-metric="atmospheric_pressure"] strong')).toHaveText("Sin datos");
 });
 
 test("missing climate data is reported as a partial copy", async ({ page, context }) => {
@@ -277,7 +277,7 @@ test("summary loading states do not display demo dates or stale-data warnings", 
   await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toBeVisible();
   await expect(cards.locator("small")).toHaveText(Array(4).fill(/Última actualización:.*2026/));
   await expect(cards.last()).toContainText("23,0 °C promedio de 1 estación");
-  await expect(cards.last()).toContainText("1 estación monitoreada");
+  await expect(cards.last()).toContainText("2 estaciones monitoreadas");
 });
 
 test("empty sector datasets are explained after preparation, online and offline", async ({ page, context }) => {
