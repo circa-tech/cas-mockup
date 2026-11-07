@@ -189,7 +189,9 @@ test("partial weather readings retain the station without fabricating missing me
       value: 23,
     }],
   }] });
-  assert.equal(stations.length, 1);
+  assert.equal(stations.length, 2);
+  assert.equal(stations[1].id, "zentra-z6-05550");
+  assert.equal(stations[1].temperatureValue, null);
   assert.equal(stations[0].temperatureValue, 23);
   assert.deepEqual(stations[0].measurements.map((measurement) => measurement.measurementName), ["Air Temperature"]);
 });

@@ -5,6 +5,8 @@ import type { MeteoMeasurement, MeteoStationPoint } from "../../data/mockupData"
 import type { RemoteLoadStatus } from "../../types/remote";
 import { formatRelativeAge, formatShortDateTimeParts } from "../../utils/date";
 import { freshnessClassMap, freshnessLabelMap } from "../../utils/freshness";
+import { MeteorologicalCards } from "./MeteorologicalCards";
+import { useMeteoNow } from "./useMeteoNow";
 
 type MeteoViewProps = {
   isLoggedIn: boolean;
@@ -71,13 +73,14 @@ const formatCompactMeasurement = (measurement: MeteoMeasurement | null) =>
 
 export function MeteoView({
   isLoggedIn,
-  now,
+  now: initialNow,
   onRetry,
   onSelectStation,
   selectedStationId,
   stations,
   status,
 }: MeteoViewProps) {
+  const now = useMeteoNow(initialNow, isLoggedIn);
   if (isLoggedIn && (status === "loading" || status === "error" || stations.length === 0)) {
     const isLoading = status === "loading";
 
@@ -173,6 +176,9 @@ export function MeteoView({
             ? "Sin datos disponibles"
             : `Medición de las ${selectedStationUpdate.time} del ${selectedStationUpdate.date} (${formatRelativeAge(selectedStation.lastUpdate, now).toLocaleLowerCase("es-CL")})`}
         >
+          <MeteorologicalCards data={selectedStation.derived} now={now} />
+          <details className="meteo-station-variables">
+            <summary>Variables de la estación</summary>
           <div className="meteo-measurement-grid">
             {getDisplayedMeasurements(selectedStation.measurements).map(({ key, label, measurement }) => (
               <article className="detail-kpi" key={key}>
@@ -187,6 +193,7 @@ export function MeteoView({
               </article>
             ))}
           </div>
+          </details>
 
           <div className="status-row">
             <span className={`status-pill ${freshnessClassMap[selectedStation.status]}`}>
