@@ -1,13 +1,15 @@
 import { normalizeMeasurementNumber, measurementNumberOutOfRange } from "./measurementNumbers";
 import type { IngestWellMeasurementPayload, WellRegistryEntry } from "../../services/wellsApi";
 import { chileTimeZone, dateInChile, toZonedDateTimeIso } from "../../utils/date";
-import { createWorkbook, downloadWorkbook, excelDateFormat, readWorkbook, type CellValue, type Workbook } from "../../utils/workbook";
+import { createWorkbook, downloadWorkbook, excelDateFormat, readWorkbook, writeWorkbook, type CellValue, type Workbook } from "../../utils/workbook";
 
 const MAX_ROWS = 1000;
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_EXPANDED_BYTES = 32 * 1024 * 1024;
 type Well = Pick<WellRegistryEntry, "id" | "name" | "codigoObra">;
 type Field = "well" | "date" | "userRut" | "flowRate" | "waterTableDepth" | "waterLevelCondition" | "totalizer" | "pressure" | "ph" | "conductivity" | "isOperating" | "observations";
+export const validationNotesHeader = "Notas de validación CAS";
+export type MeasurementValidationReport = { workbook: Workbook; issues: WorkbookIssue[]; total: number; filename: string; selectedWellId: string };
 export type WorkbookIssue = { category: string; row?: number; column?: string; message: string };
 export class MeasurementWorkbookError extends Error {
   constructor(readonly issues: WorkbookIssue[]) {
@@ -98,6 +100,7 @@ const scalar = (value: CellValue): string | number | boolean | Date | null => {
   if ("text" in value) return value.text;
   throw new Error("Esta celda contiene un error. Revisa el valor en Excel antes de cargarla.");
 };
+const preview = (value: string) => value.length > 160 ? `${value.slice(0, 160)}…` : value;
 const textValue = (value: unknown) => value === null || value === undefined ? "" : String(value).trim();
 export const normalizeMeasurementRut = (value: string): string | null => {
   const compact = value.replace(/[.\s-]/g, "").toUpperCase();
@@ -137,6 +140,7 @@ export const parseMeasurementWorkbook = (workbook: Workbook, wells: readonly Wel
   const aliases = new Map(columns.flatMap((column) => [column.title, ...(column.aliases ?? [])].map((alias) => [normalizeHeader(alias), column.id] as const)));
   sheet.getRow(1).eachCell((cell, index) => {
     const header = normalizeHeader(cell.text);
+    if (header === normalizeHeader(validationNotesHeader)) return;
     if (["companyrut", "rut del titular", "rut titular"].includes(header)) return;
     const field = aliases.get(header);
     if (field && fields.has(field)) issues.push({ category: "Planilla", row: 1, column: fieldTitles[field], message: "Esta columna aparece más de una vez. Deja solo una." });
@@ -168,9 +172,9 @@ export const parseMeasurementWorkbook = (workbook: Workbook, wells: readonly Wel
     const wellText = textValue(values.well);
     const matches = selectedWellId ? wells.filter((well) => well.id === selectedWellId)
       : wells.filter((well) => [well.name, well.codigoObra].some((value) => value && normalizeHeader(value) === normalizeHeader(wellText)));
-    if (matches.length !== 1) issue("Pozos", "well", matches.length ? `El nombre ‘${wellText}’ coincide con varios pozos. Usa el código o selecciona un pozo en la pantalla.` : `No encontramos el pozo ‘${wellText || selectedWellId}’ entre tus pozos permitidos. Revisa el nombre en Administrar pozos.`);
+    if (matches.length !== 1) issue("Pozos", "well", matches.length ? `El nombre ‘${preview(wellText)}’ coincide con varios pozos. Usa el código o selecciona un pozo en la pantalla.` : `No encontramos el pozo ‘${preview(wellText || selectedWellId)}’ entre tus pozos permitidos. Revisa el nombre en Administrar pozos.`);
     const date = parseMeasurementDate(typeof values.date === "number" && workbook.properties.date1904 ? values.date + 1462 : values.date);
-    if (!date && textValue(values.date)) issue("Fechas", "date", `‘${textValue(values.date)}’ no es una fecha válida. Usa dd-mm-aaaa hh:mm, en hora de Chile.`);
+    if (!date && textValue(values.date)) issue("Fechas", "date", `‘${preview(textValue(values.date))}’ no es una fecha válida. Usa dd-mm-aaaa hh:mm, en hora de Chile.`);
     if (date && date.instant > now.getTime()) issue("Fechas", "date", "La fecha es posterior a ahora. Revisa que sea correcta.");
     const rut = normalizeMeasurementRut(textValue(values.userRut));
     if (!rut && textValue(values.userRut)) issue("Identificación", "userRut", "Revisa el RUT de quien mide. Usa, por ejemplo, 12.345.678-5.");
@@ -178,7 +182,7 @@ export const parseMeasurementWorkbook = (workbook: Workbook, wells: readonly Wel
       const rawValue = textValue(values[id]);
       if (!rawValue) return null;
       const normalized = normalizeMeasurementNumber(rawValue);
-      if (normalized === null) { issue("Valores numéricos", id, `‘${rawValue}’ no es un número. Escribe solo números, por ejemplo 12,5.`); return null; }
+      if (normalized === null) { issue("Valores numéricos", id, `‘${preview(rawValue)}’ no es un número. Escribe solo números, por ejemplo 12,5.`); return null; }
       if ((normalized.split(".")[1]?.length ?? 0) > 16383) issue("Límites de almacenamiento", id, "El número supera el máximo de 16.383 decimales. Reduce la cantidad de decimales antes de cargarlo.");
       if (measurementNumberOutOfRange(normalized, maximum, inclusive)) issue("Rangos", id, `El valor debe ser mayor o igual a cero y ${inclusive ? "menor o igual a" : "menor que"} ${maximum}.`);
       if (integer && normalized.includes(".")) issue("Rangos", id, "Escribe un número entero, sin decimales.");
@@ -227,4 +231,82 @@ export const readMeasurementFile = async (file: File) => {
   }
   try { return await readWorkbook(bytes); }
   catch { throw new Error("El archivo está dañado o no pudimos leerlo. Ábrelo en Excel y guarda una copia nueva sin contraseña."); }
+};
+
+
+/** Clone the uploaded workbook so its cells, sheets, formats and example marker survive correction. */
+export const createMeasurementValidationWorkbook = async ({ workbook, issues, total }: MeasurementValidationReport) => {
+  if (!issues.length) throw new Error("No hay errores de validación para descargar.");
+  const copy = await readWorkbook(new Uint8Array(await writeWorkbook(workbook)).buffer);
+  const sheet = copy.worksheets.find((item) => normalizeHeader(item.name) === "mediciones");
+  if (!sheet) throw new Error("No encontramos la hoja Mediciones para marcar las correcciones.");
+  const existing: number[] = [];
+  sheet.getRow(1).eachCell((cell, index) => {
+    if (normalizeHeader(cell.text) === normalizeHeader(validationNotesHeader)) existing.push(index);
+  });
+  const notesColumn = existing[0] ?? sheet.columnCount + 1;
+  // Reuse our reserved column and remove stale annotations, including duplicated annotation headers.
+  for (const index of existing) sheet.eachRow((row) => {
+    const cell = row.getCell(index);
+    cell.value = null;
+    cell.note = "";
+  });
+  const header = sheet.getRow(1).getCell(notesColumn);
+  header.value = validationNotesHeader;
+  header.font = { bold: true, color: { argb: "FFFFFFFF" } };
+  header.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF9F1239" } };
+  sheet.getColumn(notesColumn).width = 75;
+  sheet.getColumn(notesColumn).alignment = { vertical: "top", wrapText: true };
+  const general: string[] = [];
+  const notesByRow = new Map<number, string[]>();
+  for (const issue of issues) {
+    const message = `${issue.category}${issue.column ? ` — ${issue.column}` : ""}: ${issue.message}`;
+    if (issue.row && issue.row > 1 && issue.row <= sheet.rowCount) {
+      notesByRow.set(issue.row, [...(notesByRow.get(issue.row) ?? []), message]);
+    } else general.push(message);
+  }
+  for (const [row, notes] of notesByRow) sheet.getRow(row).getCell(notesColumn).value = notes.join("\n");
+  const reportMarker = "_CAS_VALIDATION_REPORT_V1";
+  const reportTitle = "Revisión de validación CAS";
+  const markerAddress = (name: string) => `'${name.replace(/'/g, "''")}'!$A$1`;
+  let summary = copy.worksheets.find((item) => item.getCell("A1").value === reportTitle &&
+    copy.definedNames.getNames(markerAddress(item.name)).includes(reportMarker));
+  const partial = total > issues.length;
+  const summaryMessage = partial ? `La revisión encontró ${total} errores; esta planilla contiene ${issues.length} ${issues.length === 1 ? "detalle disponible" : "detalles disponibles"}. Vuelve a cargarla tras corregirlos para revisar los restantes.`
+    : `Esta planilla contiene los ${issues.length} errores de validación encontrados.`;
+  if (general.length || partial) {
+    if (!summary) {
+      let name = reportTitle, suffix = 2;
+      while (copy.getWorksheet(name)) name = `${reportTitle} ${suffix++}`;
+      summary = copy.addWorksheet(name);
+      copy.definedNames.add(markerAddress(name), reportMarker);
+    }
+    summary.eachRow((row) => { row.values = []; });
+    summary.columns = [{ width: 25 }, { width: 100 }];
+    const summaryRows = [
+      [reportTitle],
+      ["Resultado", "No se cargó ninguna medición."],
+      ["Errores disponibles", summaryMessage],
+      ["Cómo corregir", "Revisa las indicaciones de esta hoja y la columna Notas de validación CAS de Mediciones. Corrige los datos y vuelve a cargar la planilla."],
+      ...general.map((message) => ["Revisión de la planilla", message]),
+    ];
+    summaryRows.forEach((values, index) => { summary!.getRow(index + 1).values = values; });
+    summary.getRow(1).font = { bold: true, size: 14 };
+    summary.eachRow((row) => { row.alignment = { wrapText: true, vertical: "top" }; row.height = Math.min(409, Math.max(32, Math.ceil(row.getCell(2).text.length / 90) * 16)); });
+  } else if (summary) {
+    copy.definedNames.remove(markerAddress(summary.name), reportMarker);
+    copy.removeWorksheet(summary.id);
+    summary = undefined;
+  }
+  header.note = [
+    "Corrige las celdas indicadas y vuelve a cargar esta planilla. Esta columna no se importa ni reemplaza las Observaciones de la medición.",
+    summaryMessage,
+    ...(summary ? [`Revisa también la hoja ‘${summary.name}’.`] : []),
+  ].join("\n\n");
+  return copy;
+};
+
+export const downloadMeasurementValidationWorkbook = async (report: MeasurementValidationReport) => {
+  const stem = report.filename.replace(/\.xlsx$/i, "").replace(/(?:_con_validaciones)+$/i, "");
+  await downloadWorkbook(await createMeasurementValidationWorkbook(report), `${stem}_con_validaciones.xlsx`);
 };

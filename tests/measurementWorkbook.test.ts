@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createMeasurementTemplate, parseMeasurementWorkbook, parseMeasurementDate, readMeasurementFile, MeasurementWorkbookError } from "../src/features/wells/measurementWorkbook";
+import { createMeasurementTemplate, parseMeasurementWorkbook, parseMeasurementDate, readMeasurementFile, MeasurementWorkbookError, createMeasurementValidationWorkbook, validationNotesHeader } from "../src/features/wells/measurementWorkbook";
 import { writeWorkbook, readWorkbook } from "../src/utils/workbook";
 import { normalizeMeasurementNumber } from "../src/features/wells/measurementNumbers";
-import { workbookUploadErrorMessage } from "../src/features/wells/measurementErrors";
+import { workbookUploadErrorMessage, workbookUploadIssues } from "../src/features/wells/measurementErrors";
 import { ApiRequestError } from "../src/services/apiError";
 
 const now = new Date("2026-11-07T12:00:00Z");
@@ -141,4 +141,115 @@ test("saved formula results behave as values while missing results request a cor
   assert.equal(parseMeasurementWorkbook(workbook, wells, "a", now).payloads[0].flowRate, "3");
   sheet.getRow(3).getCell("flowRate").value = { formula: "1+2" };
   assert.throws(() => parseMeasurementWorkbook(workbook, wells, "a", now), /resultado guardado/);
+});
+
+
+test("validation download preserves original cells and all errors beyond the screen cap, then reimports corrected rows", async () => {
+  const { workbook, sheet } = await prepare();
+  workbook.addWorksheet("Datos de terreno").getCell("A1").value = "Conservar";
+  sheet.getCell("M3").value = { formula: "1+2", result: 3 };
+  sheet.getCell("M1").value = "Otra información";
+  const invalidRows = Array.from({ length: 60 }, (_, index) => 10 + index * 2);
+  invalidRows.forEach((row, index) => { sheet.getRow(row).values = { ...data, date: new Date(Date.UTC(2026, 10, 2, 10, index)), flowRate: "bad" }; });
+  let issues: MeasurementWorkbookError["issues"] = [];
+  try { parseMeasurementWorkbook(workbook, wells, "", now); }
+  catch (error) { assert.ok(error instanceof MeasurementWorkbookError); issues = error.issues; assert.equal((error.message.match(/Fila /g) ?? []).length, 50); }
+  assert.equal(issues.length, 60);
+  const annotated = await createMeasurementValidationWorkbook({ workbook, issues, total: issues.length, filename: "original.xlsx", selectedWellId: "a" });
+  const reopened = await readMeasurementFile(filename(await writeWorkbook(annotated)));
+  const review = reopened.getWorksheet("Mediciones")!;
+  const notesColumn = (review.getRow(1).values as unknown[]).indexOf(validationNotesHeader);
+  assert.equal(notesColumn, 14);
+  assert.equal(sheet.getCell("N1").value, null, "the original workbook is not mutated");
+  assert.deepEqual(review.getCell("M3").value, { formula: "1+2", result: 3 });
+  assert.equal(reopened.description, workbook.description);
+  assert.equal(reopened.getWorksheet("Datos de terreno")!.getCell("A1").value, "Conservar");
+  assert.equal(review.getCell("L3").value, "Dato de terreno");
+  assert.deepEqual(review.getCell("B3").value, data.date);
+  assert.equal(review.getCell("N3").value, null);
+  for (const row of invalidRows) {
+    assert.match(review.getRow(row).getCell(notesColumn).text, /Valores numéricos.*Caudal/);
+    review.getRow(row).getCell(4).value = "3,123456789123456789";
+  }
+  const corrected = parseMeasurementWorkbook(reopened, wells, "", now);
+  assert.equal(corrected.payloads.length, 61);
+  assert.equal(corrected.payloads.at(-1)!.observations, "Dato de terreno");
+  assert.equal(corrected.payloads.at(-1)!.flowRate, "3.123456789123456789");
+  assert.deepEqual(corrected.rowNumbers.slice(1), invalidRows);
+  // A second rejection reuses the column and removes previous annotations on corrected rows.
+  const second = await createMeasurementValidationWorkbook({ workbook: reopened, issues: [{ category: "Rangos", row: 10, column: "pH", message: "Revisa el pH." }], total: 1, filename: "original_con_validaciones.xlsx", selectedWellId: "a" });
+  const secondSheet = second.getWorksheet("Mediciones")!;
+  assert.equal((secondSheet.getRow(1).values as unknown[]).filter((value) => value === validationNotesHeader).length, 1);
+  assert.match(secondSheet.getCell("N10").text, /Revisa el pH/);
+  assert.equal(secondSheet.getCell("N12").value, null);
+});
+
+test("validation downloads map server rows and disclose incomplete reports without manufacturing system errors", async () => {
+  const { workbook, sheet } = await prepare(true);
+  sheet.getRow(8).values = { ...data, date: new Date("2026-11-02T10:30:00Z") };
+  const error = new ApiRequestError("invalid", 422, "internal", { errors: [{ row: 2, field: "ph", code: "invalid" }], totalErrors: 60 });
+  const details = workbookUploadIssues(error, [3, 8]);
+  const annotated = await createMeasurementValidationWorkbook({ workbook, ...details, filename: "original.xlsx", selectedWellId: "a" });
+  const reopened = await readMeasurementFile(filename(await writeWorkbook(annotated)));
+  const review = reopened.getWorksheet("Mediciones")!;
+  assert.equal(review.getCell("L3").value, null);
+  assert.match(review.getCell("L8").text, /pH/);
+  assert.match(JSON.stringify(review.getCell("L1").note), /60 errores.*1 detalle disponible/);
+  assert.match(reopened.getWorksheet("Revisión de validación CAS")!.getCell("B3").text, /60 errores.*1 detalle disponible/);
+  assert.equal(review.getCell("K8").value, "Dato de terreno");
+  assert.deepEqual(workbookUploadIssues(new TypeError("network"), [3]), { issues: [], total: 0 });
+  assert.deepEqual(workbookUploadIssues(new ApiRequestError("failed", 500, "internal", [{ row: 1, field: "ph" }]), [3]), { issues: [], total: 0 });
+  await assert.rejects(createMeasurementValidationWorkbook({ workbook, issues: [], total: 0, filename: "original.xlsx", selectedWellId: "a" }), /No hay errores/);
+});
+
+test("sheet-level validation is visible in a summary without adding measurement rows", async () => {
+  const { workbook, sheet } = await prepare(true);
+  sheet.getCell("C1").value = "Caudal mal nombrado";
+  let issues: MeasurementWorkbookError["issues"] = [];
+  try { parseMeasurementWorkbook(workbook, wells, "a", now); }
+  catch (error) { assert.ok(error instanceof MeasurementWorkbookError); issues = error.issues; }
+  const annotated = await createMeasurementValidationWorkbook({ workbook, issues, total: issues.length, filename: "original.xlsx", selectedWellId: "a" });
+  const review = annotated.getWorksheet("Mediciones")!;
+  assert.match(JSON.stringify(review.getCell("L1").note), /Revisión de validación CAS/);
+  assert.match(annotated.getWorksheet("Revisión de validación CAS")!.getCell("B5").text, /Faltan las columnas: Caudal/);
+  review.getCell("C1").value = "Caudal (L/s)";
+  const corrected = parseMeasurementWorkbook(annotated, wells, "a", now);
+  assert.deepEqual(corrected.rowNumbers, [3]);
+});
+
+
+test("validation summaries reuse only their versioned sheet and remove obsolete partial warnings", async () => {
+  const { workbook } = await prepare(true);
+  workbook.addWorksheet("Revisión de validación CAS").getCell("A1").value = "Mi información original";
+  const issues = [{ category: "Carga", row: 3, column: "pH", message: "Revisa el pH." }];
+  const first = await createMeasurementValidationWorkbook({ workbook, issues, total: 60, filename: "a.xlsx", selectedWellId: "a" });
+  const reopened = await readMeasurementFile(filename(await writeWorkbook(first)));
+  assert.equal(reopened.getWorksheet("Revisión de validación CAS")!.getCell("A1").text, "Mi información original");
+  assert.match(reopened.getWorksheet("Revisión de validación CAS 2")!.getCell("B3").text, /60 errores/);
+  const second = await createMeasurementValidationWorkbook({ workbook: reopened, issues, total: 70, filename: "a.xlsx", selectedWellId: "a" });
+  assert.equal(second.worksheets.filter((item) => item.name.startsWith("Revisión de validación CAS")).length, 2);
+  assert.match(second.getWorksheet("Revisión de validación CAS 2")!.getCell("B3").text, /70 errores/);
+  const complete = await createMeasurementValidationWorkbook({ workbook: second, issues, total: 1, filename: "a.xlsx", selectedWellId: "a" });
+  assert.equal(complete.getWorksheet("Revisión de validación CAS 2"), undefined);
+  assert.equal(complete.getWorksheet("Revisión de validación CAS")!.getCell("A1").text, "Mi información original");
+});
+
+
+test("very long invalid values remain intact while correction notes fit in an Excel cell", async () => {
+  const { workbook, sheet } = await prepare(true);
+  const original = "x".repeat(32760);
+  sheet.getRow(3).getCell("flowRate").value = original;
+  sheet.getRow(3).getCell("pressure").value = original;
+  let issues: MeasurementWorkbookError["issues"] = [];
+  try { parseMeasurementWorkbook(workbook, wells, "a", now); }
+  catch (error) { assert.ok(error instanceof MeasurementWorkbookError); issues = error.issues; }
+  assert.equal(issues.length, 2);
+  const annotated = await createMeasurementValidationWorkbook({ workbook, issues, total: 2, filename: "a.xlsx", selectedWellId: "a" });
+  const reopened = await readMeasurementFile(filename(await writeWorkbook(annotated)));
+  const review = reopened.getWorksheet("Mediciones")!;
+  assert.equal(review.getCell("C3").text, original);
+  assert.equal(review.getCell("G3").text, original);
+  assert.ok(review.getCell("L3").text.length < 32767);
+  assert.match(review.getCell("L3").text, /Caudal/);
+  assert.match(review.getCell("L3").text, /Presión/);
 });

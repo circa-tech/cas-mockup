@@ -7,7 +7,9 @@ import {
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Panel } from "../../components/Panel";
 import {
-  downloadMeasurementTemplate
+  downloadMeasurementTemplate,
+  downloadMeasurementValidationWorkbook,
+  type MeasurementValidationReport,
 } from "../../features/wells/measurementWorkbook";
 import {
   type WellRegistryEntry
@@ -33,6 +35,8 @@ export function WellMeasurementIngestPanel({
   message,
   onChange,
   onCsvUpload,
+  onValidationClear,
+  validationReport,
   onSubmit,
 }: {
   selectedWellId: string;
@@ -43,6 +47,8 @@ export function WellMeasurementIngestPanel({
   individualStatus: RemoteLoadStatus;
   message: string | null;
   onChange: (next: Partial<WellMeasurementFormState>) => void;
+  onValidationClear: () => void;
+  validationReport: MeasurementValidationReport | null;
   onCsvUpload: (file: File, fallbackWellId: string) => Promise<boolean>;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
@@ -52,10 +58,17 @@ export function WellMeasurementIngestPanel({
   const [selectedCsvFile, setSelectedCsvFile] = useState<File | null>(null);
   const [csvWellId, setCsvWellId] = useState(entries.some((entry) => entry.id === selectedWellId) ? selectedWellId : "");
   const [templateError, setTemplateError] = useState<string | null>(null);
+  const [downloadingValidation, setDownloadingValidation] = useState(false);
+  const [validationDownloadError, setValidationDownloadError] = useState<string | null>(null);
+  useEffect(() => { setValidationDownloadError(null); }, [validationReport]);
   const userSelectedUploadWell = useRef(false);
   useEffect(() => {
     if (!userSelectedUploadWell.current && entries.some((entry) => entry.id === selectedWellId)) setCsvWellId(selectedWellId);
   }, [entries, selectedWellId]);
+  useEffect(() => {
+    if (validationReport && validationReport.selectedWellId !== csvWellId) onValidationClear();
+  }, [csvWellId, validationReport, onValidationClear]);
+  const activeValidationReport = validationReport?.selectedWellId === csvWellId ? validationReport : null;
   const selectedUploadWell = entries.find((entry) => entry.id === csvWellId);
 
   return (
@@ -282,7 +295,7 @@ export function WellMeasurementIngestPanel({
           <button
             type="button"
             className="csv-template-action"
-            disabled={!hasRegistryEntries}
+            disabled={!hasRegistryEntries || isMeasurementOperationLoading}
             onClick={async () => {
               setTemplateError(null);
               try { await downloadMeasurementTemplate(selectedUploadWell); }
@@ -294,7 +307,7 @@ export function WellMeasurementIngestPanel({
           </button>
           <label>
             <span>Pozo para la carga</span>
-            <select className="well-chart-select" value={csvWellId} onChange={(event) => { userSelectedUploadWell.current = true; setCsvWellId(event.target.value); }} disabled={!hasRegistryEntries}>
+            <select aria-label="Pozo para la carga" className="well-chart-select" value={csvWellId} onChange={(event) => { userSelectedUploadWell.current = true; setCsvWellId(event.target.value); onValidationClear(); }} disabled={!hasRegistryEntries || isMeasurementOperationLoading}>
               <option value="">Varios pozos (indicarlos en la planilla)</option>
               {entries.map((entry) => (
                 <option key={entry.id} value={entry.id}>
@@ -312,6 +325,7 @@ export function WellMeasurementIngestPanel({
             onChange={(event) => {
               const file = event.target.files?.[0];
               setSelectedCsvFile(file ?? null);
+              onValidationClear();
               event.currentTarget.value = "";
             }}
           />
@@ -337,6 +351,25 @@ export function WellMeasurementIngestPanel({
           </button>
           <small>Máximo 1.000 mediciones y 5 MiB. Se guardan todas juntas solo si no hay errores.</small>
           {templateError && <p role="alert">{templateError}</p>}
+          {activeValidationReport && csvStatus === "error" && (
+            <>
+              <button type="button" className="csv-template-action" disabled={downloadingValidation || isMeasurementOperationLoading}
+                onClick={async () => {
+                  setDownloadingValidation(true);
+                  setValidationDownloadError(null);
+                  try { await downloadMeasurementValidationWorkbook(activeValidationReport); }
+                  catch { setValidationDownloadError("No pudimos preparar el Excel con las correcciones. Intenta nuevamente."); }
+                  finally { setDownloadingValidation(false); }
+                }}>
+                <Download size={16} />
+                {downloadingValidation ? "Preparando Excel..." : "Descargar Excel con observaciones"}
+              </button>
+              <small>Corrige las celdas indicadas en «Notas de validación CAS» y vuelve a cargar el archivo. Tus observaciones originales se conservan. Si aparece la hoja «Revisión de validación CAS», revisa también sus indicaciones.
+                {activeValidationReport.total > activeValidationReport.issues.length ? ` El archivo incluye ${activeValidationReport.issues.length} de ${activeValidationReport.total} errores; los restantes se revisarán al volver a cargarlo.` : ""}
+              </small>
+            </>
+          )}
+          {validationDownloadError && <p role="alert">{validationDownloadError}</p>}
           {csvMessage && (
             <p
               style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
