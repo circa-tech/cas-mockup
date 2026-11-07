@@ -493,6 +493,17 @@ test("chart download contains the plotted daily values and Chile dates", async (
   expect(sheet.getCell("B2").value).toBe(12.345);
   expect(sheet.getCell("C2").value).toBe("Estático");
   expect(sheet.getCell("D2").value).toBe(0);
+  const secondary = page.locator("fieldset").filter({ has: page.locator("legend", { hasText: "Variable del eje secundario" }) }).locator("select");
+  await secondary.selectOption("");
+  const pendingPrimaryOnly = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Descargar datos", exact: true }).click();
+  const primaryOnly = new ExcelJS.Workbook();
+  await primaryOnly.xlsx.readFile((await (await pendingPrimaryOnly).path())!);
+  const primarySheet = primaryOnly.worksheets[0];
+  expect(primarySheet.columnCount).toBe(3);
+  expect(primarySheet.getRow(1).values).toEqual([undefined, "Fecha", "Nivel", "Tipo"]);
+  expect(primarySheet.getCell("B2").value).toBe(12.345);
+  expect(primarySheet.autoFilter).toBe("A1:C1");
 });
 
 test("titular is optional at the well and absent from measurements", async ({ page, context }) => {
