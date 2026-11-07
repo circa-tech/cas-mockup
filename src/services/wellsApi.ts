@@ -564,6 +564,7 @@ const requestWells = async (
 const toDecimalString = (value: string): string => {
   const normalized = normalizeMeasurementNumber(value);
   if (normalized === null || normalized.startsWith("-")) throw new Error("Escribe un número mayor o igual a cero.");
+  if ((normalized.split(".")[1]?.length ?? 0) > 16383) throw new Error("El número supera el máximo de 16.383 decimales.");
   return normalized;
 };
 

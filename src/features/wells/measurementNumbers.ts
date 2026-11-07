@@ -4,7 +4,7 @@ export const normalizeMeasurementNumber = (input: string | number): string | nul
   const match = /^([+-]?)(\d*)(?:\.(\d*))?(?:e([+-]?\d+))?$/i.exec(raw);
   if (!match || !(match[2] || match[3])) return null;
   const exponent = Number(match[4] ?? 0);
-  if (!Number.isInteger(exponent) || Math.abs(exponent) > 16300) return null;
+  if (!Number.isInteger(exponent) || Math.abs(exponent) > 16383) return null;
   const digits = match[2] + (match[3] ?? "");
   const split = match[2].length + exponent;
   const whole = (split <= 0 ? "0" : digits.slice(0, split).padEnd(split, "0")).replace(/^0+(?=\d)/, "");

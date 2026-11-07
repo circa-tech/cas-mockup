@@ -174,6 +174,7 @@ export const parseMeasurementWorkbook = (workbook: Workbook, wells: readonly Wel
       if (!rawValue) return null;
       const normalized = normalizeMeasurementNumber(rawValue);
       if (normalized === null) { issue("Valores numéricos", id, `‘${rawValue}’ no es un número. Escribe solo números, por ejemplo 12,5.`); return null; }
+      if ((normalized.split(".")[1]?.length ?? 0) > 16383) issue("Límites de almacenamiento", id, "El número supera el máximo de 16.383 decimales. Reduce la cantidad de decimales antes de cargarlo.");
       if (measurementNumberOutOfRange(normalized, maximum, inclusive)) issue("Rangos", id, `El valor debe ser mayor o igual a cero y ${inclusive ? "menor o igual a" : "menor que"} ${maximum}.`);
       if (integer && normalized.includes(".")) issue("Rangos", id, "Escribe un número entero, sin decimales.");
       return normalized;

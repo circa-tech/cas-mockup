@@ -124,3 +124,12 @@ test("business validation preserves server error totals and maps 1-based rows", 
   assert.match(message, /ya no tienes permiso/i);
   assert.match(message, /60 errores/);
 });
+
+
+test("storage precision limits reject excessive fractional digits before submission", async () => {
+  const { workbook, sheet } = await prepare(true);
+  sheet.getRow(3).getCell("flowRate").value = "0." + "1".repeat(16384);
+  assert.throws(() => parseMeasurementWorkbook(workbook, wells, "a", now), /16.383 decimales/);
+  sheet.getRow(3).getCell("flowRate").value = "99999999." + "9".repeat(20);
+  assert.equal(parseMeasurementWorkbook(workbook, wells, "a", now).payloads[0].flowRate, "99999999." + "9".repeat(20));
+});
