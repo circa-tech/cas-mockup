@@ -7,6 +7,7 @@ import { formatRelativeAge, formatShortDateTimeParts } from "../../utils/date";
 import { freshnessClassMap, freshnessLabelMap } from "../../utils/freshness";
 import { MeteorologicalCards } from "./MeteorologicalCards";
 import { useMeteoNow } from "./useMeteoNow";
+import { AgrometeorologicalCards } from "./AgrometeorologicalCards";
 
 type MeteoViewProps = {
   isLoggedIn: boolean;
@@ -177,6 +178,7 @@ export function MeteoView({
             : `Medición de las ${selectedStationUpdate.time} del ${selectedStationUpdate.date} (${formatRelativeAge(selectedStation.lastUpdate, now).toLocaleLowerCase("es-CL")})`}
         >
           <MeteorologicalCards data={selectedStation.derived} now={now} />
+          <AgrometeorologicalCards data={selectedStation.agrometeorology} now={now} />
           <details className="meteo-station-variables">
             <summary>Variables de la estación</summary>
           <div className="meteo-measurement-grid">
