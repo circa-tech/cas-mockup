@@ -8,6 +8,8 @@ import { freshnessClassMap, freshnessLabelMap } from "../../utils/freshness";
 import { MeteorologicalCards } from "./MeteorologicalCards";
 import { useMeteoNow } from "./useMeteoNow";
 import { AgrometeorologicalCards } from "./AgrometeorologicalCards";
+import { MeteoTrendLine } from "./MeteoTrendLine";
+import { secondaryHasTrend } from "./trends";
 
 type MeteoViewProps = {
   isLoggedIn: boolean;
@@ -33,6 +35,7 @@ const displayedVariables = [
   { name: "NDVI", label: "NDVI", aliases: ["ndvi"] },
   { name: "Precipitation", label: "Precipitación", aliases: ["precipitation"] },
   { name: "Reference Pressure", label: "Presión de referencia", aliases: ["reference pressure"] },
+  { name: "Saturation Extract EC", label: "Conductividad eléctrica", aliases: ["saturation extract ec", "electrical conductivity"] },
   { name: "Soil Temperature", label: "Temperatura del suelo", aliases: ["soil temperature"] },
   { name: "Solar Radiation", label: "Radiación solar", aliases: ["solar radiation"] },
   { name: "Vapor Pressure", label: "Presión de vapor", aliases: ["vapor pressure"] },
@@ -44,8 +47,8 @@ const displayedVariables = [
 
 const normalizeMeasurementName = (name: string) => name.trim().toLocaleLowerCase("en");
 
-const getDisplayedMeasurements = (measurements: MeteoMeasurement[]): DisplayedMeasurement[] =>
-  displayedVariables.flatMap<DisplayedMeasurement>((variable) => {
+const getDisplayedMeasurements = (measurements: MeteoMeasurement[]): DisplayedMeasurement[] => [
+  ...displayedVariables.flatMap<DisplayedMeasurement>((variable) => {
     const matches = measurements.filter((measurement) => {
       const measurementName = normalizeMeasurementName(measurement.measurementName);
       return variable.aliases.some((alias) => alias === measurementName);
@@ -57,7 +60,10 @@ const getDisplayedMeasurements = (measurements: MeteoMeasurement[]): DisplayedMe
         measurement,
       }))
       : [{ key: variable.name, label: variable.label, measurement: null }];
-  });
+  }),
+  ...measurements.filter((measurement) => !displayedVariables.some((variable) => variable.aliases.some((alias) => alias === normalizeMeasurementName(measurement.measurementName))))
+    .map((measurement) => ({ key: `${measurement.portNumber}:${measurement.sensorName}:${measurement.measurementName}`, label: measurement.measurementName, measurement })),
+];
 
 const formatMeasurementValue = (value: number | null) =>
   value === null ? "Sin datos" : new Intl.NumberFormat("es-CL", { maximumFractionDigits: 2 }).format(value);
@@ -177,7 +183,7 @@ export function MeteoView({
             ? "Sin datos disponibles"
             : `Medición de las ${selectedStationUpdate.time} del ${selectedStationUpdate.date} (${formatRelativeAge(selectedStation.lastUpdate, now).toLocaleLowerCase("es-CL")})`}
         >
-          <MeteorologicalCards data={selectedStation.derived} now={now} />
+          <MeteorologicalCards data={selectedStation.derived} trends={selectedStation.trends} now={now} />
           <AgrometeorologicalCards data={selectedStation.agrometeorology} now={now} />
           <details className="meteo-station-variables">
             <summary>Variables de la estación</summary>
@@ -191,6 +197,9 @@ export function MeteoView({
                 </strong>
                 {measurement?.sensorName && (
                   <small className="meteo-measurement-sensor">{measurement.sensorName}</small>
+                )}
+                {measurement?.trendKey && secondaryHasTrend(measurement.measurementName) && (
+                  <MeteoTrendLine series={selectedStation.trends?.[measurement.trendKey]} label={`${label} ${measurement.sensorName}`} now={now} unit={measurement.unit ?? ""} />
                 )}
               </article>
             ))}

@@ -472,3 +472,72 @@ test("Meteo daily cards keep raw variables collapsed and reset at Chile midnight
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: "test-results/meteo-daily-mobile.png", fullPage: true });
 });
+
+test.describe("Meteo trend interactions", () => {
+  test.use({ hasTouch: true });
+  test("gaps, sensor isolation, touch tooltips and missing-history cards", async ({ page, context }) => {
+    await page.clock.install({ time: new Date("2026-11-07T12:00:00Z") });
+    await mockServices(context, () => false);
+    let requests = 0;
+    const point = (timestamp: string, value: number | null) => ({ timestamp, value });
+    await context.route("**/api/v1/weather-stations/snapshot", (route) => {
+      requests++;
+      return route.fulfill({ json: { generatedAt: "2026-11-07T12:00:00Z", stations: [{
+        id: "station-1", name: "San Francisco", lat: -27.3, lng: -70.5,
+        lastUpdate: "2026-11-07T12:00:00Z", temperatureValue: 21.9,
+        derived: { date: "2026-11-07", partial: true, cadence_seconds: 300, available_from: "2026-05-09", metrics: { air_temperature: { current: 21.9 }, atmospheric_pressure: { current: 95 }, solar_radiation: { total: 21.3 } } },
+        measurements: [
+          { measurementName: "Soil Temperature", sensorName: "TEROS 12", portNumber: 4, value: 15, unit: "°C", recordedAt: "2026-11-07T12:00:00Z", trendKey: "4:TEROS 12:Soil Temperature" },
+          { measurementName: "Soil Temperature", sensorName: "GS3", portNumber: 5, value: 25, unit: "°C", recordedAt: "2026-11-07T12:00:00Z", trendKey: "5:GS3:Soil Temperature" },
+          { measurementName: "Battery Voltage", sensorName: "ZL6", portNumber: 0, value: 3, unit: "V", recordedAt: "2026-11-07T12:00:00Z", trendKey: "technical" },
+        ],
+        trends: {
+          air_temperature: { daily: false, unit: "°C", points: [point("2026-11-07T10:00Z", 20), point("2026-11-07T10:05Z", 21), point("2026-11-07T10:30Z", null), point("2026-11-07T11:00Z", 24), point("2026-11-07T12:00Z", 21.9)] },
+          atmospheric_pressure: { daily: false, unit: "kPa", points: [point("2026-11-07T12:00Z", 95)] },
+          relative_humidity: { daily: false, unit: "%", points: [] },
+          solar_radiation: { daily: true, unit: "MJ/m²", points: [point("2026-11-06", 19), point("2026-11-07", 21.3)] },
+          "4:TEROS 12:Soil Temperature": { daily: false, unit: "°C", points: [point("2026-11-07T12:00Z", 15)] },
+          "5:GS3:Soil Temperature": { daily: false, unit: "°C", points: [point("2026-11-07T12:00Z", 25)] },
+          technical: { daily: false, unit: "V", points: [point("2026-11-07T12:00Z", 3)] },
+        },
+      }] } });
+    });
+    await signIn(page, false);
+    await page.getByRole("button", { name: "Meteo", exact: true }).click();
+    const air = page.getByRole("group", { name: "Tendencia de Temperatura del aire", exact: true });
+    await expect(air.locator("path")).toHaveCount(2);
+    await expect(page.locator('[data-metric="atmospheric_pressure"] .meteo-trend circle')).toHaveCount(1);
+    await expect(page.locator('[data-metric="relative_humidity"] .meteo-trend')).toHaveCount(0);
+    await expect(page.locator('[data-agrometric] .meteo-trend')).toHaveCount(0);
+    await air.focus();
+    await page.keyboard.press("Home");
+    await expect(page.getByRole("tooltip")).toHaveText("7 nov, 07:00 · 20 °C");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await page.getByText("Variables de la estación", { exact: true }).click();
+    const teros = page.getByRole("group", { name: "Tendencia de Temperatura del suelo TEROS 12", exact: true });
+    const gs3 = page.getByRole("group", { name: "Tendencia de Temperatura del suelo GS3", exact: true });
+    await teros.hover();
+    await expect(page.getByRole("tooltip")).toContainText("15 °C");
+    await gs3.hover();
+    await expect(page.getByRole("tooltip")).toContainText("25 °C");
+    await expect(page.getByRole("group", { name: /Tendencia de Battery/ })).toHaveCount(0);
+    const requestsBeforeInteraction = requests;
+    await page.setViewportSize({ width: 390, height: 844 });
+    const radiation = page.getByRole("group", { name: "Tendencia de Radiación solar", exact: true });
+    await radiation.tap({ position: { x: 250, y: 20 } });
+    await expect(page.getByRole("tooltip")).toContainText("hoy (hasta ahora) · 21,3 MJ/m²");
+    const bounds = await page.getByRole("tooltip").boundingBox();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+    expect(bounds!.y).toBeGreaterThanOrEqual(0);
+    await page.screenshot({ path: "test-results/meteo-trend-mobile.png", fullPage: false });
+    await page.getByRole("heading", { name: "Meteorología en el valle" }).tap();
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    expect(requests).toBe(requestsBeforeInteraction);
+    await page.getByRole("button", { name: /Lautaro/ }).click();
+    await expect(page.locator("[data-agrometric]")).toHaveCount(4);
+    await expect(page.locator('[data-agrometric="chill_hours"]')).toHaveCount(0);
+    await expect(page.locator('[data-agrometric="degree_days_5"] strong')).toHaveText("Sin datos");
+  });
+});

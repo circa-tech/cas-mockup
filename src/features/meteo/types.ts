@@ -27,3 +27,6 @@ export type MeteoAgrometeorology = {
   rules: Record<string, MeteoSeasonRule>;
   periods: Record<string, MeteoSeasonTotal[]>;
 };
+
+export type MeteoTrendPoint = { timestamp: string; value: number | null };
+export type MeteoTrend = { daily: boolean; unit: string; points: MeteoTrendPoint[]; cadence_seconds?: number | null };

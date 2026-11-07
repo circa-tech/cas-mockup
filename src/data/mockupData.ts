@@ -738,6 +738,7 @@ export type MeteoMeasurement = {
   sensorName: string;
   unit: string | null;
   value: number | null;
+  trendKey?: string | null;
 };
 
 export type MeteoStationPoint = GeoPointBase & {
@@ -745,6 +746,7 @@ export type MeteoStationPoint = GeoPointBase & {
   temperatureValue: number | null;
   derived?: import("../features/meteo/types").MeteoDerivedData | null;
   agrometeorology?: import("../features/meteo/types").MeteoAgrometeorology | null;
+  trends?: Record<string, import("../features/meteo/types").MeteoTrend>;
 };
 
 export type WaterQualityRecord = {

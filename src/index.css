@@ -2467,6 +2467,9 @@ select:focus-visible {
 .meteo-daily-statistics dt { color: var(--muted); }
 .meteo-daily-statistics dd { margin: 0; text-align: right; }
 .meteo-daily-statistics > small { color: var(--muted); }
+.meteo-trend { height: 54px; margin-top: 10px; color: #0f8c82; touch-action: pan-y; outline-offset: 3px; }
+.meteo-trend svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.meteo-trend-tooltip { width: max-content; position: fixed; z-index: 10000; transform: translateX(-50%); max-width: min(240px, calc(100vw - 16px)); box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px; background: #fff; color: #202d36; box-shadow: 0 3px 15px #0002; font-size: 12px; line-height: 1.4; pointer-events: none; }
 
 .station-card-metrics {
   display: grid;

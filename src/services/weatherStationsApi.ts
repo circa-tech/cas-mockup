@@ -1,7 +1,7 @@
 import { apiFetch } from "../offline/apiFetch";
 import type { MeteoMeasurement, MeteoStationPoint } from "../data/mockupData";
 import { throwApiError } from "./apiError";
-import type { MeteoAgrometeorology, MeteoDerivedData } from "../features/meteo/types";
+import type { MeteoAgrometeorology, MeteoDerivedData, MeteoTrend } from "../features/meteo/types";
 
 type WeatherStationSnapshot = {
   etag?: string | null;
@@ -21,6 +21,7 @@ type WeatherStationApiPoint = {
   temperatureValue?: number | null;
   derived?: MeteoDerivedData | null;
   agrometeorology?: MeteoAgrometeorology | null;
+  trends?: Record<string, MeteoTrend>;
 };
 
 type WeatherStationApiMeasurement = {
@@ -30,6 +31,7 @@ type WeatherStationApiMeasurement = {
   sensorName?: string | null;
   unit?: string | null;
   value?: number | null;
+  trendKey?: string | null;
 };
 
 const apiBaseUrl = import.meta.env?.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
@@ -60,6 +62,7 @@ const mapMeasurement = (measurement: WeatherStationApiMeasurement): MeteoMeasure
   sensorName: measurement.sensorName ?? "",
   unit: measurement.unit ?? null,
   value: finiteMetric(measurement.value),
+  trendKey: measurement.trendKey ?? null,
 });
 
 // One unavailable sensor must not hide the entire station (or climate tab).
@@ -78,6 +81,7 @@ export const mapSnapshotToStations = (snapshot: WeatherStationSnapshot): MeteoSt
       measurements: (station.measurements ?? []).map(mapMeasurement),
       derived: station.derived ?? null,
       agrometeorology: station.agrometeorology ?? null,
+      trends: station.trends ?? {},
     }];
   });
 
