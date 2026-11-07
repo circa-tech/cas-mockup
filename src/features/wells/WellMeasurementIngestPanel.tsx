@@ -4,11 +4,11 @@ import {
   Download,
   Upload
 } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Panel } from "../../components/Panel";
 import {
-  downloadMeasurementCsvTemplate
-} from "../../features/wells/measurementCsv";
+  downloadMeasurementTemplate
+} from "../../features/wells/measurementWorkbook";
 import {
   type WellRegistryEntry
 } from "../../services/wellsApi";
@@ -24,6 +24,7 @@ const suggestedWaterLevelCondition = (isOperating: string) => {
 };
 
 export function WellMeasurementIngestPanel({
+  selectedWellId,
   csvMessage,
   csvStatus,
   entries,
@@ -34,6 +35,7 @@ export function WellMeasurementIngestPanel({
   onCsvUpload,
   onSubmit,
 }: {
+  selectedWellId: string;
   csvMessage: string | null;
   csvStatus: RemoteLoadStatus;
   entries: WellRegistryEntry[];
@@ -48,7 +50,13 @@ export function WellMeasurementIngestPanel({
   const isMeasurementOperationLoading =
     individualStatus === "loading" || csvStatus === "loading";
   const [selectedCsvFile, setSelectedCsvFile] = useState<File | null>(null);
-  const [csvWellId, setCsvWellId] = useState("");
+  const [csvWellId, setCsvWellId] = useState(entries.some((entry) => entry.id === selectedWellId) ? selectedWellId : "");
+  const [templateError, setTemplateError] = useState<string | null>(null);
+  const userSelectedUploadWell = useRef(false);
+  useEffect(() => {
+    if (!userSelectedUploadWell.current && entries.some((entry) => entry.id === selectedWellId)) setCsvWellId(selectedWellId);
+  }, [entries, selectedWellId]);
+  const selectedUploadWell = entries.find((entry) => entry.id === csvWellId);
 
   return (
     <div className="measurement-upload-grid">
@@ -130,11 +138,11 @@ export function WellMeasurementIngestPanel({
 
           <div className="manual-two-col">
             <label>
-              <span>Caudal</span>
+              <span>Caudal *</span>
               <input
                 type="number"
                 min="0"
-                step="0.01"
+                step="any"
                 value={form.flowRate}
                 placeholder="1.00"
                 onChange={(event) => onChange({ flowRate: event.target.value })}
@@ -146,7 +154,7 @@ export function WellMeasurementIngestPanel({
               <input
                 type="number"
                 min="0"
-                step="0.01"
+                step="any"
                 value={form.waterTableDepth}
                 placeholder="9.85"
                 onChange={(event) => onChange({ waterTableDepth: event.target.value })}
@@ -160,7 +168,7 @@ export function WellMeasurementIngestPanel({
               <input
                 type="number"
                 min="0"
-                step="0.01"
+                step="any"
                 value={form.pressure}
                 onChange={(event) => onChange({ pressure: event.target.value })}
               />
@@ -171,7 +179,7 @@ export function WellMeasurementIngestPanel({
                 type="number"
                 min="0"
                 max="14"
-                step="0.01"
+                step="any"
                 value={form.ph}
                 onChange={(event) => onChange({ ph: event.target.value })}
               />
@@ -184,13 +192,13 @@ export function WellMeasurementIngestPanel({
               <input
                 type="number"
                 min="0"
-                step="0.01"
+                step="any"
                 value={form.conductivity}
                 onChange={(event) => onChange({ conductivity: event.target.value })}
               />
             </label>
             <label>
-              <span>Totalizador</span>
+              <span>Totalizador *</span>
               <input
                 type="number"
                 min="0"
@@ -269,31 +277,36 @@ export function WellMeasurementIngestPanel({
         </form>
       </Panel>
 
-      <Panel title="Carga CSV" subtitle="Carga una o varias mediciones">
+      <Panel title="Carga Excel" subtitle="Carga una o varias mediciones">
         <div className="csv-upload-box">
           <button
             type="button"
             className="csv-template-action"
             disabled={!hasRegistryEntries}
-            onClick={() => downloadMeasurementCsvTemplate(entries.find((entry) => entry.id === csvWellId)?.codigoObra ?? null)}
+            onClick={async () => {
+              setTemplateError(null);
+              try { await downloadMeasurementTemplate(selectedUploadWell); }
+              catch { setTemplateError("No pudimos preparar la planilla. Intenta nuevamente."); }
+            }}
           >
             <Download size={16} />
-            Descargar plantilla CSV
+            Descargar planilla
           </button>
           <label>
-            <span>Pozo para filas sin código de obra</span>
-            <select value={csvWellId} onChange={(event) => setCsvWellId(event.target.value)} disabled={!hasRegistryEntries}>
-              <option value="">Selecciona un pozo si el CSV tiene filas sin código</option>
+            <span>Pozo para la carga</span>
+            <select className="well-chart-select" value={csvWellId} onChange={(event) => { userSelectedUploadWell.current = true; setCsvWellId(event.target.value); }} disabled={!hasRegistryEntries}>
+              <option value="">Varios pozos (indicarlos en la planilla)</option>
               {entries.map((entry) => (
                 <option key={entry.id} value={entry.id}>
                   {entry.name} · {entry.codigoObra ?? `${entry.casCode} (${entry.lat.toFixed(4)}, ${entry.lng.toFixed(4)})`}
                 </option>
               ))}
             </select>
-            <small className="field-help">Las filas con código usan el pozo indicado en el archivo.</small>
+            <small className="field-help">{selectedUploadWell ? `Las mediciones se cargarán en el pozo ${selectedUploadWell.name}` : "La planilla incluirá la columna Pozo: escribe su nombre o código en cada fila."}</small>
           </label>
           <input
-            accept=".csv,text/csv"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            aria-label="Planilla Excel de mediciones"
             type="file"
             disabled={isMeasurementOperationLoading || !hasRegistryEntries}
             onChange={(event) => {
@@ -320,10 +333,13 @@ export function WellMeasurementIngestPanel({
             }}
           >
             <Upload size={16} />
-            {csvStatus === "loading" ? "Cargando..." : "Cargar archivo CSV"}
+            {csvStatus === "loading" ? "Cargando..." : "Cargar mediciones"}
           </button>
+          <small>Máximo 1.000 mediciones y 5 MiB. Se guardan todas juntas solo si no hay errores.</small>
+          {templateError && <p role="alert">{templateError}</p>}
           {csvMessage && (
             <p
+              style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
               className={`form-feedback ${csvStatus === "ready" ? "is-success" : "is-error"}`}
               role={csvStatus === "error" ? "alert" : "status"}
               aria-live={csvStatus === "error" ? "assertive" : "polite"}

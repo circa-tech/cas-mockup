@@ -532,3 +532,54 @@ test("titular is optional at the well and absent from measurements", async ({ pa
   expect(saved?.ownerContacts).toEqual([{ representative: "Contacto existente", rut: null, email: null, phone: null }]);
   expect(saved?.waterRights).toEqual(expect.arrayContaining([expect.objectContaining({ holderName: "Titular derecho", holderRut: "12345678-5" })]));
 });
+
+test("Excel import validates every row before one atomic submission", async ({ page, context }) => {
+  await mockServices(context, () => false);
+  const registry = { id: "well-1", name: "Pozo guardado", codigoObra: "OB-1", casId: "cas-1", casCode: "CAS", casName: "CAS", lat: -27.3, lng: -70.5, active: true };
+  await context.route("**/api/v1/wells/registry/mine", (route) => route.fulfill({ json: [registry] }));
+  await context.route("**/api/v1/wells/registry/writable", (route) => route.fulfill({ json: ["well-1"] }));
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => route.fulfill({ json: { well_id: "well-1", resolution: "native", points: [] } }));
+  const submissions: { measurements: { credentials: Record<string, string>; groundwaterMeasurement: Record<string, unknown> }[] }[] = [];
+  await context.route("**/api/v1/wells/groundwater-measurements/batch", (route) => {
+    submissions.push(route.request().postDataJSON());
+    return route.fulfill({ json: { insertedCount: 2, skippedCount: 0 } });
+  });
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  await page.getByRole("tab", { name: "Agregar medición", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Carga CSV", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Las mediciones se cargarán en el pozo Pozo guardado", { exact: true })).toBeVisible();
+  const pending = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Descargar planilla", exact: true }).click();
+  const download = await pending;
+  const ExcelJS = (await import("exceljs")).default;
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile((await download.path())!);
+  expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(["Mediciones", "Instrucciones"]);
+  const sheet = workbook.getWorksheet("Mediciones")!;
+  expect(sheet.getCell("A1").value).toBe("Fecha y hora *");
+  // Headers are tolerated when users change only capitalization/accents/asterisks.
+  sheet.getCell("C1").value = "  CAUDAL (L/s)  ";
+  sheet.getRow(3).values = [new Date("2026-01-01T10:30:00Z"), "12.345.678-5", "bad", 10, "ESTATICO", 123, 1, 20, 5, "No", "Primera"];
+  sheet.getRow(4).values = [new Date("2026-01-01T11:30:00Z"), "12.345.678-5", "0,00001", 20, "dinámico", 124, 1, 7, 5, "Sí", "Segunda"];
+  const upload = page.getByLabel("Planilla Excel de mediciones", { exact: true });
+  await upload.setInputFiles({ name: "mediciones.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(await workbook.xlsx.writeBuffer()) });
+  await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
+  const feedback = page.locator(".csv-upload-box [role=alert]");
+  await expect(feedback).toContainText("Fila 3, «Caudal (L/s)»");
+  await expect(feedback).toContainText("Fila 3, «pH»");
+  expect(submissions).toHaveLength(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: "test-results/excel-import-mobile.png", fullPage: true });
+  sheet.getCell("C3").value = "3,123456789123456789";
+  sheet.getCell("H3").value = 7;
+  await upload.setInputFiles({ name: "corregidas.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(await workbook.xlsx.writeBuffer()) });
+  await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
+  await expect(page.getByText("Se cargaron 2 mediciones en el pozo Pozo guardado.", { exact: true })).toBeVisible();
+  expect(submissions).toHaveLength(1);
+  expect(submissions[0].measurements).toHaveLength(2);
+  expect(submissions[0].measurements[0].credentials).toEqual({ userRut: "12345678-5" });
+  expect(submissions[0].measurements[0].groundwaterMeasurement.flowRate).toBe("3.123456789123456789");
+  expect(submissions[0].measurements[1].groundwaterMeasurement.flowRate).toBe("0.00001");
+  expect(submissions[0].measurements[0].groundwaterMeasurement.waterLevelCondition).toBe("static");
+});

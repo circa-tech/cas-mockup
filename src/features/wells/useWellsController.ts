@@ -23,7 +23,8 @@ import {
 import type { RemoteLoadStatus } from "../../types/remote";
 import { toRemoteErrorMessage } from "../../app/remoteError";
 import { dateInChile } from "../../utils/date";
-import { parseMeasurementCsv } from "./measurementCsv";
+import { parseMeasurementWorkbook, readMeasurementFile } from "./measurementWorkbook";
+import { workbookUploadErrorMessage } from "./measurementErrors";
 import type { WellMeasurementFormState, WellRegistryFormState } from "./WellsView";
 
 const emptyCapabilities: WellsCapabilities = {
@@ -131,19 +132,6 @@ const getWellCreationErrorMessage = (error: unknown) => {
     }
   }
   return "No fue posible conectar con la API. Intenta nuevamente.";
-};
-
-const getCsvUploadErrorMessage = (error: unknown) => {
-  if (error instanceof ApiRequestError) {
-    if (error.status === 409) {
-      return "El archivo contiene una medición en conflicto. No se cargó ninguna fila.";
-    }
-    if (error.status === 404) {
-      return "El archivo contiene un pozo que ya no está disponible.";
-    }
-    if (error.status === 422) return `La API rechazó el archivo: ${error.detail}`;
-  }
-  return toRemoteErrorMessage(error, "No fue posible cargar el CSV.");
 };
 
 const buildWellRegistryPayload = (
@@ -529,20 +517,25 @@ export function useWellsController({
     if (!authIdToken) return false;
     setWellMeasurementCsvStatus("loading");
     setWellMeasurementCsvMessage(null);
+    let rowNumbers: number[] = [];
     try {
+      const workbook = await readMeasurementFile(file);
       const writableIds = new Set(await fetchWritableWellIds(authIdToken));
       const allowed = wellRegistryEntries.filter((entry) => writableIds.has(entry.id));
-      const payloads = parseMeasurementCsv(await file.text(), allowed, fallbackWellId);
-      const result = await ingestWellMeasurementsBatch(authIdToken, payloads);
-      await refreshWells();
+      const parsed = parseMeasurementWorkbook(workbook, allowed, fallbackWellId);
+      rowNumbers = parsed.rowNumbers;
+      const result = await ingestWellMeasurementsBatch(authIdToken, parsed.payloads);
       setWellMeasurementCsvStatus("ready");
+      const wellName = allowed.find((well) => well.id === fallbackWellId)?.name;
       setWellMeasurementCsvMessage(
-        `${result.insertedCount} mediciones cargadas; ${result.skippedCount} omitidas.`,
+        `Se cargaron ${result.insertedCount} mediciones${wellName ? ` en el pozo ${wellName}` : ""}.${result.skippedCount ? ` ${result.skippedCount} ya estaban guardadas y no se duplicaron.` : ""}`,
       );
+      // A failed summary refresh must not report a committed batch as unsuccessful.
+      await refreshWells().catch(() => undefined);
       return true;
     } catch (error) {
       setWellMeasurementCsvStatus("error");
-      setWellMeasurementCsvMessage(getCsvUploadErrorMessage(error));
+      setWellMeasurementCsvMessage(workbookUploadErrorMessage(error, rowNumbers));
       return false;
     }
   };

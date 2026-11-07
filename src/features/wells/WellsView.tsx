@@ -182,6 +182,7 @@ export function WellsView({
         {wellsSubnav}
 
         <WellMeasurementIngestPanel
+          selectedWellId={selectedWellId}
           csvMessage={wellMeasurementCsvMessage}
           csvStatus={wellMeasurementCsvStatus}
           entries={writableEntries}
