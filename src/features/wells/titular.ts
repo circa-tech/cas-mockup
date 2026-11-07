@@ -3,7 +3,7 @@ export const invalidTitularRutMessage = "El RUT ingresado no es válido. Revisa 
 /** Chilean modulus-11 check; formatting is normalized only after validation. */
 export const normalizeTitularRut = (input: string): string | null => {
   const compact = input.trim().replace(/[.\s-]/g, "").toUpperCase();
-  if (!/^\d{7,8}[0-9K]$/.test(compact)) return null;
+  if (!/^\d{1,8}[0-9K]$/.test(compact)) return null;
   const body = compact.slice(0, -1);
   if (Number(body) === 0) return null;
   let sum = 0;
