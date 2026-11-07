@@ -12,13 +12,14 @@ const definitions = [
 ];
 
 export function AgrometeorologicalCards({ data, now }: { data?: MeteoAgrometeorology | null; now: Date }) {
-  if (!data) return null;
+  data ??= { daily_date: null, today: {}, chill_hours_supported: false, rules: {}, periods: {} };
   return <div className="meteo-measurement-grid" aria-label="Indicadores agrometeorológicos">
     {definitions.filter(({ key }) => key !== "chill_hours" || data.chill_hours_supported).map((definition) => {
       const reading = seasonReading(data, definition.key, definition.rule, now);
       const frost = definition.key === "frost_days";
       return <article className="detail-kpi" key={definition.key} data-agrometric={definition.key}>
         <span>{definition.label}</span>
+        {!reading && <strong>Sin datos</strong>}
         {reading?.active && <>
           <strong>{formatMeteoValue(frost ? frostMonthReading(data, now) : reading.today, frost ? 0 : 2, definition.unit)}</strong>
           <small className="meteo-measurement-sensor">{frost ? "Mes actual" : "Hoy (hasta ahora)"}</small>
