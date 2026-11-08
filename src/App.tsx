@@ -210,6 +210,8 @@ export default function App() {
               onWellRegistrySubmit={app.handleWellRegistrySubmit}
               onWellRegistryUpdate={app.handleWellRegistryUpdate}
               onWellMeasurementChange={app.handleWellMeasurementChange}
+              onWellMeasurementValidationClear={app.clearWellMeasurementValidation}
+              wellMeasurementValidationReport={app.wellMeasurementValidationReport}
               onWellMeasurementCsvUpload={app.handleWellMeasurementCsvUpload}
               onWellMeasurementSubmit={app.handleWellMeasurementSubmit}
               onSelectWell={app.setSelectedWellId}

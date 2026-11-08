@@ -1,3 +1,6 @@
+import type { LineChartBrushRange } from "../../components/lineChartData";
+import { chartExportFilename, createChartWorkbook, plottedWellRows } from "./wellChartExport";
+import { downloadWorkbook } from "../../utils/workbook";
 import { Droplets, Gauge, Radio, Waves } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -24,7 +27,7 @@ import {
   type WellMeasurementVariable,
 } from "../../data/mockupData";
 import type { RemoteLoadStatus } from "../../types/remote";
-import { formatRelativeAge, formatShortDateTime } from "../../utils/date";
+import { chileTimeZone, dateInChile, toZonedDateTimeIso, formatRelativeAge, formatShortDateTime } from "../../utils/date";
 import { freshnessClassMap, freshnessLabelMap } from "../../utils/freshness";
 import {
   getCurrentValue,
@@ -200,6 +203,7 @@ const toLevelChartSeries = (
             label: condition === "unknown"
               ? `${label} · ${conditionLabel}`
               : `${label} · Nivel ${conditionLabel}`,
+            source,
             color: levelSeriesColors[source][condition],
             points: conditionPoints,
             markerShape: "circle",
@@ -226,6 +230,7 @@ const toVariableChartSeries = (
   ]).flatMap(({ source, label, points }) => selectedSources.includes(source) && points.length > 0
     ? [{
         label: `${variable.label} · ${label}`,
+        source,
         color: secondarySeriesColors[variable.value][source],
         points,
         markerShape: "circle",
@@ -306,12 +311,7 @@ const filterSeriesByPeriod = (
   }));
 };
 
-const formatLocalDateParam = (date: Date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
+const formatLocalDateParam = dateInChile;
 
 const getChartHistoryRange = (now: Date, period: ChartPeriod) => {
   const start = getPeriodStart(now, period);
@@ -336,7 +336,7 @@ const historyMetricByVariable: Record<WellMeasurementVariable, string> = {
 const getDailyTimestamp = (measurementDate: string) => {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(measurementDate);
   if (!match) return Number.NaN;
-  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12).getTime();
+  return Date.parse(toZonedDateTimeIso(measurementDate.slice(0, 10), "12:00:00") ?? "");
 };
 
 const toHistoryLinePoint = (
@@ -351,6 +351,7 @@ const toHistoryLinePoint = (
   if (value === null || value === undefined || !Number.isFinite(timestamp)) return [];
   return [{
     label: new Intl.DateTimeFormat("es-CL", {
+      timeZone: chileTimeZone,
       day: "2-digit",
       ...(resolution === "native" ? { hour: "2-digit", hourCycle: "h23" as const, minute: "2-digit" } : {}),
       month: "2-digit",
@@ -427,6 +428,9 @@ export function WellsMonitoringTab({
   wellRegistryEntries,
   wells,
 }: WellsMonitoringTabProps) {
+  const [chartBrush, setChartBrush] = useState<{ scope: string; range: LineChartBrushRange } | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [selectedChartPeriod, setSelectedChartPeriod] = useState<ChartPeriod>("7d");
   const historyRange = getChartHistoryRange(now, selectedChartPeriod);
   const historyResolution = getChartHistoryResolution(selectedChartPeriod);
@@ -451,7 +455,7 @@ export function WellsMonitoringTab({
     enabled: isLoggedIn && status === "ready" && Boolean(authIdToken && historyWellId && wells.length > 0),
     staleTime: 5 * 60 * 1000,
   });
-  const [selectedSecondaryVariable, setSelectedSecondaryVariable] = useState<WellMeasurementVariable | null>(null);
+  const [selectedSecondaryVariable, setSelectedSecondaryVariable] = useState<WellMeasurementVariable | null>("flowRate");
   const [selectedLevelConditions, setSelectedLevelConditions] = useState<SelectableLevelCondition[]>([
     "static", "dynamic", "unknown",
   ]);
@@ -579,14 +583,29 @@ export function WellsMonitoringTab({
     chartResolution === "daily",
   ), selectedChartPeriod, now, chartResolution);
   const selectedLevelPoints = primaryChartSeries.flatMap((series) => series.points);
+  const secondaryVariable = secondaryChartVariables.find(
+    (variable) => variable.value === selectedSecondaryVariable,
+  );
+  const secondaryAxisLabel = secondaryVariable
+    ? `${secondaryVariable.label}${secondaryVariable.unit ? ` (${secondaryVariable.unit})` : ""}`
+    : undefined;
   const secondaryChartSeries = filterSeriesByPeriod(selectedSecondaryVariable
     ? secondaryChartVariables
       .filter((variable) => variable.value === selectedSecondaryVariable)
       .flatMap((variable) => toVariableChartSeries(chartWell, variable, selectedMeasurementSources))
     : [], selectedChartPeriod, now, chartResolution);
-  const selectedChartSeries = primaryChartSeries.length > 0
+  const selectedChartSeries = selectedLevelPoints.length > 0
     ? [...primaryChartSeries, ...secondaryChartSeries]
     : [];
+  // Scope the brush to both the selection and the delivered data. A new scope starts at full range.
+  const brushScope = JSON.stringify([
+    historyWellId, selectedChartPeriod, historyRange.start_date, historyRange.end_date,
+    selectedSecondaryVariable, selectedLevelConditions, selectedMeasurementSources,
+    isLoggedIn ? historyQuery.dataUpdatedAt : chartWell.measurementSeriesByVariable,
+  ]);
+  if (chartBrush && chartBrush.scope !== brushScope) setChartBrush(null);
+  const brushRange = chartBrush?.scope === brushScope ? chartBrush.range : undefined;
+  const exportRows = plottedWellRows(primaryChartSeries, secondaryChartSeries, brushRange);
   const chartLabelCount = new Set(
     selectedChartSeries.flatMap((item) => item.points.map((point) => point.label)),
   ).size;
@@ -717,10 +736,16 @@ export function WellsMonitoringTab({
           }
         >
           <div className="detail-kpi-grid">
-            <article className="detail-kpi">
-              <span>Profundidad del agua</span>
-              <strong>{formatMeters(getCurrentValue(selectedWell.levelSeries))}</strong>
-            </article>
+            {([
+              ["Nivel dinámico", selectedWell.latestDynamicLevel],
+              ["Nivel estático", selectedWell.latestStaticLevel],
+            ] as const).map(([label, reading]) => (
+              <article className="detail-kpi" key={label}>
+                <span>{label}</span>
+                <strong>{reading ? formatMeters(reading.value) : "Sin registros"}</strong>
+                {reading && <time dateTime={reading.measuredAt}>{new Intl.DateTimeFormat("es-CL", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(reading.measuredAt))}</time>}
+              </article>
+            ))}
             <article className="detail-kpi">
               <span>Desde la medición anterior</span>
               <strong>{dailyChangeDescription}</strong>
@@ -733,6 +758,14 @@ export function WellsMonitoringTab({
 
           <section className="well-registry-details" aria-label="Datos técnicos del pozo">
             <dl>
+              <div>
+                <dt>Titular</dt>
+                <dd>{selectedWellRegistryEntry?.titularName || "Sin dato"}</dd>
+              </div>
+              <div>
+                <dt>RUT del titular</dt>
+                <dd>{selectedWellRegistryEntry?.titularRut || "Sin dato"}</dd>
+              </div>
               <div>
                 <dt>Código de obra</dt>
                 <dd>{selectedWellRegistryEntry?.codigoObra || "Sin dato"}</dd>
@@ -792,6 +825,20 @@ export function WellsMonitoringTab({
         title={`Nivel freático y otras variables · ${selectedWell.name}`}
         subtitle="Profundidad en metros bajo el suelo; los valores mayores indican mayor profundidad."
       >
+        <button type="button" className="secondary-button" disabled={exporting || exportRows.length === 0 || (isLoggedIn && (historyQuery.isPending || historyQuery.isError))}
+          onClick={async () => {
+            setExporting(true);
+            setExportError(null);
+            try {
+              await downloadWorkbook(await createChartWorkbook(exportRows, secondaryAxisLabel),
+                chartExportFilename(selectedWell.name, secondaryAxisLabel ?? "Nivel", exportRows));
+            } catch {
+              setExportError("No pudimos preparar el archivo. Intenta descargarlo nuevamente.");
+            } finally { setExporting(false); }
+          }}>
+          {exporting ? "Preparando archivo…" : "Descargar datos"}
+        </button>
+        {exportError && <p role="alert">{exportError}</p>}
         <div className="well-chart-controls">
           <fieldset className="well-chart-variable-selector">
             <legend>Período</legend>
@@ -891,15 +938,23 @@ export function WellsMonitoringTab({
                   El período tiene muchos datos; se muestran promedios diarios.
                 </p>
               )}
+              {selectedSecondaryVariable === "flowRate" && secondaryChartSeries.every((series) => series.points.length === 0) && (
+                <p className="well-chart-resolution-note" role="status">
+                  Sin datos de caudal en el período
+                </p>
+              )}
             <SimpleLineChart
-              key={`${historyWellId}-${selectedChartPeriod}-${historyRange.start_date ?? "all"}-${historyRange.end_date}`}
+              key={brushScope}
+              brushRange={brushRange}
+              onBrushRangeChange={(range) => setChartBrush({ scope: brushScope, range })}
               dotRadius={3.5}
               labelEvery={Math.max(1, Math.ceil(chartLabelCount / 18))}
               maxValue={maxSeriesValue}
               minValue={minSeriesValue}
               mode="linear"
               primaryAxisReversed
-              primaryAxisLabel="Profundidad (m)"
+              primaryAxisLabel="Nivel freático (m)"
+              secondaryAxisLabel={secondaryAxisLabel}
               secondaryMaxValue={maxSecondaryValue}
               secondaryMinValue={minSecondaryValue}
               series={selectedChartSeries}
@@ -942,8 +997,8 @@ export function WellsMonitoringTab({
                 <div className="comparison-metrics">
                   <div><span>Profundidad</span><strong>{formatMeters(well.currentLevel)}</strong></div>
                   <div>
-                    <span>Variación</span>
-                    <strong>{well.dailyChange >= 0 ? "+" : ""}{formatMeters(well.dailyChange)}</strong>
+                    <span>Caudal</span>
+                    <strong>{well.latestFlow ? `${formatOptionalNumber(well.latestFlow.value, 2)} L/s` : "Sin dato"}</strong>
                   </div>
                 </div>
                 <MiniSparkline
