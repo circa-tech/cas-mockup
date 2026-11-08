@@ -753,6 +753,7 @@ export type MeteoStationPoint = GeoPointBase & {
   measurements: MeteoMeasurement[];
   temperatureValue: number | null;
   derived?: import("../features/meteo/types").MeteoDerivedData | null;
+  agrometeorology?: import("../features/meteo/types").MeteoAgrometeorology | null;
 };
 
 export type WaterQualityRecord = {

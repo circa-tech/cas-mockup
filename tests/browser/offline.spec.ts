@@ -480,6 +480,9 @@ test("Meteo daily cards keep raw variables collapsed and reset at Chile midnight
       measurements: [{ measurementName: "Soil Temperature", sensorName: "TEROS 12", portNumber: 4, value: 18.5, unit: "°C", recordedAt: "2026-09-01T03:55:00Z" }],
       derived: { date: "2026-08-31", partial: true, cadence_seconds: 300, available_from: "2026-05-09",
         metrics: { air_temperature: { current: 21.9, min: 11, max: 25, mean: 18 }, relative_humidity: { current: 62.4 }, precipitation: { total: 0 }, wind: { mean: 0, direction: null } } },
+      agrometeorology: { daily_date: "2026-08-31", today: { chill_hours: 1.5 }, chill_hours_supported: true,
+        rules: { degree_days: { start_month: 9, start_day: 1, end_month: 4, end_day: 30 }, chill_hours: { start_month: 5, start_day: 1, end_month: 8, end_day: 31 }, frost_days: { start_month: 9, start_day: 1, end_month: 8, end_day: 31 } },
+        periods: { chill_hours: [{ start_date: "2026-05-01", end_date: "2026-08-31", total: 801.5, available_from: "2026-05-09", through_date: "2026-08-31" }] } },
     }],
   } }));
   await signIn(page, false);
@@ -492,7 +495,14 @@ test("Meteo daily cards keep raw variables collapsed and reset at Chile midnight
   await expect(page.getByText("TEROS 12", { exact: true })).toBeHidden();
   await page.getByText("Variables de la estación", { exact: true }).click();
   await expect(page.getByText("TEROS 12", { exact: true })).toBeVisible();
+  const chill = page.locator('[data-agrometric="chill_hours"]');
+  await expect(chill).toContainText("Hoy (hasta ahora)");
+  await expect(chill).toContainText("1,5 h");
+  await expect(chill).toContainText("Datos desde 9 de mayo 2026");
   await page.clock.fastForward(20_000);
+  await expect(chill).toContainText("Temporada 2026 cerrada");
+  await expect(chill).not.toContainText("Hoy (hasta ahora)");
+  await expect(page.locator('[data-agrometric="degree_days_5"]')).toContainText("Hoy (hasta ahora)");
   await expect(temperature).not.toContainText("25 °C");
   await expect(temperature).toContainText("21,9 °C");
   await expect(page.locator('[data-metric="precipitation"] strong')).toHaveText("Sin datos");
