@@ -90,6 +90,43 @@ async function signIn(page: Page, waitForReady = true) {
   if (waitForReady) await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toBeVisible({ timeout: 30_000 });
 }
 
+test("well chart keeps its secondary selection and labels both axes", async ({ page, context }) => {
+  await mockServices(context, () => false);
+  await context.route("**/api/v1/wells/groundwater-measurements", (route) => route.fulfill({ json:
+    [1, 2].map((id) => ({ wellId: `well-${id}`, name: `Pozo ${id}`, lat: -27.3, lng: -70.5,
+      groundwaterMeasurement: { measurementDate: "2026-10-09", measurementTime: "12:00:00",
+        waterTableDepth: 22, flowRate: id === 1 ? 3 : null, source: "api" } })),
+  }));
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => {
+    const wellId = new URL(route.request().url()).searchParams.get("wellId");
+    return route.fulfill({ json: { well_id: wellId, resolution: "native", points:
+      [8, 9].map((day) => ({ measurement_id: String(day), measurement_date: `2026-10-0${day}`,
+        measured_at: `2026-10-0${day}T12:00:00-03:00`, source: "api", water_level_condition: "dynamic",
+        values: { water_table_depth: 22 + day, flow_rate: wellId === "well-1" ? day : null, ph: 7 } })),
+    } });
+  });
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  const secondary = page.locator("fieldset").filter({ has: page.locator("legend", { hasText: "Variable del eje secundario" }) }).locator("select");
+  await expect(secondary).toHaveValue("flowRate");
+  await page.locator("select").filter({ has: page.locator('option[value="all"]') }).selectOption("all");
+  await expect(page.locator(".recharts-wrapper").getByText("Caudal (L/s)")).toBeVisible();
+  await expect(page.locator(".recharts-wrapper").getByText("Nivel freático (m)")).toBeVisible();
+  await secondary.selectOption("ph");
+  await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-2");
+  await expect(secondary).toHaveValue("ph");
+  await expect(page.locator(".recharts-wrapper").getByText("pH", { exact: true })).toBeVisible();
+  await secondary.selectOption("flowRate");
+  await expect(page.getByText("Sin datos de caudal en el período", { exact: true })).toBeVisible();
+  await secondary.selectOption("");
+  await expect(page.locator(".recharts-wrapper").getByText("Caudal (L/s)")).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-1");
+  await secondary.selectOption("flowRate");
+  await expect(page.locator(".recharts-wrapper").getByText("Caudal (L/s)")).toBeVisible();
+  await page.screenshot({ path: "test-results/well-chart-mobile.png", fullPage: true });
+});
+
 test("prepared data and lazy tab assets survive an offline reload with an expired token", async ({ page, context }) => {
   let offline = false;
   await mockServices(context, () => offline);
@@ -431,4 +468,21 @@ test("saved history presets survive a next-day offline reload and refresh on rec
   await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toBeVisible();
   await expect(chart.getByText(/Mostrando el período guardado/)).toHaveCount(0);
   await expect(chart.getByLabel("Hasta", { exact: true })).toHaveValue(nextEnd);
+});
+
+test("well chart explains flow outside the selected 24-hour window", async ({ page, context }) => {
+  await page.clock.setFixedTime(new Date("2026-10-09T16:00:00Z"));
+  await mockServices(context, () => false);
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => route.fulfill({ json: {
+    well_id: "well-1", resolution: "native", points: [
+      { measurement_id: "old", measurement_date: "2026-10-08", measured_at: "2026-10-08T04:00:00Z",
+        source: "api", water_level_condition: "dynamic", values: { water_table_depth: 20, flow_rate: 3 } },
+      { measurement_id: "recent", measurement_date: "2026-10-09", measured_at: "2026-10-09T15:00:00Z",
+        source: "api", water_level_condition: "unknown", values: { water_table_depth: 21, flow_rate: null } },
+    ],
+  } }));
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  await page.locator("select").filter({ has: page.locator('option[value="24h"]') }).selectOption("24h");
+  await expect(page.getByText("Sin datos de caudal en el período", { exact: true })).toBeVisible();
 });
