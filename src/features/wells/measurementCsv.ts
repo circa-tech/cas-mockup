@@ -9,7 +9,6 @@ const toWaterLevelCondition = (value: string): WaterLevelCondition | null =>
 
 const measurementCsvHeaders = [
   "codigoObra",
-  "companyRut",
   "userRut",
   "flowRate",
   "measurementDate",
@@ -109,7 +108,13 @@ export const parseMeasurementCsv = (
     throw new Error("El CSV debe incluir encabezado y al menos una fila.");
   }
 
-  const headers = headerRow.map((header) => header.trim());
+  const isLegacyTitular = (header: string) => ["companyrut", "rutdeltitular"].includes(header.toLowerCase().replace(/\s/g, ""));
+  const retained = headerRow.map((header, index) => ({ header: header.trim(), index })).filter(({ header }) => !isLegacyTitular(header));
+  const headers = retained.map(({ header }) => header);
+  const filteredRows = dataRows.map((row, index) => {
+    if (row.length !== headerRow.length) throw new Error(`Fila ${index + 2}: la cantidad de columnas no coincide con el encabezado.`);
+    return retained.map(({ index: column }) => row[column] ?? "");
+  });
   if (
     headers.length !== measurementCsvHeaders.length ||
     headers.some((header, index) => header !== measurementCsvHeaders[index])
@@ -130,7 +135,7 @@ export const parseMeasurementCsv = (
     allowedWells.filter((well) => well.codigoObra).map((well) => [well.codigoObra, well.id]),
   );
 
-  return dataRows.map((row, index) => {
+  return filteredRows.map((row, index) => {
     const rowNumber = index + 2;
     const workCode = readCell(row, "codigoObra");
     const wellId = workCode ? wellsByCode.get(workCode) : fallbackWellId;
@@ -142,7 +147,6 @@ export const parseMeasurementCsv = (
     }
     const payload: IngestWellMeasurementPayload = {
       wellId: wellId ?? "",
-      companyRut: readCell(row, "companyRut"),
       conductivity: readCell(row, "conductivity") || null,
       flowRate: readCell(row, "flowRate"),
       isOperating:
@@ -184,9 +188,6 @@ export const parseMeasurementCsv = (
       throw new Error(workCode
         ? `Fila ${rowNumber}: el pozo ${workCode} no está disponible para cargar mediciones.`
         : `Fila ${rowNumber}: selecciona un pozo para las filas sin código de obra.`);
-    }
-    if (!/^\d{7,8}-[\dkK]$/.test(payload.companyRut)) {
-      throw new Error(`Fila ${rowNumber}: companyRut debe usar el formato 77555666-7.`);
     }
     if (!/^\d{7,8}-[\dkK]$/.test(payload.userRut)) {
       throw new Error(`Fila ${rowNumber}: userRut debe usar el formato 20999888-7.`);
@@ -260,7 +261,6 @@ export const downloadMeasurementCsvTemplate = (workCode: string | null) => {
     measurementCsvHeaders.join(","),
     [
       exampleWorkCode,
-      "77555666-7",
       "20999888-7",
       "1.00",
       "2026-06-28",

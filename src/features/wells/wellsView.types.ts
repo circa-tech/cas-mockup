@@ -1,4 +1,6 @@
 export type WellRegistryFormState = {
+  titularName: string;
+  titularRut: string;
   aquiferSector: string;
   casId: string;
   catchmentStatus: string;
@@ -52,7 +54,6 @@ export type WellRegistryFormState = {
 
 export type WellMeasurementFormState = {
   wellId: string;
-  companyRut: string;
   conductivity: string;
   flowRate: string;
   isOperating: string;
