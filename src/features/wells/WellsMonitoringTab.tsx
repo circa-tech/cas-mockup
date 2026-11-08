@@ -1,3 +1,6 @@
+import type { LineChartBrushRange } from "../../components/lineChartData";
+import { chartExportFilename, createChartWorkbook, plottedWellRows } from "./wellChartExport";
+import { downloadWorkbook } from "../../utils/workbook";
 import { Droplets, Gauge, Radio, Waves } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -24,7 +27,7 @@ import {
   type WellMeasurementVariable,
 } from "../../data/mockupData";
 import type { RemoteLoadStatus } from "../../types/remote";
-import { formatRelativeAge, formatShortDateTime } from "../../utils/date";
+import { chileTimeZone, dateInChile, toZonedDateTimeIso, formatRelativeAge, formatShortDateTime } from "../../utils/date";
 import { freshnessClassMap, freshnessLabelMap } from "../../utils/freshness";
 import {
   getCurrentValue,
@@ -200,6 +203,7 @@ const toLevelChartSeries = (
             label: condition === "unknown"
               ? `${label} · ${conditionLabel}`
               : `${label} · Nivel ${conditionLabel}`,
+            source,
             color: levelSeriesColors[source][condition],
             points: conditionPoints,
             markerShape: "circle",
@@ -226,6 +230,7 @@ const toVariableChartSeries = (
   ]).flatMap(({ source, label, points }) => selectedSources.includes(source) && points.length > 0
     ? [{
         label: `${variable.label} · ${label}`,
+        source,
         color: secondarySeriesColors[variable.value][source],
         points,
         markerShape: "circle",
@@ -306,12 +311,7 @@ const filterSeriesByPeriod = (
   }));
 };
 
-const formatLocalDateParam = (date: Date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
+const formatLocalDateParam = dateInChile;
 
 const getChartHistoryRange = (now: Date, period: ChartPeriod) => {
   const start = getPeriodStart(now, period);
@@ -336,7 +336,7 @@ const historyMetricByVariable: Record<WellMeasurementVariable, string> = {
 const getDailyTimestamp = (measurementDate: string) => {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(measurementDate);
   if (!match) return Number.NaN;
-  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12).getTime();
+  return Date.parse(toZonedDateTimeIso(measurementDate.slice(0, 10), "12:00:00") ?? "");
 };
 
 const toHistoryLinePoint = (
@@ -351,6 +351,7 @@ const toHistoryLinePoint = (
   if (value === null || value === undefined || !Number.isFinite(timestamp)) return [];
   return [{
     label: new Intl.DateTimeFormat("es-CL", {
+      timeZone: chileTimeZone,
       day: "2-digit",
       ...(resolution === "native" ? { hour: "2-digit", hourCycle: "h23" as const, minute: "2-digit" } : {}),
       month: "2-digit",
@@ -427,6 +428,9 @@ export function WellsMonitoringTab({
   wellRegistryEntries,
   wells,
 }: WellsMonitoringTabProps) {
+  const [chartBrush, setChartBrush] = useState<{ scope: string; range: LineChartBrushRange } | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [selectedChartPeriod, setSelectedChartPeriod] = useState<ChartPeriod>("7d");
   const historyRange = getChartHistoryRange(now, selectedChartPeriod);
   const historyResolution = getChartHistoryResolution(selectedChartPeriod);
@@ -590,9 +594,18 @@ export function WellsMonitoringTab({
       .filter((variable) => variable.value === selectedSecondaryVariable)
       .flatMap((variable) => toVariableChartSeries(chartWell, variable, selectedMeasurementSources))
     : [], selectedChartPeriod, now, chartResolution);
-  const selectedChartSeries = primaryChartSeries.length > 0
+  const selectedChartSeries = selectedLevelPoints.length > 0
     ? [...primaryChartSeries, ...secondaryChartSeries]
     : [];
+  // Scope the brush to both the selection and the delivered data. A new scope starts at full range.
+  const brushScope = JSON.stringify([
+    historyWellId, selectedChartPeriod, historyRange.start_date, historyRange.end_date,
+    selectedSecondaryVariable, selectedLevelConditions, selectedMeasurementSources,
+    isLoggedIn ? historyQuery.dataUpdatedAt : chartWell.measurementSeriesByVariable,
+  ]);
+  if (chartBrush && chartBrush.scope !== brushScope) setChartBrush(null);
+  const brushRange = chartBrush?.scope === brushScope ? chartBrush.range : undefined;
+  const exportRows = plottedWellRows(primaryChartSeries, secondaryChartSeries, brushRange);
   const chartLabelCount = new Set(
     selectedChartSeries.flatMap((item) => item.points.map((point) => point.label)),
   ).size;
@@ -812,6 +825,20 @@ export function WellsMonitoringTab({
         title={`Nivel freático y otras variables · ${selectedWell.name}`}
         subtitle="Profundidad en metros bajo el suelo; los valores mayores indican mayor profundidad."
       >
+        <button type="button" className="secondary-button" disabled={exporting || exportRows.length === 0 || (isLoggedIn && (historyQuery.isPending || historyQuery.isError))}
+          onClick={async () => {
+            setExporting(true);
+            setExportError(null);
+            try {
+              await downloadWorkbook(await createChartWorkbook(exportRows, secondaryAxisLabel),
+                chartExportFilename(selectedWell.name, secondaryAxisLabel ?? "Nivel", exportRows));
+            } catch {
+              setExportError("No pudimos preparar el archivo. Intenta descargarlo nuevamente.");
+            } finally { setExporting(false); }
+          }}>
+          {exporting ? "Preparando archivo…" : "Descargar datos"}
+        </button>
+        {exportError && <p role="alert">{exportError}</p>}
         <div className="well-chart-controls">
           <fieldset className="well-chart-variable-selector">
             <legend>Período</legend>
@@ -917,7 +944,9 @@ export function WellsMonitoringTab({
                 </p>
               )}
             <SimpleLineChart
-              key={`${historyWellId}-${selectedChartPeriod}-${historyRange.start_date ?? "all"}-${historyRange.end_date}`}
+              key={brushScope}
+              brushRange={brushRange}
+              onBrushRangeChange={(range) => setChartBrush({ scope: brushScope, range })}
               dotRadius={3.5}
               labelEvery={Math.max(1, Math.ceil(chartLabelCount / 18))}
               maxValue={maxSeriesValue}
