@@ -1,6 +1,7 @@
 import { apiFetch } from "../offline/apiFetch";
 import type { MeteoMeasurement, MeteoStationPoint } from "../data/mockupData";
 import { throwApiError } from "./apiError";
+import type { MeteoDerivedData } from "../features/meteo/types";
 
 type WeatherStationSnapshot = {
   etag?: string | null;
@@ -18,6 +19,7 @@ type WeatherStationApiPoint = {
   sourceType?: "telemetry";
   status?: "fresh" | "warning" | "stale";
   temperatureValue?: number | null;
+  derived?: MeteoDerivedData | null;
 };
 
 type WeatherStationApiMeasurement = {
@@ -73,6 +75,7 @@ export const mapSnapshotToStations = (snapshot: WeatherStationSnapshot): MeteoSt
       status: station.status ?? "stale",
       temperatureValue: finiteMetric(station.temperatureValue),
       measurements: (station.measurements ?? []).map(mapMeasurement),
+      derived: station.derived ?? null,
     }];
   });
 

@@ -166,7 +166,7 @@ test("prepared data and lazy tab assets survive an offline reload with an expire
   await expect(page.getByText("Sin conexión · Solo lectura", { exact: true })).toBeVisible();
   await expect(page.locator(".overview-card").first().locator(".recharts-line-curve")).toHaveCount(2);
   await expect(page.locator(".overview-card").last()).toContainText("23,0 °C");
-  await page.getByRole("button", { name: "Clima", exact: true }).click();
+  await page.getByRole("button", { name: "Meteo", exact: true }).click();
   await expect(page.getByText("Estación guardada").first()).toBeVisible();
   await page.getByRole("button", { name: "Pozos", exact: true }).click();
   await expect(page.getByText("Pozo guardado").first()).toBeVisible();
@@ -278,9 +278,9 @@ test("initial summary failures recover on the home page during preparation", asy
   offline = true;
   await context.setOffline(true);
   await page.evaluate(() => window.dispatchEvent(new Event("offline")));
-  await page.getByRole("button", { name: "Clima", exact: true }).click();
+  await page.getByRole("button", { name: "Meteo", exact: true }).click();
   await expect(page.getByText("Estación guardada").first()).toBeVisible();
-  await expect(page.getByText("Presión Sin datos hPa")).toBeVisible();
+  await expect(page.locator('[data-metric="atmospheric_pressure"] strong')).toHaveText("Sin datos");
 });
 
 test("missing climate data is reported as a partial copy", async ({ page, context }) => {
@@ -314,7 +314,7 @@ test("summary loading states do not display demo dates or stale-data warnings", 
   await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toBeVisible();
   await expect(cards.locator("small")).toHaveText(Array(4).fill(/Última actualización:.*2026/));
   await expect(cards.last()).toContainText("23,0 °C promedio de 1 estación");
-  await expect(cards.last()).toContainText("1 estación monitoreada");
+  await expect(cards.last()).toContainText("2 estaciones monitoreadas");
 });
 
 test("empty sector datasets are explained after preparation, online and offline", async ({ page, context }) => {
@@ -468,6 +468,36 @@ test("saved history presets survive a next-day offline reload and refresh on rec
   await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toBeVisible();
   await expect(chart.getByText(/Mostrando el período guardado/)).toHaveCount(0);
   await expect(chart.getByLabel("Hasta", { exact: true })).toHaveValue(nextEnd);
+});
+
+test("Meteo daily cards keep raw variables collapsed and reset at Chile midnight", async ({ page, context }) => {
+  await page.clock.install({ time: new Date("2026-09-01T03:59:50Z") });
+  await mockServices(context, () => false);
+  await context.route("**/api/v1/weather-stations/snapshot", (route) => route.fulfill({ json: {
+    generatedAt: "2026-09-01T03:55:00Z", stations: [{
+      id: "station-1", name: "San Francisco", lat: -27.3, lng: -70.5,
+      lastUpdate: "2026-09-01T03:55:00Z", temperatureValue: 21.9,
+      measurements: [{ measurementName: "Soil Temperature", sensorName: "TEROS 12", portNumber: 4, value: 18.5, unit: "°C", recordedAt: "2026-09-01T03:55:00Z" }],
+      derived: { date: "2026-08-31", partial: true, cadence_seconds: 300, available_from: "2026-05-09",
+        metrics: { air_temperature: { current: 21.9, min: 11, max: 25, mean: 18 }, relative_humidity: { current: 62.4 }, precipitation: { total: 0 }, wind: { mean: 0, direction: null } } },
+    }],
+  } }));
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Meteo", exact: true }).click();
+  const temperature = page.locator('[data-metric="air_temperature"]');
+  await expect(temperature).toContainText("21,9 °C");
+  await expect(temperature).toContainText("25 °C");
+  await expect(page.locator('[data-metric="relative_humidity"]')).toContainText("62 %");
+  await expect(page.locator('[data-metric="wind"]')).toContainText("Variable");
+  await expect(page.getByText("TEROS 12", { exact: true })).toBeHidden();
+  await page.getByText("Variables de la estación", { exact: true }).click();
+  await expect(page.getByText("TEROS 12", { exact: true })).toBeVisible();
+  await page.clock.fastForward(20_000);
+  await expect(temperature).not.toContainText("25 °C");
+  await expect(temperature).toContainText("21,9 °C");
+  await expect(page.locator('[data-metric="precipitation"] strong')).toHaveText("Sin datos");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: "test-results/meteo-daily-mobile.png", fullPage: true });
 });
 
 

@@ -2463,6 +2463,16 @@ select:focus-visible {
   line-height: 1.35;
 }
 
+.meteo-station-variables { margin: 0 14px 14px; }
+.meteo-station-variables > summary { cursor: pointer; font-weight: 600; padding: 12px 0; }
+.meteo-station-variables .meteo-measurement-grid { padding: 0; }
+.meteo-derived-card { min-width: 0; }
+.meteo-daily-statistics { margin: 12px 0 0; font-size: 11px; }
+.meteo-daily-statistics > div { display: flex; gap: 8px; justify-content: space-between; margin: 5px 0; }
+.meteo-daily-statistics dt { color: var(--muted); }
+.meteo-daily-statistics dd { margin: 0; text-align: right; }
+.meteo-daily-statistics > small { color: var(--muted); }
+
 .station-card-metrics {
   display: grid;
   gap: 6px;

@@ -752,6 +752,7 @@ export type MeteoMeasurement = {
 export type MeteoStationPoint = GeoPointBase & {
   measurements: MeteoMeasurement[];
   temperatureValue: number | null;
+  derived?: import("../features/meteo/types").MeteoDerivedData | null;
 };
 
 export type WaterQualityRecord = {
