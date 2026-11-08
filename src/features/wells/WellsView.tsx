@@ -4,6 +4,7 @@ import { fetchWritableWellIds, type WellRegistryEntry } from "../../services/wel
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "../../lib/queryKeys";
 import type { RemoteLoadStatus } from "../../types/remote";
+import type { MeasurementValidationReport } from "./measurementWorkbook";
 import { WellMeasurementIngestPanel } from "./WellMeasurementIngestPanel";
 import { WellRegistryAdminPanel } from "./WellRegistryAdminPanel";
 import type { WellMeasurementFormState, WellRegistryFormState } from "./wellsView.types";
@@ -32,6 +33,8 @@ export function WellsView({
   onWellRegistryUpdate,
   onWellMeasurementChange,
   onWellMeasurementCsvUpload,
+  onWellMeasurementValidationClear,
+  wellMeasurementValidationReport,
   onWellMeasurementSubmit,
   onSelectWell,
   selectedWellId,
@@ -65,6 +68,8 @@ export function WellsView({
     event: FormEvent<HTMLFormElement>,
   ) => Promise<void>;
   onWellMeasurementChange: (next: Partial<WellMeasurementFormState>) => void;
+  onWellMeasurementValidationClear: () => void;
+  wellMeasurementValidationReport: MeasurementValidationReport | null;
   onWellMeasurementCsvUpload: (file: File, fallbackWellId: string) => Promise<boolean>;
   onWellMeasurementSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onSelectWell: (wellId: string) => void;
@@ -182,6 +187,7 @@ export function WellsView({
         {wellsSubnav}
 
         <WellMeasurementIngestPanel
+          selectedWellId={selectedWellId}
           csvMessage={wellMeasurementCsvMessage}
           csvStatus={wellMeasurementCsvStatus}
           entries={writableEntries}
@@ -190,6 +196,8 @@ export function WellsView({
           message={wellMeasurementMessage}
           onChange={onWellMeasurementChange}
           onCsvUpload={onWellMeasurementCsvUpload}
+          onValidationClear={onWellMeasurementValidationClear}
+          validationReport={wellMeasurementValidationReport}
           onSubmit={onWellMeasurementSubmit}
         />
       </div>

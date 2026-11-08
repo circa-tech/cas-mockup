@@ -1,3 +1,4 @@
+import { normalizeMeasurementNumber } from "../features/wells/measurementNumbers";
 import { apiFetch } from "../offline/apiFetch";
 import type { LinePoint } from "../components/SimpleLineChart";
 import type { WellMapPoint, WellMeasurementVariable } from "../data/mockupData";
@@ -68,6 +69,9 @@ export type OwnerContact = {
 };
 
 type WellMeasurement = {
+  latestStaticLevel?: WellMapPoint["latestStaticLevel"];
+  latestDynamicLevel?: WellMapPoint["latestDynamicLevel"];
+  latestFlow?: WellMapPoint["latestFlow"];
   aquiferSector?: string | null;
   codigoObra?: string | null;
   createdAt?: string | null;
@@ -82,6 +86,8 @@ type WellMeasurement = {
 };
 
 export type WellRegistryEntry = {
+  titularName?: string | null;
+  titularRut?: string | null;
   active: boolean;
   aquiferSector?: string | null;
   authorizedFlowRate?: string | number | null;
@@ -127,6 +133,8 @@ export type WellRegistryEntry = {
 };
 
 export type CreateWellRegistryEntryPayload = {
+  titularName?: string | null;
+  titularRut?: string | null;
   aquiferSector?: string | null;
   casId: string;
   centroControlRut?: string | null;
@@ -196,7 +204,6 @@ export type WellWriter = {
 
 export type IngestWellMeasurementPayload = {
   wellId: string;
-  companyRut: string;
   conductivity: string | null;
   flowRate: string;
   isOperating: boolean | null;
@@ -501,8 +508,7 @@ const invalidateWells = (idToken: string | null) =>
 
 const toApiMeasurement = (payload: IngestWellMeasurementPayload) => ({
   credentials: {
-    companyRut: payload.companyRut,
-    userRut: payload.userRut,
+    userRut: payload.userRut.trim().replace(/[.\s-]/g, "").toUpperCase().replace(/(.+)(.)$/, "$1-$2"),
   },
   groundwaterMeasurement: {
     conductivity:
@@ -559,11 +565,10 @@ const requestWells = async (
 };
 
 const toDecimalString = (value: string): string => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    throw new Error("Los campos caudal y nivel freatico deben ser numeros positivos.");
-  }
-  return parsed.toFixed(2);
+  const normalized = normalizeMeasurementNumber(value);
+  if (normalized === null || normalized.startsWith("-")) throw new Error("Escribe un número mayor o igual a cero.");
+  if ((normalized.split(".")[1]?.length ?? 0) > 16383) throw new Error("El número supera el máximo de 16.383 decimales.");
+  return normalized;
 };
 
 const toIntegerString = (value: string): string => {
@@ -628,6 +633,9 @@ const mapMeasurementsToWells = (measurements: WellMeasurement[]): WellMapPoint[]
       provider: latest.provider ?? "Sin proveedor",
       aquiferSector: latest.aquiferSector ?? "Sin sector",
       dailyChange: toNumber(latest.dailyChange) ?? undefined,
+      latestStaticLevel: latest.latestStaticLevel,
+      latestDynamicLevel: latest.latestDynamicLevel,
+      latestFlow: latest.latestFlow,
       levelSeries: buildLevelSeries(sortedRows),
       measurementSeriesByVariable: buildMeasurementSeriesByVariable(sortedRows),
       status: "stale",

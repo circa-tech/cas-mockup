@@ -3,6 +3,7 @@ export class ApiRequestError extends Error {
     message: string,
     readonly status: number,
     readonly detail: string,
+    readonly rawDetail?: unknown,
   ) {
     super(message);
     this.name = "ApiRequestError";
@@ -11,9 +12,11 @@ export class ApiRequestError extends Error {
 
 export const throwApiError = async (response: Response, label: string): Promise<never> => {
   let detail = "";
+  let rawDetail: unknown;
 
   try {
     const payload = (await response.clone().json()) as { detail?: unknown };
+    rawDetail = payload.detail;
     if (typeof payload.detail === "string") {
       detail = payload.detail;
     } else if (Array.isArray(payload.detail)) {
@@ -38,5 +41,6 @@ export const throwApiError = async (response: Response, label: string): Promise<
     detail ? `${label}: ${detail}` : `${label} request failed: ${response.status}`,
     response.status,
     detail,
+    rawDetail,
   );
 };

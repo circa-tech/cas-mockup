@@ -2302,6 +2302,11 @@ select:focus-visible {
   gap: 14px;
 }
 
+.csv-upload-box > label {
+  display: grid;
+  gap: 6px;
+}
+
 .csv-upload-box {
   display: grid;
   gap: 12px;

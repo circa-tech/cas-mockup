@@ -90,6 +90,43 @@ async function signIn(page: Page, waitForReady = true) {
   if (waitForReady) await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toBeVisible({ timeout: 30_000 });
 }
 
+test("well chart keeps its secondary selection and labels both axes", async ({ page, context }) => {
+  await mockServices(context, () => false);
+  await context.route("**/api/v1/wells/groundwater-measurements", (route) => route.fulfill({ json:
+    [1, 2].map((id) => ({ wellId: `well-${id}`, name: `Pozo ${id}`, lat: -27.3, lng: -70.5,
+      groundwaterMeasurement: { measurementDate: "2026-10-09", measurementTime: "12:00:00",
+        waterTableDepth: 22, flowRate: id === 1 ? 3 : null, source: "api" } })),
+  }));
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => {
+    const wellId = new URL(route.request().url()).searchParams.get("wellId");
+    return route.fulfill({ json: { well_id: wellId, resolution: "native", points:
+      [8, 9].map((day) => ({ measurement_id: String(day), measurement_date: `2026-10-0${day}`,
+        measured_at: `2026-10-0${day}T12:00:00-03:00`, source: "api", water_level_condition: "dynamic",
+        values: { water_table_depth: 22 + day, flow_rate: wellId === "well-1" ? day : null, ph: 7 } })),
+    } });
+  });
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  const secondary = page.locator("fieldset").filter({ has: page.locator("legend", { hasText: "Variable del eje secundario" }) }).locator("select");
+  await expect(secondary).toHaveValue("flowRate");
+  await page.locator("select").filter({ has: page.locator('option[value="all"]') }).selectOption("all");
+  await expect(page.locator(".recharts-wrapper").getByText("Caudal (L/s)")).toBeVisible();
+  await expect(page.locator(".recharts-wrapper").getByText("Nivel freático (m)")).toBeVisible();
+  await secondary.selectOption("ph");
+  await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-2");
+  await expect(secondary).toHaveValue("ph");
+  await expect(page.locator(".recharts-wrapper").getByText("pH", { exact: true })).toBeVisible();
+  await secondary.selectOption("flowRate");
+  await expect(page.getByText("Sin datos de caudal en el período", { exact: true })).toBeVisible();
+  await secondary.selectOption("");
+  await expect(page.locator(".recharts-wrapper").getByText("Caudal (L/s)")).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-1");
+  await secondary.selectOption("flowRate");
+  await expect(page.locator(".recharts-wrapper").getByText("Caudal (L/s)")).toBeVisible();
+  await page.screenshot({ path: "test-results/well-chart-mobile.png", fullPage: true });
+});
+
 test("prepared data and lazy tab assets survive an offline reload with an expired token", async ({ page, context }) => {
   let offline = false;
   await mockServices(context, () => offline);
@@ -461,4 +498,356 @@ test("Meteo daily cards keep raw variables collapsed and reset at Chile midnight
   await expect(page.locator('[data-metric="precipitation"] strong')).toHaveText("Sin datos");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: "test-results/meteo-daily-mobile.png", fullPage: true });
+});
+
+
+test("chart download contains the plotted daily values and Chile dates", async ({ page, context }) => {
+  await mockServices(context, () => false);
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => route.fulfill({ json: {
+    well_id: "well-1", resolution: "daily", points: [{ measurement_id: "daily", measurement_date: "2026-10-09",
+      measured_at: "2026-10-09T21:00:00Z", source: "api", water_level_condition: "static",
+      values: { water_table_depth: 12.345, flow_rate: 0 }, count: { water_table_depth: 24, flow_rate: 24 } }],
+  } }));
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  await page.locator("select").filter({ has: page.locator('option[value="all"]') }).selectOption("all");
+  const pendingDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Descargar datos", exact: true }).click();
+  const download = await pendingDownload;
+  expect(download.suggestedFilename()).toMatch(/Pozo_Pozo_guardado_Caudal.*2026-10-09.*xlsx$/);
+  const ExcelJS = (await import("exceljs")).default;
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile((await download.path())!);
+  const sheet = workbook.worksheets[0];
+  expect(sheet.getCell("A2").value).toEqual(new Date("2026-10-09T12:00:00Z"));
+  expect(sheet.getCell("B2").value).toBe(12.345);
+  expect(sheet.getCell("C2").value).toBe("Estático");
+  expect(sheet.getCell("D2").value).toBe(0);
+  const secondary = page.locator("fieldset").filter({ has: page.locator("legend", { hasText: "Variable del eje secundario" }) }).locator("select");
+  await secondary.selectOption("");
+  const pendingPrimaryOnly = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Descargar datos", exact: true }).click();
+  const primaryOnly = new ExcelJS.Workbook();
+  await primaryOnly.xlsx.readFile((await (await pendingPrimaryOnly).path())!);
+  const primarySheet = primaryOnly.worksheets[0];
+  expect(primarySheet.columnCount).toBe(3);
+  expect(primarySheet.getRow(1).values).toEqual([undefined, "Fecha", "Nivel", "Tipo"]);
+  expect(primarySheet.getCell("B2").value).toBe(12.345);
+  expect(primarySheet.autoFilter).toBe("A1:C1");
+});
+
+test("titular is optional at the well and absent from measurements", async ({ page, context }) => {
+  await mockServices(context, () => false);
+  await context.route("**/api/v1/wells/admin/me", (route) => route.fulfill({ json: { canViewWells: true, canAddMeasurements: true, canCreateWells: true, canManageWells: true, canManageCas: false } }));
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => route.fulfill({ json: { well_id: "well-1", resolution: "native", points: [] } }));
+  let saved: Record<string, unknown> | null = null;
+  const registry = { id: "well-1", name: "Pozo guardado", codigoObra: null, casId: "cas-1", casCode: "CAS", casName: "CAS", lat: -27.3, lng: -70.5, active: true, utmEasting: 350000, utmNorthing: 6970000,
+    waterRights: [{ holderName: "Titular derecho", holderRut: "12345678-5", authorizedFlowRate: 2, authorizedVolume: 100 }], ownerContacts: [{ representative: "Contacto existente" }] };
+  await context.route("**/api/v1/wells/registry/mine", (route) => route.fulfill({ json: [registry] }));
+  await context.route("**/api/v1/wells/registry/writable", (route) => route.fulfill({ json: ["well-1"] }));
+  await context.route("**/api/v1/wells/cas/mine", (route) => route.fulfill({ json: [{ id: "cas-1", code: "CAS", name: "CAS", active: true }] }));
+  await context.route("**/api/v1/wells/registry/well-1", (route) => {
+    saved = route.request().postDataJSON();
+    return route.fulfill({ json: { ...registry, ...saved } });
+  });
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  await page.getByRole("tab", { name: "Agregar medición", exact: true }).click();
+  await expect(page.getByLabel(/^RUT de quien mide/)).toBeVisible();
+  await expect(page.getByText("RUT del titular *", { exact: true })).toHaveCount(0);
+  await page.getByRole("tab", { name: "Administrar pozos", exact: true }).click();
+  await page.getByRole("button", { name: "Editar pozo Pozo guardado" }).click();
+  await page.getByText("Datos opcionales", { exact: true }).click();
+  await page.locator("summary").filter({ hasText: /^Titular$/ }).click();
+  const rut = page.getByLabel("RUT del titular del pozo", { exact: true });
+  const name = page.getByLabel("Nombre o razón social", { exact: true });
+  await expect(name).toHaveValue("");
+  await rut.fill("12.345.678-9");
+  await page.getByRole("button", { name: "Guardar cambios", exact: true }).click();
+  await expect(page.getByText("El RUT ingresado no es válido. Revisa el número y el dígito verificador.", { exact: true })).toBeVisible();
+  expect(saved).toBeNull();
+  await rut.fill("12.345.678-5");
+  await page.getByRole("button", { name: "Guardar cambios", exact: true }).click();
+  await expect.poll(() => saved?.titularRut).toBe("12345678-5");
+  expect(saved?.titularName).toBeNull();
+  expect(saved?.ownerContacts).toEqual([{ representative: "Contacto existente", rut: null, email: null, phone: null }]);
+  expect(saved?.waterRights).toEqual(expect.arrayContaining([expect.objectContaining({ holderName: "Titular derecho", holderRut: "12345678-5" })]));
+});
+
+test("Excel import validates every row before one atomic submission", async ({ page, context }) => {
+  await mockServices(context, () => false);
+  const registry = { id: "well-1", name: "Pozo guardado", codigoObra: "OB-1", casId: "cas-1", casCode: "CAS", casName: "CAS", lat: -27.3, lng: -70.5, active: true };
+  await context.route("**/api/v1/wells/registry/mine", (route) => route.fulfill({ json: [registry] }));
+  await context.route("**/api/v1/wells/registry/writable", (route) => route.fulfill({ json: ["well-1"] }));
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => route.fulfill({ json: { well_id: "well-1", resolution: "native", points: [] } }));
+  const submissions: { measurements: { credentials: Record<string, string>; groundwaterMeasurement: Record<string, unknown> }[] }[] = [];
+  await context.route("**/api/v1/wells/groundwater-measurements/batch", (route) => {
+    submissions.push(route.request().postDataJSON());
+    return route.fulfill({ json: { insertedCount: 2, skippedCount: 0 } });
+  });
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  await page.getByRole("tab", { name: "Agregar medición", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Carga CSV", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Las mediciones se cargarán en el pozo Pozo guardado", { exact: true })).toBeVisible();
+  const pending = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Descargar planilla", exact: true }).click();
+  const download = await pending;
+  const ExcelJS = (await import("exceljs")).default;
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile((await download.path())!);
+  expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(["Mediciones", "Instrucciones"]);
+  const sheet = workbook.getWorksheet("Mediciones")!;
+  expect(sheet.getCell("A1").value).toBe("Fecha y hora *");
+  // Headers are tolerated when users change only capitalization/accents/asterisks.
+  sheet.getCell("C1").value = "  CAUDAL (L/s)  ";
+  sheet.getRow(3).values = [new Date("2026-01-01T10:30:00Z"), "12.345.678-5", "bad", 10, "ESTATICO", 123, 1, 20, 5, "No", "Primera"];
+  sheet.getRow(4).values = [new Date("2026-01-01T11:30:00Z"), "12.345.678-5", "0,00001", 20, "dinámico", 124, 1, 7, 5, "Sí", "Segunda"];
+  const upload = page.getByLabel("Planilla Excel de mediciones", { exact: true });
+  await upload.setInputFiles({ name: "mediciones.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(await workbook.xlsx.writeBuffer()) });
+  await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
+  const feedback = page.locator(".csv-upload-box [role=alert]");
+  await expect(feedback).toContainText("Fila 3, «Caudal (L/s)»");
+  await expect(feedback).toContainText("Fila 3, «pH»");
+  expect(submissions).toHaveLength(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: "test-results/excel-import-mobile.png", fullPage: true });
+  const validationDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true }).click();
+  const annotatedDownload = await validationDownload;
+  expect(annotatedDownload.suggestedFilename()).toBe("mediciones_con_validaciones.xlsx");
+  const corrected = new ExcelJS.Workbook();
+  await corrected.xlsx.readFile((await annotatedDownload.path())!);
+  const correctedSheet = corrected.getWorksheet("Mediciones")!;
+  expect(correctedSheet.getCell("L1").value).toBe("Notas de validación CAS");
+  expect(correctedSheet.getCell("L3").text).toContain("Caudal (L/s)");
+  expect(correctedSheet.getCell("L3").text).toContain("pH");
+  expect(correctedSheet.getCell("L4").value).toBeNull();
+  expect(correctedSheet.getCell("K3").value).toBe("Primera");
+  expect(correctedSheet.getCell("K4").value).toBe("Segunda");
+  correctedSheet.getCell("C3").value = "3,123456789123456789";
+  correctedSheet.getCell("H3").value = 7;
+  await upload.setInputFiles({ name: annotatedDownload.suggestedFilename(), mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(await corrected.xlsx.writeBuffer()) });
+  await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
+  await expect(page.getByText("Se cargaron 2 mediciones en el pozo Pozo guardado.", { exact: true })).toBeVisible();
+  expect(submissions).toHaveLength(1);
+  expect(submissions[0].measurements).toHaveLength(2);
+  expect(submissions[0].measurements[0].credentials).toEqual({ userRut: "12345678-5" });
+  expect(submissions[0].measurements[0].groundwaterMeasurement.flowRate).toBe("3.123456789123456789");
+  expect(submissions[0].measurements[1].groundwaterMeasurement.flowRate).toBe("0.00001");
+  expect(submissions[0].measurements[0].groundwaterMeasurement.waterLevelCondition).toBe("static");
+  expect(submissions[0].measurements[0].groundwaterMeasurement.observations).toBe("Primera");
+  expect(submissions[0].measurements[1].groundwaterMeasurement.observations).toBe("Segunda");
+  await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
+});
+
+test("well summary cards use complete history independently from chart filters", async ({ page, context }) => {
+  await mockServices(context, () => false);
+  await context.route("**/api/v1/wells/groundwater-measurements", (route) => route.fulfill({ json:
+    [1, 2].map((id) => ({ wellId: `well-${id}`, name: `Pozo ${id}`, lat: -27.3, lng: -70.5,
+      groundwaterMeasurement: { measurementDate: "2026-10-09", measurementTime: "12:00:00", waterTableDepth: 22, source: "api" },
+      dailyChange: 2,
+      latestStaticLevel: id === 1 ? { value: 0, measuredAt: "2025-01-01T12:00:00Z" } : null,
+      latestDynamicLevel: id === 1 ? { value: 31, measuredAt: "2026-10-09T12:00:00Z" } : null,
+      latestFlow: id === 1 ? { value: 0, measuredAt: "2026-10-09T12:00:00Z" } : null,
+    })),
+  }));
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => route.fulfill({ json: { well_id: "well-1", resolution: "native", points: [] } }));
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  const cards = page.locator(".detail-kpi-grid");
+  await expect(cards.locator("article")).toHaveCount(4);
+  await expect(cards.locator("article").nth(0)).toContainText("Nivel dinámico31,00 m");
+  await expect(cards.locator("article").nth(1)).toContainText("Nivel estático0,00 m");
+  await expect(cards.locator("article").nth(1).locator("time")).toHaveAttribute("datetime", "2025-01-01T12:00:00Z");
+  await expect(cards).not.toContainText("Profundidad del agua");
+  await page.locator("select").filter({ has: page.locator('option[value="all"]') }).selectOption("all");
+  await expect(cards.locator("article").nth(1)).toContainText("0,00 m");
+  await page.getByText("Todos los pozos", { exact: true }).click();
+  await expect(page.locator(".comparison-row").nth(0)).toContainText("Caudal0,00 L/s");
+  await expect(page.locator(".comparison-row").nth(1)).toContainText("CaudalSin dato");
+  await expect(page.locator(".comparison-list")).not.toContainText("Variación");
+  await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-2");
+  await expect(cards.getByText("Sin registros", { exact: true })).toHaveCount(2);
+});
+
+test("well chart explains flow outside the selected 24-hour window", async ({ page, context }) => {
+  await page.clock.setFixedTime(new Date("2026-10-09T16:00:00Z"));
+  await mockServices(context, () => false);
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => route.fulfill({ json: {
+    well_id: "well-1", resolution: "native", points: [
+      { measurement_id: "old", measurement_date: "2026-10-08", measured_at: "2026-10-08T04:00:00Z",
+        source: "api", water_level_condition: "dynamic", values: { water_table_depth: 20, flow_rate: 3 } },
+      { measurement_id: "recent", measurement_date: "2026-10-09", measured_at: "2026-10-09T15:00:00Z",
+        source: "api", water_level_condition: "unknown", values: { water_table_depth: 21, flow_rate: null } },
+    ],
+  } }));
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  await page.locator("select").filter({ has: page.locator('option[value="24h"]') }).selectOption("24h");
+  await expect(page.getByText("Sin datos de caudal en el período", { exact: true })).toBeVisible();
+});
+
+test("chart export follows the brush and includes secondary-only readings", async ({ page, context }) => {
+  await page.clock.setFixedTime(new Date("2026-10-09T16:00:00Z"));
+  await mockServices(context, () => false);
+  await context.route("**/api/v1/wells/groundwater-measurements", (route) => route.fulfill({ json:
+    [1, 2].map((id) => ({ wellId: `well-${id}`, name: `Pozo ${id}`, lat: -27.3, lng: -70.5,
+      groundwaterMeasurement: { measurementDate: "2026-10-09", measurementTime: "12:00:00", waterTableDepth: 22, source: "api" } })),
+  }));
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => {
+    const well = new URL(route.request().url()).searchParams.get("wellId");
+    const points = [1, 2, 3, 4, 5, 6].map((day) => ({ measurement_id: String(day), measurement_date: `2026-10-0${day}`,
+      measured_at: `2026-10-0${day}T15:00:00Z`, source: "api", water_level_condition: "dynamic",
+      values: { water_table_depth: well === "well-1" && [1, 4, 6].includes(day) ? day * 10 : null, flow_rate: day === 2 ? 0 : day, ph: day },
+    }));
+    points.push({ ...points[3], measurement_id: "manual", source: "manual", values: { water_table_depth: null, flow_rate: 9, ph: 9 } });
+    return route.fulfill({ json: { well_id: well, resolution: "daily", points } });
+  });
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  await page.locator("select").filter({ has: page.locator('option[value="all"]') }).selectOption("all");
+  const ExcelJS = (await import("exceljs")).default;
+  const readDownload = async () => {
+    const pending = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Descargar datos", exact: true }).click();
+    const download = await pending;
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile((await download.path())!);
+    return { sheet: workbook.worksheets[0], filename: download.suggestedFilename() };
+  };
+  const full = await readDownload();
+  expect(full.sheet.rowCount).toBe(8);
+  expect(full.sheet.getCell("B5").value).toBe(40);
+  expect(full.sheet.getCell("B6").value).toBeNull();
+  expect(full.sheet.getCell("D6").value).toBe(9);
+  expect(full.sheet.getCell("B3").value).toBeNull();
+  expect(full.sheet.getCell("C3").value).toBeNull();
+  expect(full.sheet.getCell("D3").value).toBe(0);
+  const narrowToSecondaryOnly = async () => {
+    const right = page.getByRole("slider").last();
+    for (let step = 0; step < 3; step++) {
+      const previous = await right.getAttribute("aria-valuenow");
+      await right.press("ArrowLeft");
+      await expect(right).not.toHaveAttribute("aria-valuenow", previous!);
+    }
+    const left = page.getByRole("slider").first();
+    const previous = await left.getAttribute("aria-valuenow");
+    await left.press("ArrowRight");
+    await expect(left).not.toHaveAttribute("aria-valuenow", previous!);
+  };
+  await narrowToSecondaryOnly();
+  const zoomed = await readDownload();
+  expect(zoomed.filename).toMatch(/2026-10-02_2026-10-03.xlsx$/);
+  expect(zoomed.sheet.rowCount).toBe(3);
+  expect(zoomed.sheet.getCell("B2").value).toBeNull();
+  expect(zoomed.sheet.getCell("C2").value).toBeNull();
+  expect(zoomed.sheet.getCell("D2").value).toBe(0);
+  expect(zoomed.sheet.getCell("B3").value).toBeNull();
+  expect(zoomed.sheet.getCell("C3").value).toBeNull();
+  expect(zoomed.sheet.getCell("D3").value).toBe(3);
+  const secondary = page.locator("fieldset").filter({ has: page.locator("legend", { hasText: "Variable del eje secundario" }) }).locator("select");
+  await secondary.selectOption("ph");
+  expect((await readDownload()).sheet.rowCount).toBe(8);
+  await secondary.selectOption("flowRate");
+  expect((await readDownload()).sheet.rowCount).toBe(8); // Returning to the old selection must not restore its old brush.
+  await narrowToSecondaryOnly();
+  const period = page.locator("select").filter({ has: page.locator('option[value="all"]') });
+  await period.selectOption("1m");
+  expect((await readDownload()).sheet.rowCount).toBe(8);
+  await period.selectOption("all");
+  expect((await readDownload()).sheet.rowCount).toBe(8);
+  await narrowToSecondaryOnly();
+  await page.getByText("Medición API y manual", { exact: true }).click();
+  await page.getByLabel("Medición manual", { exact: true }).uncheck();
+  expect((await readDownload()).sheet.rowCount).toBe(7);
+  await page.getByLabel("Medición manual", { exact: true }).check();
+  expect((await readDownload()).sheet.rowCount).toBe(8);
+  await narrowToSecondaryOnly();
+  await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-2");
+  await expect(page.getByText("No hay mediciones de nivel freático para los filtros seleccionados.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Descargar datos", exact: true })).toBeDisabled();
+  await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-1");
+  expect((await readDownload()).sheet.rowCount).toBe(8);
+});
+
+
+test("Excel validation download maps server rows and clears after source changes or system failures", async ({ page, context }) => {
+  await mockServices(context, () => false);
+  const registry = { id: "well-1", name: "Pozo guardado", codigoObra: "OB-1", casId: "cas-1", casCode: "CAS", casName: "CAS", lat: -27.3, lng: -70.5, active: true };
+  await context.route("**/api/v1/wells/registry/mine", (route) => route.fulfill({ json: [registry, { ...registry, id: "well-2", name: "Otro pozo", codigoObra: "OB-2" }] }));
+  await context.route("**/api/v1/wells/registry/writable", (route) => route.fulfill({ json: ["well-1", "well-2"] }));
+  await context.route("**/api/v1/wells/groundwater-measurements", (route) => route.fulfill({ json: [1, 2].map((id) => ({ wellId: `well-${id}`, name: `Pozo ${id}`, lat: -27.3, lng: -70.5,
+    groundwaterMeasurement: { measurementDate: "2026-10-09", measurementTime: "12:00:00", waterTableDepth: 22, source: "manual" } })) }));
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => route.fulfill({ json: { well_id: "well-1", resolution: "native", points: [] } }));
+  let submissions = 0;
+  let releaseLateError: (() => Promise<void>) | undefined;
+  await context.route("**/api/v1/wells/groundwater-measurements/batch", (route) => {
+    submissions++;
+    if (submissions === 4) return new Promise<void>((resolve) => {
+      releaseLateError = async () => {
+        await route.fulfill({ status: 422, json: { detail: { errors: [{ row: 1, field: "ph", code: "invalid" }], totalErrors: 1 } } });
+        resolve();
+      };
+    });
+    return submissions === 1
+      ? route.fulfill({ status: 422, json: { detail: { errors: [{ row: 2, field: "ph", code: "invalid" }], totalErrors: 60 } } })
+      : submissions === 2 ? route.fulfill({ status: 500, json: { detail: "Unavailable" } })
+      : route.fulfill({ json: { insertedCount: 2, skippedCount: 0 } });
+  });
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  await page.getByRole("tab", { name: "Agregar medición", exact: true }).click();
+  const ExcelJS = (await import("exceljs")).default;
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Mediciones");
+  sheet.addRow(["Fecha y hora", "RUT de quien mide", "Caudal", "Totalizador", "Observaciones", "pH"]);
+  sheet.getRow(3).values = ["01/01/2026 10:30", "12345678-5", 3, 100, "Primera", 7];
+  sheet.getRow(8).values = ["01/01/2026 11:30", "12345678-5", 4, 101, "Segunda", 7];
+  const upload = page.getByLabel("Planilla Excel de mediciones", { exact: true });
+  await upload.setInputFiles({ name: "mediciones.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(await workbook.xlsx.writeBuffer()) });
+  await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
+  await expect(page.locator(".csv-upload-box [role=alert]")).toContainText("Fila 8, «pH»");
+  await expect(page.getByText("El archivo incluye 1 de 60 errores", { exact: false })).toBeVisible();
+  const pending = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true }).click();
+  const download = await pending;
+  const annotated = new ExcelJS.Workbook();
+  await annotated.xlsx.readFile((await download.path())!);
+  const marked = annotated.getWorksheet("Mediciones")!;
+  expect(marked.getCell("G3").value).toBeNull();
+  expect(marked.getCell("G8").text).toContain("pH");
+  expect(marked.getCell("E8").value).toBe("Segunda");
+  expect(JSON.stringify(marked.getCell("G1").note)).toContain("60 errores");
+  expect(annotated.getWorksheet("Revisión de validación CAS")!.getCell("B3").text).toContain("60 errores");
+  await page.getByRole("tab", { name: "Monitoreo de pozos", exact: true }).click();
+  await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-2");
+  await page.getByRole("tab", { name: "Agregar medición", exact: true }).click();
+  await expect(page.getByLabel("Pozo para la carga", { exact: true })).toHaveValue("well-2");
+  await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
+  await page.getByLabel("Pozo para la carga", { exact: true }).selectOption("well-1");
+  marked.getCell("F8").value = 6.5;
+  await upload.setInputFiles({ name: "corregidas.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(await annotated.xlsx.writeBuffer()) });
+  await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
+  await expect(page.locator(".csv-upload-box [role=alert]")).toContainText("problema al confirmar la carga");
+  await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
+  await expect(page.getByText("Se cargaron 2 mediciones en el pozo Pozo guardado.", { exact: true })).toBeVisible();
+  expect(submissions).toBe(3);
+  await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
+  // An old request must not restore its errors after the monitoring well changes and the panel remounts.
+  await upload.setInputFiles({ name: "mediciones.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(await workbook.xlsx.writeBuffer()) });
+  await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
+  await expect.poll(() => Boolean(releaseLateError)).toBe(true);
+  await expect(page.getByLabel("Pozo para la carga", { exact: true })).toBeDisabled();
+  await page.getByRole("tab", { name: "Monitoreo de pozos", exact: true }).click();
+  await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-1");
+  await page.getByRole("tab", { name: "Agregar medición", exact: true }).click();
+  const lateResponse = page.waitForResponse("**/api/v1/wells/groundwater-measurements/batch");
+  await releaseLateError!();
+  await (await lateResponse).finished();
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await expect(page.locator(".csv-upload-box [role=alert]")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
 });
