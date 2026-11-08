@@ -451,7 +451,7 @@ export function WellsMonitoringTab({
     enabled: isLoggedIn && status === "ready" && Boolean(authIdToken && historyWellId && wells.length > 0),
     staleTime: 5 * 60 * 1000,
   });
-  const [selectedSecondaryVariable, setSelectedSecondaryVariable] = useState<WellMeasurementVariable | null>(null);
+  const [selectedSecondaryVariable, setSelectedSecondaryVariable] = useState<WellMeasurementVariable | null>("flowRate");
   const [selectedLevelConditions, setSelectedLevelConditions] = useState<SelectableLevelCondition[]>([
     "static", "dynamic", "unknown",
   ]);
@@ -579,6 +579,12 @@ export function WellsMonitoringTab({
     chartResolution === "daily",
   ), selectedChartPeriod, now, chartResolution);
   const selectedLevelPoints = primaryChartSeries.flatMap((series) => series.points);
+  const secondaryVariable = secondaryChartVariables.find(
+    (variable) => variable.value === selectedSecondaryVariable,
+  );
+  const secondaryAxisLabel = secondaryVariable
+    ? `${secondaryVariable.label}${secondaryVariable.unit ? ` (${secondaryVariable.unit})` : ""}`
+    : undefined;
   const secondaryChartSeries = filterSeriesByPeriod(selectedSecondaryVariable
     ? secondaryChartVariables
       .filter((variable) => variable.value === selectedSecondaryVariable)
@@ -717,10 +723,16 @@ export function WellsMonitoringTab({
           }
         >
           <div className="detail-kpi-grid">
-            <article className="detail-kpi">
-              <span>Profundidad del agua</span>
-              <strong>{formatMeters(getCurrentValue(selectedWell.levelSeries))}</strong>
-            </article>
+            {([
+              ["Nivel dinámico", selectedWell.latestDynamicLevel],
+              ["Nivel estático", selectedWell.latestStaticLevel],
+            ] as const).map(([label, reading]) => (
+              <article className="detail-kpi" key={label}>
+                <span>{label}</span>
+                <strong>{reading ? formatMeters(reading.value) : "Sin registros"}</strong>
+                {reading && <time dateTime={reading.measuredAt}>{new Intl.DateTimeFormat("es-CL", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(reading.measuredAt))}</time>}
+              </article>
+            ))}
             <article className="detail-kpi">
               <span>Desde la medición anterior</span>
               <strong>{dailyChangeDescription}</strong>
@@ -899,6 +911,11 @@ export function WellsMonitoringTab({
                   El período tiene muchos datos; se muestran promedios diarios.
                 </p>
               )}
+              {selectedSecondaryVariable === "flowRate" && secondaryChartSeries.every((series) => series.points.length === 0) && (
+                <p className="well-chart-resolution-note" role="status">
+                  Sin datos de caudal en el período
+                </p>
+              )}
             <SimpleLineChart
               key={`${historyWellId}-${selectedChartPeriod}-${historyRange.start_date ?? "all"}-${historyRange.end_date}`}
               dotRadius={3.5}
@@ -907,7 +924,8 @@ export function WellsMonitoringTab({
               minValue={minSeriesValue}
               mode="linear"
               primaryAxisReversed
-              primaryAxisLabel="Profundidad (m)"
+              primaryAxisLabel="Nivel freático (m)"
+              secondaryAxisLabel={secondaryAxisLabel}
               secondaryMaxValue={maxSecondaryValue}
               secondaryMinValue={minSecondaryValue}
               series={selectedChartSeries}
@@ -950,8 +968,8 @@ export function WellsMonitoringTab({
                 <div className="comparison-metrics">
                   <div><span>Profundidad</span><strong>{formatMeters(well.currentLevel)}</strong></div>
                   <div>
-                    <span>Variación</span>
-                    <strong>{well.dailyChange >= 0 ? "+" : ""}{formatMeters(well.dailyChange)}</strong>
+                    <span>Caudal</span>
+                    <strong>{well.latestFlow ? `${formatOptionalNumber(well.latestFlow.value, 2)} L/s` : "Sin dato"}</strong>
                   </div>
                 </div>
                 <MiniSparkline

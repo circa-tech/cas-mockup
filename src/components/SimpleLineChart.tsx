@@ -48,6 +48,7 @@ type SimpleLineChartProps = {
   showBrush?: boolean;
   secondaryMaxValue?: number;
   secondaryMinValue?: number;
+  secondaryAxisLabel?: string;
   unit: string;
   xLabelAngle?: number;
 };
@@ -104,6 +105,7 @@ export function SimpleLineChart({
   showBrush = false,
   secondaryMaxValue,
   secondaryMinValue,
+  secondaryAxisLabel,
   unit,
   xLabelAngle = 0,
 }: SimpleLineChartProps) {
@@ -179,7 +181,14 @@ export function SimpleLineChart({
                 tick={{ fill: "hsl(215 14% 50%)", fontSize: 11 }}
                 tickFormatter={(value: number) => value.toFixed(1)}
                 tickLine={false}
-                width={54}
+                width={secondaryAxisLabel ? 76 : 54}
+                label={secondaryAxisLabel ? {
+                  value: secondaryAxisLabel,
+                  angle: 90,
+                  position: "insideRight",
+                  dx: 5,
+                  style: { fill: "hsl(215 14% 50%)", fontSize: 11 },
+                } : undefined}
               />
             )}
             <Tooltip
