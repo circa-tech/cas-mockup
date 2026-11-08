@@ -612,6 +612,36 @@ test("Excel import validates every row before one atomic submission", async ({ p
   await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
 });
 
+test("well summary cards use complete history independently from chart filters", async ({ page, context }) => {
+  await mockServices(context, () => false);
+  await context.route("**/api/v1/wells/groundwater-measurements", (route) => route.fulfill({ json:
+    [1, 2].map((id) => ({ wellId: `well-${id}`, name: `Pozo ${id}`, lat: -27.3, lng: -70.5,
+      groundwaterMeasurement: { measurementDate: "2026-10-09", measurementTime: "12:00:00", waterTableDepth: 22, source: "api" },
+      dailyChange: 2,
+      latestStaticLevel: id === 1 ? { value: 0, measuredAt: "2025-01-01T12:00:00Z" } : null,
+      latestDynamicLevel: id === 1 ? { value: 31, measuredAt: "2026-10-09T12:00:00Z" } : null,
+      latestFlow: id === 1 ? { value: 0, measuredAt: "2026-10-09T12:00:00Z" } : null,
+    })),
+  }));
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => route.fulfill({ json: { well_id: "well-1", resolution: "native", points: [] } }));
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  const cards = page.locator(".detail-kpi-grid");
+  await expect(cards.locator("article")).toHaveCount(4);
+  await expect(cards.locator("article").nth(0)).toContainText("Nivel dinámico31,00 m");
+  await expect(cards.locator("article").nth(1)).toContainText("Nivel estático0,00 m");
+  await expect(cards.locator("article").nth(1).locator("time")).toHaveAttribute("datetime", "2025-01-01T12:00:00Z");
+  await expect(cards).not.toContainText("Profundidad del agua");
+  await page.locator("select").filter({ has: page.locator('option[value="all"]') }).selectOption("all");
+  await expect(cards.locator("article").nth(1)).toContainText("0,00 m");
+  await page.getByText("Todos los pozos", { exact: true }).click();
+  await expect(page.locator(".comparison-row").nth(0)).toContainText("Caudal0,00 L/s");
+  await expect(page.locator(".comparison-row").nth(1)).toContainText("CaudalSin dato");
+  await expect(page.locator(".comparison-list")).not.toContainText("Variación");
+  await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-2");
+  await expect(cards.getByText("Sin registros", { exact: true })).toHaveCount(2);
+});
+
 test("well chart explains flow outside the selected 24-hour window", async ({ page, context }) => {
   await page.clock.setFixedTime(new Date("2026-10-09T16:00:00Z"));
   await mockServices(context, () => false);

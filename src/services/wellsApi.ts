@@ -69,6 +69,9 @@ export type OwnerContact = {
 };
 
 type WellMeasurement = {
+  latestStaticLevel?: WellMapPoint["latestStaticLevel"];
+  latestDynamicLevel?: WellMapPoint["latestDynamicLevel"];
+  latestFlow?: WellMapPoint["latestFlow"];
   aquiferSector?: string | null;
   codigoObra?: string | null;
   createdAt?: string | null;
@@ -630,6 +633,9 @@ const mapMeasurementsToWells = (measurements: WellMeasurement[]): WellMapPoint[]
       provider: latest.provider ?? "Sin proveedor",
       aquiferSector: latest.aquiferSector ?? "Sin sector",
       dailyChange: toNumber(latest.dailyChange) ?? undefined,
+      latestStaticLevel: latest.latestStaticLevel,
+      latestDynamicLevel: latest.latestDynamicLevel,
+      latestFlow: latest.latestFlow,
       levelSeries: buildLevelSeries(sortedRows),
       measurementSeriesByVariable: buildMeasurementSeriesByVariable(sortedRows),
       status: "stale",
