@@ -719,7 +719,16 @@ export type WellMeasurementVariable =
   | "conductivity"
   | "totalizer";
 
+export type WellMetricReading = {
+  value: number;
+  measuredAt: string;
+  source?: "api" | "manual" | null;
+};
+
 export type WellMapPoint = GeoPointBase & {
+  latestStaticLevel?: WellMetricReading | null;
+  latestDynamicLevel?: WellMetricReading | null;
+  latestFlow?: WellMetricReading | null;
   aquiferSector: string;
   dailyChange?: number;
   levelSeries: LinePoint[];
