@@ -1,9 +1,10 @@
-import type { MeteoDerivedData } from "./types";
+import type { MeteoDerivedData, MeteoTrend } from "./types";
 import { currentDayMetric, formatMeteoValue, formatWindDirection, meteoMetrics } from "./metrics";
+import { MeteoTrendLine } from "./MeteoTrendLine";
 
 const labels: Record<string, string> = { mean: "Media", min: "Mínima", max: "Máxima", direction: "Dirección predominante" };
 
-export function MeteorologicalCards({ data, now }: { data?: MeteoDerivedData | null; now: Date }) {
+export function MeteorologicalCards({ data, trends, now }: { data?: MeteoDerivedData | null; trends?: Record<string, MeteoTrend>; now: Date }) {
   return <div className="meteo-measurement-grid" aria-label="Indicadores meteorológicos">
     {meteoMetrics.map((definition) => {
       const metric = currentDayMetric(data, definition.key, now);
@@ -21,6 +22,7 @@ export function MeteorologicalCards({ data, now }: { data?: MeteoDerivedData | n
           </div>)}
           <small>hasta ahora</small>
         </dl>}
+        <MeteoTrendLine series={trends?.[definition.key]} label={definition.label} now={now} decimals={definition.decimals} unit={definition.unit} />
       </article>;
     })}
   </div>;
