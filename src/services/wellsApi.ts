@@ -1,3 +1,4 @@
+import { normalizeMeasurementNumber } from "../features/wells/measurementNumbers";
 import { apiFetch } from "../offline/apiFetch";
 import type { LinePoint } from "../components/SimpleLineChart";
 import type { WellMapPoint, WellMeasurementVariable } from "../data/mockupData";
@@ -507,7 +508,7 @@ const invalidateWells = (idToken: string | null) =>
 
 const toApiMeasurement = (payload: IngestWellMeasurementPayload) => ({
   credentials: {
-    userRut: payload.userRut,
+    userRut: payload.userRut.trim().replace(/[.\s-]/g, "").toUpperCase().replace(/(.+)(.)$/, "$1-$2"),
   },
   groundwaterMeasurement: {
     conductivity:
@@ -564,11 +565,10 @@ const requestWells = async (
 };
 
 const toDecimalString = (value: string): string => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    throw new Error("Los campos caudal y nivel freatico deben ser numeros positivos.");
-  }
-  return parsed.toFixed(2);
+  const normalized = normalizeMeasurementNumber(value);
+  if (normalized === null || normalized.startsWith("-")) throw new Error("Escribe un número mayor o igual a cero.");
+  if ((normalized.split(".")[1]?.length ?? 0) > 16383) throw new Error("El número supera el máximo de 16.383 decimales.");
+  return normalized;
 };
 
 const toIntegerString = (value: string): string => {

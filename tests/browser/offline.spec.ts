@@ -544,6 +544,74 @@ test("titular is optional at the well and absent from measurements", async ({ pa
   expect(saved?.waterRights).toEqual(expect.arrayContaining([expect.objectContaining({ holderName: "Titular derecho", holderRut: "12345678-5" })]));
 });
 
+test("Excel import validates every row before one atomic submission", async ({ page, context }) => {
+  await mockServices(context, () => false);
+  const registry = { id: "well-1", name: "Pozo guardado", codigoObra: "OB-1", casId: "cas-1", casCode: "CAS", casName: "CAS", lat: -27.3, lng: -70.5, active: true };
+  await context.route("**/api/v1/wells/registry/mine", (route) => route.fulfill({ json: [registry] }));
+  await context.route("**/api/v1/wells/registry/writable", (route) => route.fulfill({ json: ["well-1"] }));
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => route.fulfill({ json: { well_id: "well-1", resolution: "native", points: [] } }));
+  const submissions: { measurements: { credentials: Record<string, string>; groundwaterMeasurement: Record<string, unknown> }[] }[] = [];
+  await context.route("**/api/v1/wells/groundwater-measurements/batch", (route) => {
+    submissions.push(route.request().postDataJSON());
+    return route.fulfill({ json: { insertedCount: 2, skippedCount: 0 } });
+  });
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  await page.getByRole("tab", { name: "Agregar medición", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Carga CSV", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Las mediciones se cargarán en el pozo Pozo guardado", { exact: true })).toBeVisible();
+  const pending = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Descargar planilla", exact: true }).click();
+  const download = await pending;
+  const ExcelJS = (await import("exceljs")).default;
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile((await download.path())!);
+  expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(["Mediciones", "Instrucciones"]);
+  const sheet = workbook.getWorksheet("Mediciones")!;
+  expect(sheet.getCell("A1").value).toBe("Fecha y hora *");
+  // Headers are tolerated when users change only capitalization/accents/asterisks.
+  sheet.getCell("C1").value = "  CAUDAL (L/s)  ";
+  sheet.getRow(3).values = [new Date("2026-01-01T10:30:00Z"), "12.345.678-5", "bad", 10, "ESTATICO", 123, 1, 20, 5, "No", "Primera"];
+  sheet.getRow(4).values = [new Date("2026-01-01T11:30:00Z"), "12.345.678-5", "0,00001", 20, "dinámico", 124, 1, 7, 5, "Sí", "Segunda"];
+  const upload = page.getByLabel("Planilla Excel de mediciones", { exact: true });
+  await upload.setInputFiles({ name: "mediciones.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(await workbook.xlsx.writeBuffer()) });
+  await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
+  const feedback = page.locator(".csv-upload-box [role=alert]");
+  await expect(feedback).toContainText("Fila 3, «Caudal (L/s)»");
+  await expect(feedback).toContainText("Fila 3, «pH»");
+  expect(submissions).toHaveLength(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: "test-results/excel-import-mobile.png", fullPage: true });
+  const validationDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true }).click();
+  const annotatedDownload = await validationDownload;
+  expect(annotatedDownload.suggestedFilename()).toBe("mediciones_con_validaciones.xlsx");
+  const corrected = new ExcelJS.Workbook();
+  await corrected.xlsx.readFile((await annotatedDownload.path())!);
+  const correctedSheet = corrected.getWorksheet("Mediciones")!;
+  expect(correctedSheet.getCell("L1").value).toBe("Notas de validación CAS");
+  expect(correctedSheet.getCell("L3").text).toContain("Caudal (L/s)");
+  expect(correctedSheet.getCell("L3").text).toContain("pH");
+  expect(correctedSheet.getCell("L4").value).toBeNull();
+  expect(correctedSheet.getCell("K3").value).toBe("Primera");
+  expect(correctedSheet.getCell("K4").value).toBe("Segunda");
+  correctedSheet.getCell("C3").value = "3,123456789123456789";
+  correctedSheet.getCell("H3").value = 7;
+  await upload.setInputFiles({ name: annotatedDownload.suggestedFilename(), mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(await corrected.xlsx.writeBuffer()) });
+  await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
+  await expect(page.getByText("Se cargaron 2 mediciones en el pozo Pozo guardado.", { exact: true })).toBeVisible();
+  expect(submissions).toHaveLength(1);
+  expect(submissions[0].measurements).toHaveLength(2);
+  expect(submissions[0].measurements[0].credentials).toEqual({ userRut: "12345678-5" });
+  expect(submissions[0].measurements[0].groundwaterMeasurement.flowRate).toBe("3.123456789123456789");
+  expect(submissions[0].measurements[1].groundwaterMeasurement.flowRate).toBe("0.00001");
+  expect(submissions[0].measurements[0].groundwaterMeasurement.waterLevelCondition).toBe("static");
+  expect(submissions[0].measurements[0].groundwaterMeasurement.observations).toBe("Primera");
+  expect(submissions[0].measurements[1].groundwaterMeasurement.observations).toBe("Segunda");
+  await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
+});
+
 test("well summary cards use complete history independently from chart filters", async ({ page, context }) => {
   await mockServices(context, () => false);
   await context.route("**/api/v1/wells/groundwater-measurements", (route) => route.fulfill({ json:
@@ -672,4 +740,84 @@ test("chart export follows the brush and includes secondary-only readings", asyn
   await expect(page.getByRole("button", { name: "Descargar datos", exact: true })).toBeDisabled();
   await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-1");
   expect((await readDownload()).sheet.rowCount).toBe(8);
+});
+
+
+test("Excel validation download maps server rows and clears after source changes or system failures", async ({ page, context }) => {
+  await mockServices(context, () => false);
+  const registry = { id: "well-1", name: "Pozo guardado", codigoObra: "OB-1", casId: "cas-1", casCode: "CAS", casName: "CAS", lat: -27.3, lng: -70.5, active: true };
+  await context.route("**/api/v1/wells/registry/mine", (route) => route.fulfill({ json: [registry, { ...registry, id: "well-2", name: "Otro pozo", codigoObra: "OB-2" }] }));
+  await context.route("**/api/v1/wells/registry/writable", (route) => route.fulfill({ json: ["well-1", "well-2"] }));
+  await context.route("**/api/v1/wells/groundwater-measurements", (route) => route.fulfill({ json: [1, 2].map((id) => ({ wellId: `well-${id}`, name: `Pozo ${id}`, lat: -27.3, lng: -70.5,
+    groundwaterMeasurement: { measurementDate: "2026-10-09", measurementTime: "12:00:00", waterTableDepth: 22, source: "manual" } })) }));
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => route.fulfill({ json: { well_id: "well-1", resolution: "native", points: [] } }));
+  let submissions = 0;
+  let releaseLateError: (() => Promise<void>) | undefined;
+  await context.route("**/api/v1/wells/groundwater-measurements/batch", (route) => {
+    submissions++;
+    if (submissions === 4) return new Promise<void>((resolve) => {
+      releaseLateError = async () => {
+        await route.fulfill({ status: 422, json: { detail: { errors: [{ row: 1, field: "ph", code: "invalid" }], totalErrors: 1 } } });
+        resolve();
+      };
+    });
+    return submissions === 1
+      ? route.fulfill({ status: 422, json: { detail: { errors: [{ row: 2, field: "ph", code: "invalid" }], totalErrors: 60 } } })
+      : submissions === 2 ? route.fulfill({ status: 500, json: { detail: "Unavailable" } })
+      : route.fulfill({ json: { insertedCount: 2, skippedCount: 0 } });
+  });
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  await page.getByRole("tab", { name: "Agregar medición", exact: true }).click();
+  const ExcelJS = (await import("exceljs")).default;
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Mediciones");
+  sheet.addRow(["Fecha y hora", "RUT de quien mide", "Caudal", "Totalizador", "Observaciones", "pH"]);
+  sheet.getRow(3).values = ["01/01/2026 10:30", "12345678-5", 3, 100, "Primera", 7];
+  sheet.getRow(8).values = ["01/01/2026 11:30", "12345678-5", 4, 101, "Segunda", 7];
+  const upload = page.getByLabel("Planilla Excel de mediciones", { exact: true });
+  await upload.setInputFiles({ name: "mediciones.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(await workbook.xlsx.writeBuffer()) });
+  await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
+  await expect(page.locator(".csv-upload-box [role=alert]")).toContainText("Fila 8, «pH»");
+  await expect(page.getByText("El archivo incluye 1 de 60 errores", { exact: false })).toBeVisible();
+  const pending = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true }).click();
+  const download = await pending;
+  const annotated = new ExcelJS.Workbook();
+  await annotated.xlsx.readFile((await download.path())!);
+  const marked = annotated.getWorksheet("Mediciones")!;
+  expect(marked.getCell("G3").value).toBeNull();
+  expect(marked.getCell("G8").text).toContain("pH");
+  expect(marked.getCell("E8").value).toBe("Segunda");
+  expect(JSON.stringify(marked.getCell("G1").note)).toContain("60 errores");
+  expect(annotated.getWorksheet("Revisión de validación CAS")!.getCell("B3").text).toContain("60 errores");
+  await page.getByRole("tab", { name: "Monitoreo de pozos", exact: true }).click();
+  await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-2");
+  await page.getByRole("tab", { name: "Agregar medición", exact: true }).click();
+  await expect(page.getByLabel("Pozo para la carga", { exact: true })).toHaveValue("well-2");
+  await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
+  await page.getByLabel("Pozo para la carga", { exact: true }).selectOption("well-1");
+  marked.getCell("F8").value = 6.5;
+  await upload.setInputFiles({ name: "corregidas.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(await annotated.xlsx.writeBuffer()) });
+  await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
+  await expect(page.locator(".csv-upload-box [role=alert]")).toContainText("problema al confirmar la carga");
+  await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
+  await expect(page.getByText("Se cargaron 2 mediciones en el pozo Pozo guardado.", { exact: true })).toBeVisible();
+  expect(submissions).toBe(3);
+  await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
+  // An old request must not restore its errors after the monitoring well changes and the panel remounts.
+  await upload.setInputFiles({ name: "mediciones.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(await workbook.xlsx.writeBuffer()) });
+  await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
+  await expect.poll(() => Boolean(releaseLateError)).toBe(true);
+  await expect(page.getByLabel("Pozo para la carga", { exact: true })).toBeDisabled();
+  await page.getByRole("tab", { name: "Monitoreo de pozos", exact: true }).click();
+  await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-1");
+  await page.getByRole("tab", { name: "Agregar medición", exact: true }).click();
+  const lateResponse = page.waitForResponse("**/api/v1/wells/groundwater-measurements/batch");
+  await releaseLateError!();
+  await (await lateResponse).finished();
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await expect(page.locator(".csv-upload-box [role=alert]")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
 });
