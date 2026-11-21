@@ -8,8 +8,8 @@ const tutorials = [
 ] as const;
 
 export function TutorialsView() {
-  const { online, networkUnavailable, session } = useOfflineState();
-  const unavailable = !online || networkUnavailable || Boolean(session && !session.idToken);
+  const { online } = useOfflineState();
+  const unavailable = !online;
   return (
     <div className="view-stack tutorials-view">
       <div className="view-intro">
