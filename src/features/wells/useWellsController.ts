@@ -284,9 +284,9 @@ export function useWellsController({
   const [wellMeasurementStatus, setWellMeasurementStatus] =
     useState<RemoteLoadStatus>("idle");
   const [wellMeasurementMessage, setWellMeasurementMessage] = useState<string | null>(null);
-  const [wellMeasurementCsvStatus, setWellMeasurementCsvStatus] =
+  const [wellMeasurementExcelStatus, setWellMeasurementExcelStatus] =
     useState<RemoteLoadStatus>("idle");
-  const [wellMeasurementCsvMessage, setWellMeasurementCsvMessage] =
+  const [wellMeasurementExcelMessage, setWellMeasurementExcelMessage] =
     useState<string | null>(null);
   const uploadGeneration = useRef(0);
   const [wellMeasurementValidationReport, setWellMeasurementValidationReport] = useState<MeasurementValidationReport | null>(null);
@@ -298,10 +298,10 @@ export function useWellsController({
   const clearWellMeasurementValidation = useCallback(() => {
     uploadGeneration.current++;
     setWellMeasurementValidationReport(null);
-    setWellMeasurementCsvMessage(null);
-    setWellMeasurementCsvStatus("idle");
+    setWellMeasurementExcelMessage(null);
+    setWellMeasurementExcelStatus("idle");
   }, []);
-  useEffect(clearWellMeasurementValidation, [authUid, selectedWellId, clearWellMeasurementValidation]);
+  useEffect(clearWellMeasurementValidation, [authUid, clearWellMeasurementValidation]);
 
   useEffect(() => {
     setWellCreationConnectionMessage(null);
@@ -532,40 +532,43 @@ export function useWellsController({
     }
   };
 
-  const handleWellMeasurementCsvUpload = async (file: File, fallbackWellId: string) => {
+  const handleWellMeasurementExcelUpload = async (file: File, uploadWellId: string) => {
     if (!authIdToken) return false;
+    const selectedWell = wellRegistryEntries.find((entry) => entry.id === uploadWellId);
     const generation = ++uploadGeneration.current;
     const isCurrentUpload = () => generation === uploadGeneration.current;
-    setWellMeasurementCsvStatus("loading");
-    setWellMeasurementCsvMessage(null);
+    setWellMeasurementExcelStatus("loading");
+    setWellMeasurementExcelMessage(null);
     setWellMeasurementValidationReport(null);
     let workbook: MeasurementValidationReport["workbook"] | undefined;
     let rowNumbers: number[] = [];
     try {
+      if (!uploadWellId) throw new Error("Selecciona un pozo para cargar las mediciones.");
       workbook = await readMeasurementFile(file);
       if (!isCurrentUpload()) return false;
       const writableIds = new Set(await fetchWritableWellIds(authIdToken));
       if (!isCurrentUpload()) return false;
-      const allowed = wellRegistryEntries.filter((entry) => writableIds.has(entry.id));
-      const parsed = parseMeasurementWorkbook(workbook, allowed, fallbackWellId);
+      if (!selectedWell || !writableIds.has(selectedWell.id)) {
+        throw new Error("El pozo seleccionado ya no está disponible para la carga. Actualiza la página y selecciona un pozo donde tengas permiso.");
+      }
+      const parsed = parseMeasurementWorkbook(workbook, wellRegistryEntries, selectedWell.id);
       rowNumbers = parsed.rowNumbers;
       const result = await ingestWellMeasurementsBatch(authIdToken, parsed.payloads);
       if (!isCurrentUpload()) return false;
-      setWellMeasurementCsvStatus("ready");
-      const wellName = allowed.find((well) => well.id === fallbackWellId)?.name;
-      setWellMeasurementCsvMessage(
-        `Se cargaron ${result.insertedCount} mediciones${wellName ? ` en el pozo ${wellName}` : ""}.${result.skippedCount ? ` ${result.skippedCount} ya estaban guardadas y no se duplicaron.` : ""}`,
+      setWellMeasurementExcelStatus("ready");
+      setWellMeasurementExcelMessage(
+        `Se cargaron ${result.insertedCount} mediciones en el pozo ${selectedWell.name}.${result.skippedCount ? ` ${result.skippedCount} ya estaban guardadas y no se duplicaron.` : ""}`,
       );
       // A failed summary refresh must not report a committed batch as unsuccessful.
       await refreshWells().catch(() => undefined);
       return isCurrentUpload();
     } catch (error) {
       if (!isCurrentUpload()) return false;
-      setWellMeasurementCsvStatus("error");
-      setWellMeasurementCsvMessage(workbookUploadErrorMessage(error, rowNumbers));
+      setWellMeasurementExcelStatus("error");
+      setWellMeasurementExcelMessage(workbookUploadErrorMessage(error, rowNumbers));
       const { issues, total } = workbookUploadIssues(error, rowNumbers);
-      if (workbook?.worksheets.some((sheet) => normalizeHeader(sheet.name) === "mediciones") && issues.length) {
-        setWellMeasurementValidationReport({ workbook, issues, total, filename: file.name, selectedWellId: fallbackWellId });
+      if (selectedWell && workbook?.worksheets.some((sheet) => normalizeHeader(sheet.name) === "mediciones") && issues.length) {
+        setWellMeasurementValidationReport({ workbook, issues, total, filename: file.name, selectedWell });
       }
       return false;
     }
@@ -574,7 +577,7 @@ export function useWellsController({
   return {
     handleWellMeasurementChange: (next: Partial<WellMeasurementFormState>) =>
       setWellMeasurementForm((previous) => ({ ...previous, ...next })),
-    handleWellMeasurementCsvUpload,
+    handleWellMeasurementExcelUpload,
     clearWellMeasurementValidation,
     handleWellMeasurementSubmit,
     handleWellRegistryChange: (next: Partial<WellRegistryFormState>) => {
@@ -589,8 +592,8 @@ export function useWellsController({
     selectedWellId,
     setSelectedWellId,
     wellMeasurementValidationReport,
-    wellMeasurementCsvMessage,
-    wellMeasurementCsvStatus,
+    wellMeasurementExcelMessage,
+    wellMeasurementExcelStatus,
     wellMeasurementForm,
     wellMeasurementMessage,
     wellMeasurementStatus,

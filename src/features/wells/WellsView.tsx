@@ -32,15 +32,15 @@ export function WellsView({
   onWellRegistrySubmit,
   onWellRegistryUpdate,
   onWellMeasurementChange,
-  onWellMeasurementCsvUpload,
+  onWellMeasurementExcelUpload,
   onWellMeasurementValidationClear,
   wellMeasurementValidationReport,
   onWellMeasurementSubmit,
   onSelectWell,
   selectedWellId,
   status,
-  wellMeasurementCsvMessage,
-  wellMeasurementCsvStatus,
+  wellMeasurementExcelMessage,
+  wellMeasurementExcelStatus,
   wellMeasurementForm,
   wellMeasurementMessage,
   wellMeasurementStatus,
@@ -71,13 +71,13 @@ export function WellsView({
   onWellMeasurementChange: (next: Partial<WellMeasurementFormState>) => void;
   onWellMeasurementValidationClear: () => void;
   wellMeasurementValidationReport: MeasurementValidationReport | null;
-  onWellMeasurementCsvUpload: (file: File, fallbackWellId: string) => Promise<boolean>;
+  onWellMeasurementExcelUpload: (file: File, uploadWellId: string) => Promise<boolean>;
   onWellMeasurementSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onSelectWell: (wellId: string) => void;
   selectedWellId: string;
   status: RemoteLoadStatus;
-  wellMeasurementCsvMessage: string | null;
-  wellMeasurementCsvStatus: RemoteLoadStatus;
+  wellMeasurementExcelMessage: string | null;
+  wellMeasurementExcelStatus: RemoteLoadStatus;
   wellMeasurementForm: WellMeasurementFormState;
   wellMeasurementMessage: string | null;
   wellMeasurementStatus: RemoteLoadStatus;
@@ -124,7 +124,10 @@ export function WellsView({
           role="tab"
           aria-selected={activeWellsTab === "measurement"}
           className={activeWellsTab === "measurement" ? "is-active" : ""}
-          onClick={() => setActiveWellsTab("measurement")}
+          onClick={() => {
+            if (activeWellsTab !== "measurement") onWellMeasurementValidationClear();
+            setActiveWellsTab("measurement");
+          }}
         >
           Agregar medición
         </button>
@@ -189,15 +192,14 @@ export function WellsView({
         {wellsSubnav}
 
         <WellMeasurementIngestPanel
-          selectedWellId={selectedWellId}
-          csvMessage={wellMeasurementCsvMessage}
-          csvStatus={wellMeasurementCsvStatus}
+          excelMessage={wellMeasurementExcelMessage}
+          excelStatus={wellMeasurementExcelStatus}
           entries={writableEntries}
           form={wellMeasurementForm}
           individualStatus={wellMeasurementStatus}
           message={wellMeasurementMessage}
           onChange={onWellMeasurementChange}
-          onCsvUpload={onWellMeasurementCsvUpload}
+          onExcelUpload={onWellMeasurementExcelUpload}
           onValidationClear={onWellMeasurementValidationClear}
           validationReport={wellMeasurementValidationReport}
           onSubmit={onWellMeasurementSubmit}

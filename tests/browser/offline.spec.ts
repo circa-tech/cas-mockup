@@ -577,10 +577,10 @@ test("titular is optional at the well and absent from measurements", async ({ pa
 test("Excel import validates every row before one atomic submission", async ({ page, context }) => {
   await mockServices(context, () => false);
   const registry = { id: "well-1", name: "Pozo guardado", codigoObra: "OB-1", casId: "cas-1", casCode: "CAS", casName: "CAS", lat: -27.3, lng: -70.5, active: true };
-  await context.route("**/api/v1/wells/registry/mine", (route) => route.fulfill({ json: [registry] }));
-  await context.route("**/api/v1/wells/registry/writable", (route) => route.fulfill({ json: ["well-1"] }));
+  await context.route("**/api/v1/wells/registry/mine", (route) => route.fulfill({ json: [registry, { ...registry, id: "well-2", name: "Otro pozo", codigoObra: "OB-2" }] }));
+  await context.route("**/api/v1/wells/registry/writable", (route) => route.fulfill({ json: ["well-1", "well-2"] }));
   await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => route.fulfill({ json: { well_id: "well-1", resolution: "native", points: [] } }));
-  const submissions: { measurements: { credentials: Record<string, string>; groundwaterMeasurement: Record<string, unknown> }[] }[] = [];
+  const submissions: { measurements: { wellId: string; credentials: Record<string, string>; groundwaterMeasurement: Record<string, unknown> }[] }[] = [];
   await context.route("**/api/v1/wells/groundwater-measurements/batch", (route) => {
     submissions.push(route.request().postDataJSON());
     return route.fulfill({ json: { insertedCount: 2, skippedCount: 0 } });
@@ -589,13 +589,32 @@ test("Excel import validates every row before one atomic submission", async ({ p
   await page.getByRole("button", { name: "Pozos", exact: true }).click();
   await page.getByRole("tab", { name: "Agregar medición", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Carga CSV", exact: true })).toHaveCount(0);
-  await expect(page.getByText("Las mediciones se cargarán en el pozo Pozo guardado", { exact: true })).toBeVisible();
-  const pending = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Descargar planilla", exact: true }).click();
-  const download = await pending;
+  const wellSelect = page.getByLabel("Pozo para la carga", { exact: true });
+  const upload = page.getByLabel("Planilla Excel de mediciones", { exact: true });
+  const downloadButton = page.getByRole("button", { name: "Descargar planilla", exact: true });
+  const submit = page.getByRole("button", { name: "Cargar mediciones", exact: true });
+  await expect(wellSelect.locator("option")).toHaveCount(3);
+  await expect(wellSelect.getByRole("option", { name: /varios pozos/i })).toHaveCount(0);
+  await expect(wellSelect).toHaveValue("");
+  await expect(downloadButton).toBeDisabled();
+  await expect(upload).toBeDisabled();
+  await expect(submit).toBeDisabled();
+
   const ExcelJS = (await import("exceljs")).default;
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile((await download.path())!);
+  const downloadTemplate = async (wellId: string, name: string) => {
+    await wellSelect.selectOption(wellId);
+    await expect(page.getByText(`Las mediciones se cargarán en el pozo ${name}`, { exact: true })).toBeVisible();
+    const pending = page.waitForEvent("download");
+    await downloadButton.click();
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile((await (await pending).path())!);
+    const instructions = workbook.getWorksheet("Instrucciones")!;
+    expect(instructions.getCell("A3").text).toBe(`Todas las mediciones se cargarán en el pozo ${name}.`);
+    expect(instructions.getColumn(1).values).not.toContain("Pozo");
+    return workbook;
+  };
+  await downloadTemplate("well-2", "Otro pozo");
+  const workbook = await downloadTemplate("well-1", "Pozo guardado");
   expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(["Mediciones", "Instrucciones"]);
   const sheet = workbook.getWorksheet("Mediciones")!;
   expect(sheet.getCell("A1").value).toBe("Fecha y hora *");
@@ -603,7 +622,6 @@ test("Excel import validates every row before one atomic submission", async ({ p
   sheet.getCell("C1").value = "  CAUDAL (L/s)  ";
   sheet.getRow(3).values = [new Date("2026-01-01T10:30:00Z"), "12.345.678-5", "bad", 10, "ESTATICO", 123, 1, 20, 5, "No", "Primera"];
   sheet.getRow(4).values = [new Date("2026-01-01T11:30:00Z"), "12.345.678-5", "0,00001", 20, "dinámico", 124, 1, 7, 5, "Sí", "Segunda"];
-  const upload = page.getByLabel("Planilla Excel de mediciones", { exact: true });
   await upload.setInputFiles({ name: "mediciones.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(await workbook.xlsx.writeBuffer()) });
   await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
   const feedback = page.locator(".csv-upload-box [role=alert]");
@@ -633,6 +651,7 @@ test("Excel import validates every row before one atomic submission", async ({ p
   await expect(page.getByText("Se cargaron 2 mediciones en el pozo Pozo guardado.", { exact: true })).toBeVisible();
   expect(submissions).toHaveLength(1);
   expect(submissions[0].measurements).toHaveLength(2);
+  expect(submissions[0].measurements.map((measurement) => measurement.wellId)).toEqual(["well-1", "well-1"]);
   expect(submissions[0].measurements[0].credentials).toEqual({ userRut: "12345678-5" });
   expect(submissions[0].measurements[0].groundwaterMeasurement.flowRate).toBe("3.123456789123456789");
   expect(submissions[0].measurements[1].groundwaterMeasurement.flowRate).toBe("0.00001");
@@ -640,6 +659,25 @@ test("Excel import validates every row before one atomic submission", async ({ p
   expect(submissions[0].measurements[0].groundwaterMeasurement.observations).toBe("Primera");
   expect(submissions[0].measurements[1].groundwaterMeasurement.observations).toBe("Segunda");
   await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
+
+  // Older multi-well files must never redirect rows or silently assign them to a different well.
+  correctedSheet.getCell("M1").value = "Pozo *";
+  const metadata = JSON.parse(corrected.description!);
+  metadata.example = JSON.stringify({ well: "Pozo guardado", ...JSON.parse(metadata.example) });
+  corrected.description = JSON.stringify(metadata);
+  correctedSheet.getCell("M2").value = "OB-2";
+  correctedSheet.getCell("M3").value = "OB-1";
+  correctedSheet.getCell("M4").value = "OB-1";
+  await upload.setInputFiles({ name: "planilla-antigua.xlsx", buffer: Buffer.from(await corrected.xlsx.writeBuffer()), mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  await submit.click();
+  await expect(feedback).toContainText("Fila 2, «Pozo *»");
+  await expect(feedback).toContainText("Descarga una planilla nueva y copia solo las mediciones");
+  expect(submissions).toHaveLength(1);
+
+  await wellSelect.selectOption("well-2");
+  await expect(page.getByText("planilla-antigua.xlsx", { exact: true })).toHaveCount(0);
+  await expect(feedback).toHaveCount(0);
+  await expect(submit).toBeDisabled();
 });
 
 test("Meteo daily cards keep raw variables collapsed and reset at Chile midnight", async ({ page, context }) => {
@@ -885,6 +923,8 @@ test("Excel validation download maps server rows and clears after source changes
   sheet.getRow(3).values = ["01/01/2026 10:30", "12345678-5", 3, 100, "Primera", 7];
   sheet.getRow(8).values = ["01/01/2026 11:30", "12345678-5", 4, 101, "Segunda", 7];
   const upload = page.getByLabel("Planilla Excel de mediciones", { exact: true });
+  const wellSelect = page.getByLabel("Pozo para la carga", { exact: true });
+  await wellSelect.selectOption("well-1");
   await upload.setInputFiles({ name: "mediciones.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(await workbook.xlsx.writeBuffer()) });
   await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
   await expect(page.locator(".csv-upload-box [role=alert]")).toContainText("Fila 8, «pH»");
@@ -903,7 +943,7 @@ test("Excel validation download maps server rows and clears after source changes
   await page.getByRole("tab", { name: "Monitoreo de pozos", exact: true }).click();
   await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-2");
   await page.getByRole("tab", { name: "Agregar medición", exact: true }).click();
-  await expect(page.getByLabel("Pozo para la carga", { exact: true })).toHaveValue("well-2");
+  await expect(wellSelect).toHaveValue("");
   await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
   await page.getByLabel("Pozo para la carga", { exact: true }).selectOption("well-1");
   marked.getCell("F8").value = 6.5;
@@ -915,7 +955,7 @@ test("Excel validation download maps server rows and clears after source changes
   await expect(page.getByText("Se cargaron 2 mediciones en el pozo Pozo guardado.", { exact: true })).toBeVisible();
   expect(submissions).toBe(3);
   await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
-  // An old request must not restore its errors after the monitoring well changes and the panel remounts.
+  // An old request must not restore its errors after the user leaves and reopens Excel import.
   await upload.setInputFiles({ name: "mediciones.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(await workbook.xlsx.writeBuffer()) });
   await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
   await expect.poll(() => Boolean(releaseLateError)).toBe(true);
