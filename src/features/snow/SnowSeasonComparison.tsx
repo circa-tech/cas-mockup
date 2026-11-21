@@ -266,9 +266,9 @@ function SeasonChart({
             <Brush
               className="snow-season-brush"
               dataKey="label"
-              fill="hsl(213 50% 97%)"
+              fill="var(--chart-range-fill)"
               height={26}
-              stroke="hsl(213 50% 75%)"
+              stroke="var(--chart-range-stroke)"
               travellerWidth={10}
               startIndex={visibleRange.startIndex}
               endIndex={visibleRange.endIndex}

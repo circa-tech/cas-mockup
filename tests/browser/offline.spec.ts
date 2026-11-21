@@ -742,7 +742,7 @@ test("chart download contains the plotted daily values and Chile dates", async (
   await page.getByRole("button", { name: "Pozos", exact: true }).click();
   await page.locator("select").filter({ has: page.locator('option[value="all"]') }).selectOption("all");
   const pendingDownload = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Descargar datos", exact: true }).click();
+  await page.getByRole("button", { name: "Descargar", exact: true }).click();
   const download = await pendingDownload;
   expect(download.suggestedFilename()).toMatch(/Pozo_Pozo_guardado_Caudal.*2026-10-09.*xlsx$/);
   const ExcelJS = (await import("exceljs")).default;
@@ -756,7 +756,7 @@ test("chart download contains the plotted daily values and Chile dates", async (
   const secondary = page.locator("fieldset").filter({ has: page.locator("legend", { hasText: "Variable del eje secundario" }) }).locator("select");
   await secondary.selectOption("");
   const pendingPrimaryOnly = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Descargar datos", exact: true }).click();
+  await page.getByRole("button", { name: "Descargar", exact: true }).click();
   const primaryOnly = new ExcelJS.Workbook();
   await primaryOnly.xlsx.readFile((await (await pendingPrimaryOnly).path())!);
   const primarySheet = primaryOnly.worksheets[0];
@@ -1058,7 +1058,7 @@ test("chart export follows the brush and includes secondary-only readings", asyn
   const ExcelJS = (await import("exceljs")).default;
   const readDownload = async () => {
     const pending = page.waitForEvent("download");
-    await page.getByRole("button", { name: "Descargar datos", exact: true }).click();
+    await page.getByRole("button", { name: "Descargar", exact: true }).click();
     const download = await pending;
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile((await download.path())!);
@@ -1072,6 +1072,34 @@ test("chart export follows the brush and includes secondary-only readings", asyn
   expect(full.sheet.getCell("B3").value).toBeNull();
   expect(full.sheet.getCell("C3").value).toBeNull();
   expect(full.sheet.getCell("D3").value).toBe(0);
+  const chart = page.locator(".well-chart-panel");
+  const brush = chart.locator(".recharts-brush");
+  const leftHandle = brush.getByRole("slider").first();
+  const rightHandle = brush.getByRole("slider").last();
+  const dragHorizontally = async (target: typeof leftHandle, offset: number) => {
+    await target.scrollIntoViewIfNeeded();
+    const box = (await target.boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + offset, y, { steps: 20 });
+    await page.mouse.up();
+  };
+  const start = (await leftHandle.boundingBox())!;
+  const end = (await rightHandle.boundingBox())!;
+  const step = (end.x - start.x) / 5;
+  const reset = chart.getByRole("button", { name: "Restablecer rango", exact: true });
+  await expect(reset).toBeDisabled();
+  await dragHorizontally(leftHandle, 2.25 * step);
+  expect((await readDownload()).filename).toMatch(/2026-10-03_2026-10-06.xlsx$/);
+  await dragHorizontally(rightHandle, -1.75 * step);
+  expect((await readDownload()).filename).toMatch(/2026-10-03_2026-10-04.xlsx$/);
+  await dragHorizontally(brush.locator(".recharts-brush-slide"), -1.75 * step);
+  expect((await readDownload()).filename).toMatch(/2026-10-01_2026-10-02.xlsx$/);
+  await reset.click();
+  await expect(reset).toBeDisabled();
+  expect((await readDownload()).sheet.rowCount).toBe(8);
   const narrowToSecondaryOnly = async () => {
     const right = page.getByRole("slider").last();
     for (let step = 0; step < 3; step++) {
@@ -1114,7 +1142,7 @@ test("chart export follows the brush and includes secondary-only readings", asyn
   await narrowToSecondaryOnly();
   await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-2");
   await expect(page.getByText("No hay mediciones de nivel freático para los filtros seleccionados.", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Descargar datos", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Descargar", exact: true })).toBeDisabled();
   await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-1");
   expect((await readDownload()).sheet.rowCount).toBe(8);
 });

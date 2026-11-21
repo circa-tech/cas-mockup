@@ -1,8 +1,8 @@
 import type { LineChartBrushRange } from "../../components/lineChartData";
 import { chartExportFilename, createChartWorkbook, plottedWellRows } from "./wellChartExport";
 import { downloadWorkbook } from "../../utils/workbook";
-import { Droplets, Gauge, Radio, Waves } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { Download, Gauge, Radio, Waves } from "lucide-react";
+import { type ReactNode, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { KpiCard } from "../../components/KpiCard";
 import { MiniSparkline } from "../../components/MiniSparkline";
@@ -81,18 +81,12 @@ const chartVariables: { value: WellMeasurementVariable; label: string; unit: str
 const secondaryChartVariables = chartVariables.filter(
   (variable) => variable.value !== "waterTableDepth",
 );
-const levelSeriesColors: Record<MeasurementSource, Record<SelectableLevelCondition, string>> = {
-  api: { static: "#1D4ED8", dynamic: "#0F766E", unknown: "#64748B" },
-  manual: { static: "#A16207", dynamic: "#BE123C", unknown: "#7C3AED" },
+const levelSeriesColors: Record<SelectableLevelCondition, string> = {
+  static: "#0072B2",
+  dynamic: "#B74700",
+  unknown: "#4B5563",
 };
-const secondarySeriesColors: Record<WellMeasurementVariable, Record<MeasurementSource, string>> = {
-  waterTableDepth: { api: "#1D4ED8", manual: "#A16207" },
-  flowRate: { api: "#15803D", manual: "#C2410C" },
-  pressure: { api: "#0369A1", manual: "#6B21A8" },
-  ph: { api: "#4338CA", manual: "#9D174D" },
-  conductivity: { api: "#3F6212", manual: "#B91C1C" },
-  totalizer: { api: "#475569", manual: "#713F12" },
-};
+const secondarySeriesColor = "#007A59";
 
 type ChartPeriod = "24h" | "7d" | "1m" | "3m" | "6m" | "1y" | "all";
 
@@ -204,9 +198,9 @@ const toLevelChartSeries = (
               ? `${label} · ${conditionLabel}`
               : `${label} · Nivel ${conditionLabel}`,
             source,
-            color: levelSeriesColors[source][condition],
+            color: levelSeriesColors[condition],
             points: conditionPoints,
-            markerShape: "circle",
+            markerShape: source === "manual" ? "square" : "circle",
             showDots: showDailyPoints,
             ...(strokeDasharray ? { strokeDasharray } : {}),
             unit: "m",
@@ -231,9 +225,10 @@ const toVariableChartSeries = (
     ? [{
         label: `${variable.label} · ${label}`,
         source,
-        color: secondarySeriesColors[variable.value][source],
+        color: secondarySeriesColor,
+        strokeDasharray: "10 3 2 3",
         points,
-        markerShape: "circle",
+        markerShape: source === "manual" ? "square" : "circle",
         unit: variable.unit,
         yAxisId: "secondary" as const,
         connectNulls: true,
@@ -475,10 +470,58 @@ export function WellsMonitoringTab({
       .map((condition) => condition.label)
       .join(", ") || "Ninguna condición";
 
+  const selectedWell = wells.find((well) => well.id === selectedWellId) ?? wells[0];
+  const chartResolution = isLoggedIn
+    ? historyQuery.data?.resolution ?? historyResolution
+    : "native";
+  const secondaryVariable = secondaryChartVariables.find(
+    (variable) => variable.value === selectedSecondaryVariable,
+  );
+  const secondaryAxisLabel = secondaryVariable
+    ? `${secondaryVariable.label}${secondaryVariable.unit ? ` (${secondaryVariable.unit})` : ""}`
+    : undefined;
+
+  // A new data array makes the Recharts brush reset its drag state.
+  // Keep these series stable when only the visible range changes.
+  const { primaryChartSeries, secondaryChartSeries, selectedLevelPoints, selectedChartSeries } = useMemo(() => {
+    const chartWell = !isLoggedIn || !selectedWell ? selectedWell : {
+      ...selectedWell,
+      measurementSeriesByVariable: buildHistoricalMeasurementSeries(
+        historyQuery.data?.points ?? [],
+        chartResolution,
+      ),
+    };
+    const primary = chartWell ? filterSeriesByPeriod(toLevelChartSeries(
+      chartWell,
+      selectedLevelConditions,
+      selectedMeasurementSources,
+      chartResolution === "daily",
+    ), selectedChartPeriod, now, chartResolution) : [];
+    const secondary = chartWell && secondaryVariable ? filterSeriesByPeriod(
+      toVariableChartSeries(chartWell, secondaryVariable, selectedMeasurementSources),
+      selectedChartPeriod, now, chartResolution,
+    ) : [];
+    const levelPoints = primary.flatMap((series) => series.points);
+    return {
+      primaryChartSeries: primary,
+      secondaryChartSeries: secondary,
+      selectedLevelPoints: levelPoints,
+      selectedChartSeries: levelPoints.length > 0 ? [...primary, ...secondary] : [],
+    };
+  }, [chartResolution, historyQuery.data, isLoggedIn, now, secondaryVariable, selectedChartPeriod,
+    selectedLevelConditions, selectedMeasurementSources, selectedWell]);
+
+  // A different selection or delivered history starts at full range.
+  const brushScope = JSON.stringify([
+    historyWellId, selectedChartPeriod, historyRange.start_date, historyRange.end_date,
+    selectedSecondaryVariable, selectedLevelConditions, selectedMeasurementSources,
+    isLoggedIn ? historyQuery.dataUpdatedAt : selectedWell?.measurementSeriesByVariable,
+  ]);
+
   if (isLoggedIn && (status === "loading" || status === "error" || wells.length === 0)) {
     const isLoading = status === "loading";
     return (
-      <div className="view-stack">
+      <div className="view-stack well-monitoring">
         <WellsIntro />
         {subnav}
         <Panel
@@ -499,9 +542,9 @@ export function WellsMonitoringTab({
     );
   }
 
-  if (wells.length === 0) {
+  if (!selectedWell) {
     return (
-      <div className="view-stack">
+      <div className="view-stack well-monitoring">
         <div className="view-intro">
           <h2>Pozos y calidad de agua</h2>
           <p>No hay pozos disponibles.</p>
@@ -510,16 +553,6 @@ export function WellsMonitoringTab({
     );
   }
 
-  const selectedWell = wells.find((well) => well.id === selectedWellId) ?? wells[0];
-  const chartWell = isLoggedIn
-    ? {
-        ...selectedWell,
-        measurementSeriesByVariable: buildHistoricalMeasurementSeries(
-          historyQuery.data?.points ?? [],
-          historyQuery.data?.resolution ?? "native",
-        ),
-      }
-    : selectedWell;
   const selectedWellRegistryEntry = wellRegistryEntries.find(
     (entry) => entry.id === selectedWell.id || entry.codigoObra === selectedWell.id,
   );
@@ -562,9 +595,6 @@ export function WellsMonitoringTab({
       (series) => (series?.manual.length ?? 0) > 0,
     ),
   ).length;
-  const waterAlerts = wells.filter(
-    (well) => waterByWell.get(well.id)?.qualityStatus === "alert",
-  ).length;
   const maxUpdate = wells.reduce((latest, well) => {
     if (!latest) {
       return well.lastUpdate;
@@ -573,36 +603,6 @@ export function WellsMonitoringTab({
       ? well.lastUpdate
       : latest;
   }, "");
-  const chartResolution = isLoggedIn
-    ? historyQuery.data?.resolution ?? historyResolution
-    : "native";
-  const primaryChartSeries = filterSeriesByPeriod(toLevelChartSeries(
-    chartWell,
-    selectedLevelConditions,
-    selectedMeasurementSources,
-    chartResolution === "daily",
-  ), selectedChartPeriod, now, chartResolution);
-  const selectedLevelPoints = primaryChartSeries.flatMap((series) => series.points);
-  const secondaryVariable = secondaryChartVariables.find(
-    (variable) => variable.value === selectedSecondaryVariable,
-  );
-  const secondaryAxisLabel = secondaryVariable
-    ? `${secondaryVariable.label}${secondaryVariable.unit ? ` (${secondaryVariable.unit})` : ""}`
-    : undefined;
-  const secondaryChartSeries = filterSeriesByPeriod(selectedSecondaryVariable
-    ? secondaryChartVariables
-      .filter((variable) => variable.value === selectedSecondaryVariable)
-      .flatMap((variable) => toVariableChartSeries(chartWell, variable, selectedMeasurementSources))
-    : [], selectedChartPeriod, now, chartResolution);
-  const selectedChartSeries = selectedLevelPoints.length > 0
-    ? [...primaryChartSeries, ...secondaryChartSeries]
-    : [];
-  // Scope the brush to both the selection and the delivered data. A new scope starts at full range.
-  const brushScope = JSON.stringify([
-    historyWellId, selectedChartPeriod, historyRange.start_date, historyRange.end_date,
-    selectedSecondaryVariable, selectedLevelConditions, selectedMeasurementSources,
-    isLoggedIn ? historyQuery.dataUpdatedAt : chartWell.measurementSeriesByVariable,
-  ]);
   if (chartBrush && chartBrush.scope !== brushScope) setChartBrush(null);
   const brushRange = chartBrush?.scope === brushScope ? chartBrush.range : undefined;
   const exportRows = plottedWellRows(primaryChartSeries, secondaryChartSeries, brushRange);
@@ -618,7 +618,7 @@ export function WellsMonitoringTab({
       ? `el agua bajó ${formatMeters(Math.abs(dailyChange))}`
       : "sin cambio";
   return (
-    <div className="view-stack">
+    <div className="view-stack well-monitoring">
       <WellsIntro />
       {subnav}
 
@@ -641,16 +641,6 @@ export function WellsMonitoringTab({
         />
         <KpiCard
           delayMs={160}
-          icon={Droplets}
-          title="Pozos con alerta de calidad"
-          value={String(waterAlerts)}
-          note={waterAlerts > 0
-            ? "Última muestra fuera del rango de referencia"
-            : "Sin muestras fuera del rango de referencia"}
-          noteTone={waterAlerts > 0 ? "negative" : "positive"}
-        />
-        <KpiCard
-          delayMs={240}
           icon={Gauge}
           title="Último dato recibido"
           value={formatShortDateTime(maxUpdate)}
@@ -824,20 +814,29 @@ export function WellsMonitoringTab({
         className="well-chart-panel"
         title={`Nivel freático y otras variables · ${selectedWell.name}`}
         subtitle="Profundidad en metros bajo el suelo; los valores mayores indican mayor profundidad."
+        actions={
+          <button
+            type="button"
+            className="well-chart-download"
+            disabled={exporting || exportRows.length === 0 || (isLoggedIn && (historyQuery.isPending || historyQuery.isError))}
+            onClick={async () => {
+              setExporting(true);
+              setExportError(null);
+              try {
+                await downloadWorkbook(await createChartWorkbook(exportRows, secondaryAxisLabel),
+                  chartExportFilename(selectedWell.name, secondaryAxisLabel ?? "Nivel", exportRows));
+              } catch {
+                setExportError("No pudimos preparar el archivo. Intenta descargarlo nuevamente.");
+              } finally {
+                setExporting(false);
+              }
+            }}
+          >
+            <Download size={16} aria-hidden="true" />
+            {exporting ? "Preparando archivo…" : "Descargar"}
+          </button>
+        }
       >
-        <button type="button" className="secondary-button" disabled={exporting || exportRows.length === 0 || (isLoggedIn && (historyQuery.isPending || historyQuery.isError))}
-          onClick={async () => {
-            setExporting(true);
-            setExportError(null);
-            try {
-              await downloadWorkbook(await createChartWorkbook(exportRows, secondaryAxisLabel),
-                chartExportFilename(selectedWell.name, secondaryAxisLabel ?? "Nivel", exportRows));
-            } catch {
-              setExportError("No pudimos preparar el archivo. Intenta descargarlo nuevamente.");
-            } finally { setExporting(false); }
-          }}>
-          {exporting ? "Preparando archivo…" : "Descargar datos"}
-        </button>
         {exportError && <p role="alert">{exportError}</p>}
         <div className="well-chart-controls">
           <fieldset className="well-chart-variable-selector">
