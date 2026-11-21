@@ -18,6 +18,7 @@ import type { RemoteLoadStatus } from "../../types/remote";
 
 
 import type { WellMeasurementFormState } from "./wellsView.types";
+import { MeasurementRecorderPicker, useMeasurementRecorderDirectory } from "./MeasurementRecorderPicker";
 
 const suggestedWaterLevelCondition = (isOperating: string) => {
   if (isOperating === "true") return "dynamic";
@@ -26,6 +27,8 @@ const suggestedWaterLevelCondition = (isOperating: string) => {
 };
 
 export function WellMeasurementIngestPanel({
+  authIdToken,
+  authUid,
   excelMessage,
   excelStatus,
   entries,
@@ -38,6 +41,8 @@ export function WellMeasurementIngestPanel({
   validationReport,
   onSubmit,
 }: {
+  authIdToken: string | null;
+  authUid: string | null;
   excelMessage: string | null;
   excelStatus: RemoteLoadStatus;
   entries: WellRegistryEntry[];
@@ -48,9 +53,10 @@ export function WellMeasurementIngestPanel({
   onValidationClear: () => void;
   validationReport: MeasurementValidationReport | null;
   onExcelUpload: (file: File, uploadWellId: string) => Promise<boolean>;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>, userRut: string) => void;
 }) {
   const hasRegistryEntries = entries.length > 0;
+  const directory = useMeasurementRecorderDirectory(authIdToken, authUid, hasRegistryEntries);
   const isMeasurementOperationLoading =
     individualStatus === "loading" || excelStatus === "loading";
   const [selectedExcelFile, setSelectedExcelFile] = useState<File | null>(null);
@@ -75,7 +81,12 @@ export function WellMeasurementIngestPanel({
       <Panel
         title="Medición individual"
       >
-        <form className="manual-entry-form measurement-entry-form" onSubmit={onSubmit}>
+        <form className="manual-entry-form measurement-entry-form" onSubmit={(event) => {
+          event.preventDefault();
+          if (directory.selectedRecorder && !isMeasurementOperationLoading) {
+            onSubmit(event, directory.selectedRecorder.rut);
+          }
+        }}>
           <div className="well-admin-intro">
             <span className="well-admin-intro-icon" aria-hidden="true"><ClipboardPlus size={22} /></span>
             <div>
@@ -110,21 +121,7 @@ export function WellMeasurementIngestPanel({
             <small className="field-help">Solo aparecen pozos donde tienes permiso de carga.</small>
           </label>
 
-          <div className="manual-two-col">
-            <label>
-              <span>RUT de quien mide *</span>
-              <input
-                type="text"
-                value={form.userRut}
-                placeholder="20999888-7"
-                onChange={(event) => onChange({ userRut: event.target.value })}
-                required
-              />
-              <small className="field-help">
-                RUT de la persona que hizo la medición.
-              </small>
-            </label>
-          </div>
+          <MeasurementRecorderPicker directory={directory} disabled={isMeasurementOperationLoading} />
 
           <div className="manual-two-col measurement-datetime-row">
             <label>
@@ -280,7 +277,7 @@ export function WellMeasurementIngestPanel({
           )}
           <button
             type="submit"
-            disabled={isMeasurementOperationLoading || !hasRegistryEntries}
+            disabled={isMeasurementOperationLoading || !hasRegistryEntries || !directory.selectedRecorder}
           >
             {individualStatus === "loading"
               ? "Guardando..."

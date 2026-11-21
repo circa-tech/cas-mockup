@@ -90,8 +90,10 @@ export async function fetchLiveResponse(
 
   const deniedResource = method === "GET" && canSaveResponse(url) &&
     [401, 403, 404].includes(response.status);
-  const changedResource = method !== "GET" && response.ok;
-  if (!manualCopy && (response.status === 401 || deniedResource || changedResource)) {
+  // The recorder directory contains personal data and has no offline representation.
+  const changesSnapshot = method !== "GET" && response.ok &&
+    new URL(url).pathname !== "/api/v1/wells/measurement-recorders";
+  if (!manualCopy && (response.status === 401 || deniedResource || changesSnapshot)) {
     const prefix = new URL(url).pathname.split("/").slice(0, 4).join("/");
     // The network response stays authoritative even if local storage is disabled.
     // Wait for deletion before the returning caller can switch to offline mode.

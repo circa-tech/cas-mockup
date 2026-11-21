@@ -72,7 +72,7 @@ export function WellsView({
   onWellMeasurementValidationClear: () => void;
   wellMeasurementValidationReport: MeasurementValidationReport | null;
   onWellMeasurementExcelUpload: (file: File, uploadWellId: string) => Promise<boolean>;
-  onWellMeasurementSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onWellMeasurementSubmit: (event: FormEvent<HTMLFormElement>, userRut: string) => void;
   onSelectWell: (wellId: string) => void;
   selectedWellId: string;
   status: RemoteLoadStatus;
@@ -192,6 +192,9 @@ export function WellsView({
         {wellsSubnav}
 
         <WellMeasurementIngestPanel
+          key={authUid}
+          authIdToken={authIdToken}
+          authUid={authUid}
           excelMessage={wellMeasurementExcelMessage}
           excelStatus={wellMeasurementExcelStatus}
           entries={writableEntries}

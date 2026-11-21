@@ -435,6 +435,31 @@ export const revokeCasMembership = async (
   await invalidateWells(idToken);
 };
 
+export type MeasurementRecorder = {
+  id: string;
+  name: string;
+  rut: string;
+};
+
+export const fetchMeasurementRecorders = async (
+  idToken: string,
+  signal: AbortSignal,
+): Promise<MeasurementRecorder[]> => {
+  const response = await requestWells("measurement-recorders", idToken, { signal });
+  return response.json();
+};
+
+export const createMeasurementRecorder = async (
+  idToken: string,
+  recorder: Pick<MeasurementRecorder, "name" | "rut">,
+): Promise<MeasurementRecorder> => {
+  const response = await requestWells("measurement-recorders", idToken, {
+    method: "POST",
+    body: JSON.stringify(recorder),
+  });
+  return response.json();
+};
+
 export const fetchWritableWellIds = async (idToken: string | null): Promise<string[]> => {
   const response = await requestWells("registry/writable", idToken);
   return response.json() as Promise<string[]>;

@@ -153,6 +153,22 @@ test("online changes invalidate saved responses so stale data cannot reappear of
   await assert.rejects(apiFetch(wells), OfflineDataUnavailableError);
 });
 
+test("registering a recorder keeps saved well measurements and never saves the directory", async () => {
+  const wells = "https://example.test/api/v1/wells/groundwater-measurements";
+  const directory = "https://example.test/api/v1/wells/measurement-recorders";
+  globalThis.fetch = async () => Response.json([]);
+  await seed(wells, await apiFetch(wells));
+  await apiFetch(directory);
+  await apiFetch(directory, { method: "POST" });
+  globalThis.fetch = async () => new Response(null, { status: 403 });
+  assert.equal((await apiFetch(directory)).status, 403);
+  assert.equal((await apiFetch(directory, { method: "POST" })).status, 403);
+  assert.equal((await listResponses()).length, 1);
+  updateOfflineState({ online: false });
+  assert.deepEqual(await (await apiFetch(wells)).json(), []);
+  await assert.rejects(apiFetch(directory), OfflineDataUnavailableError);
+});
+
 test("saved responses and offline sessions expire after seven days", async () => {
   globalThis.fetch = async () => Response.json({ value: 1 });
   await saveSession(session);
