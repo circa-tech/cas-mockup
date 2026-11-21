@@ -121,7 +121,7 @@ async function fetchResponse(url: string, init: RequestInit, cacheable: boolean)
     try { await saveResponse(entry, () => getOfflineState().generation === generation); }
     catch { updateOfflineState({ storageError: true }); }
     assertCurrent();
-  } else if (method !== "GET") {
+  } else if (method !== "GET" && new URL(url).pathname !== "/api/v1/wells/measurement-recorders") {
     const prefix = new URL(url).pathname.split("/").slice(0, 4).join("/");
     await invalidateResponses(scope, prefix).catch(() => updateOfflineState({ storageError: true }));
   }

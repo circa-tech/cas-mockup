@@ -3,11 +3,11 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 const uid = "offline-alice";
 const threadId = "b22f6858-e52a-4b33-91c7-8f0caf878682";
 const secondThreadId = "cdf4cfed-8a0a-473b-a5e3-f109f311e510";
-const token = () => {
+const token = (user = uid, role = "cas_user") => {
   const now = Math.floor(Date.now() / 1000);
   return [
     { alg: "none", typ: "JWT" },
-    { sub: uid, user_id: uid, iat: now, exp: now + 3600, auth_time: now, role: "cas_user", permissions: ["et:download"], firebase: { sign_in_provider: "password" } },
+    { sub: user, user_id: user, iat: now, exp: now + 3600, auth_time: now, role, permissions: ["et:download"], firebase: { sign_in_provider: "password" } },
   ].map((part) => Buffer.from(JSON.stringify(part)).toString("base64url")).join(".") + ".signature";
 };
 const geometry = { type: "Polygon", coordinates: [[[-70.6, -27.4], [-70.4, -27.4], [-70.4, -27.2], [-70.6, -27.2], [-70.6, -27.4]]] };
@@ -47,7 +47,7 @@ async function mockServices(context: BrowserContext, isOffline: () => boolean, f
     else if (path === "wells/groundwater-measurements") data = [{ wellId: "well-1", name: "Pozo guardado", lat: -27.3, lng: -70.5, groundwaterMeasurement: { measurementDate: "2026-10-09", measurementTime: "12:00:00", waterTableDepth: 22, flowRate: 3, source: "manual" } }];
     else if (path === "wells/admin/me") data = { canViewWells: true, canAddMeasurements: true, canManageCas: false, canCreateWells: true };
     else if (path.startsWith("wells/registry")) data = [];
-    else if (path === "wells/writable") data = [];
+    else if (path === "wells/writable" || path === "wells/measurement-recorders") data = [];
     else if (path === "et-lat/std-ae") data = { fecha: "2026-10-09", etr: 1.4, etmax: 2.6 };
     else if (["et-lat/serie-et", "et-lat/et-poly"].includes(path)) data = etSeries;
     else if (path === "et-lat/et-cult") data = [{ cultivo: "Parronales", etr: 1.4, etmax: 2.6 }];
@@ -81,10 +81,10 @@ async function mockServices(context: BrowserContext, isOffline: () => boolean, f
   });
 }
 
-async function signIn(page: Page, waitForReady = true) {
+async function signIn(page: Page, waitForReady = true, email = "alice@example.test") {
   await page.goto("./");
   await page.getByRole("button", { name: "Iniciar sesión", exact: true }).click();
-  await page.getByLabel("Correo electrónico").fill("alice@example.test");
+  await page.getByLabel("Correo electrónico").fill(email);
   await page.getByLabel("Contraseña", { exact: true }).fill("offline-test-password");
   await page.getByRole("button", { name: "Ingresar", exact: true }).click();
   if (waitForReady) await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toBeVisible({ timeout: 30_000 });
@@ -553,7 +553,7 @@ test("titular is optional at the well and absent from measurements", async ({ pa
   await signIn(page, false);
   await page.getByRole("button", { name: "Pozos", exact: true }).click();
   await page.getByRole("tab", { name: "Agregar medición", exact: true }).click();
-  await expect(page.getByLabel(/^RUT de quien mide/)).toBeVisible();
+  await expect(page.getByLabel("Registrado por *")).toBeVisible();
   await expect(page.getByText("RUT del titular *", { exact: true })).toHaveCount(0);
   await page.getByRole("tab", { name: "Administrar pozos", exact: true }).click();
   await page.getByRole("button", { name: "Editar pozo Pozo guardado" }).click();
@@ -969,4 +969,118 @@ test("Excel validation download maps server rows and clears after source changes
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   await expect(page.locator(".csv-upload-box [role=alert]")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
+});
+
+test("manual recorder directory shares entries and remembers each signed-in user's choice", async ({ page, context }) => {
+  await mockServices(context, () => false);
+  const entry = { id: "well-1", name: "Pozo guardado", codigoObra: "OB-1", casId: "cas-1",
+    casCode: "CAS", casName: "CAS", lat: -27.3, lng: -70.5, active: true };
+  await context.route("**/api/v1/wells/registry/mine", (route) => route.fulfill({ json: [entry] }));
+  await context.route("**/api/v1/wells/registry/writable", (route) => route.fulfill({ json: [entry.id] }));
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) =>
+    route.fulfill({ json: { well_id: entry.id, resolution: "native", points: [] } }),
+  );
+  let actor = "writer-a";
+  await context.route("https://identitytoolkit.googleapis.com/**", (route) => {
+    const identity = { localId: actor, email: `${actor}@example.test`, displayName: actor, emailVerified: true };
+    if (route.request().url().includes("accounts:lookup")) {
+      return route.fulfill({ json: { users: [{ ...identity, providerUserInfo: [{ providerId: "password" }] }] } });
+    }
+    return route.fulfill({ json: { ...identity, idToken: token(actor, "technical_admin"), refreshToken: "test-refresh", expiresIn: "3600", registered: true } });
+  });
+  await context.route("https://securetoken.googleapis.com/**", (route) => {
+    const refreshed = token(actor, "technical_admin");
+    return route.fulfill({ json: {
+      access_token: refreshed, id_token: refreshed, refresh_token: "test-refresh", expires_in: "3600",
+      user_id: actor, token_type: "Bearer", project_id: "offline-test",
+    } });
+  });
+  const people: Array<{ id: string; name: string; rut: string }> = [];
+  let registrations = 0;
+  await context.route("**/api/v1/wells/measurement-recorders", (route) => {
+    const bearer = route.request().headers().authorization!.replace("Bearer ", "");
+    expect(JSON.parse(Buffer.from(bearer.split(".")[1], "base64url").toString()).sub).toBe(actor);
+    if (route.request().method() === "GET") return route.fulfill({ json: people });
+    registrations++;
+    const { name, rut } = route.request().postDataJSON();
+    const existing = people.find((person) => person.rut === rut);
+    if (existing) return route.fulfill({ json: existing });
+    const created = { id: `recorder-${people.length + 1}`, name, rut };
+    people.push(created);
+    return route.fulfill({ json: created });
+  });
+  let submittedRut: string | undefined;
+  await context.route("**/api/v1/wells/groundwater-measurements", (route) => {
+    if (route.request().method() === "GET") return route.fallback();
+    submittedRut = route.request().postDataJSON().credentials.userRut;
+    return route.fulfill({ status: 201, json: {} });
+  });
+
+  const openEntry = async () => {
+    await page.getByRole("button", { name: "Pozos", exact: true }).click();
+    await page.getByRole("tab", { name: "Agregar medición", exact: true }).click();
+    await expect(page.getByLabel("Registrado por *")).toBeEnabled();
+  };
+  await signIn(page, false, `${actor}@example.test`);
+  await openEntry();
+  const recorder = page.getByLabel("Registrado por *");
+  const saveMeasurement = page.getByRole("button", { name: "Guardar medicion individual" });
+  await expect(recorder).toHaveValue("");
+  await expect(saveMeasurement).toBeDisabled();
+
+  const openAdd = async (name: string, rut: string) => {
+    await page.getByRole("button", { name: "+ Agregar persona", exact: true }).click();
+    const modal = page.getByRole("dialog", { name: "Agregar persona" });
+    await modal.getByLabel("Nombre", { exact: true }).fill(name);
+    await modal.getByLabel("RUT", { exact: true }).fill(rut);
+    return modal;
+  };
+  const invalid = await openAdd("Ana Pérez", "12.345.678-0");
+  await invalid.getByRole("button", { name: "Guardar persona" }).click();
+  await expect(invalid.getByRole("alert")).toContainText("dígito verificador");
+  expect(registrations).toBe(0);
+  await invalid.getByLabel("RUT", { exact: true }).fill("12.345.678-5");
+  await invalid.getByRole("button", { name: "Guardar persona" }).click();
+  await expect(recorder).toHaveValue("recorder-1");
+  await expect(recorder.locator("option:checked")).toHaveText("Ana Pérez · 12345678-5");
+
+  await page.getByRole("combobox", { name: /^Pozo \*/ }).selectOption(entry.id);
+  await page.getByLabel("Caudal *", { exact: true }).fill("2.5");
+  await page.getByLabel("Totalizador *", { exact: true }).fill("100");
+  await saveMeasurement.click();
+  await expect.poll(() => submittedRut).toBe("12345678-5");
+
+  await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Iniciar sesión", exact: true })).toBeVisible();
+  actor = "writer-b";
+  await signIn(page, false, `${actor}@example.test`);
+  await openEntry();
+  await expect(recorder).toHaveValue("");
+  const search = page.getByLabel("Buscar por nombre o RUT", { exact: true });
+  await search.fill("perez");
+  await expect(recorder.getByRole("option", { name: /Ana Pérez/ })).toHaveCount(1);
+  await search.fill("12.345.678");
+  await expect(recorder.getByRole("option", { name: /Ana Pérez/ })).toHaveCount(1);
+
+  const duplicate = await openAdd("Nombre alternativo", "123456785");
+  await duplicate.getByRole("button", { name: "Guardar persona" }).click();
+  await expect(recorder).toHaveValue("recorder-1");
+  await expect(recorder.locator("option:checked")).toHaveText("Ana Pérez · 12345678-5");
+
+  const second = await openAdd("Beatriz", "6.000.000-k");
+  await second.getByRole("button", { name: "Guardar persona" }).click();
+  await expect(recorder).toHaveValue("recorder-2");
+  expect(people).toHaveLength(2);
+
+  await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Iniciar sesión", exact: true })).toBeVisible();
+  actor = "writer-a";
+  await signIn(page, false, `${actor}@example.test`);
+  await openEntry();
+  await expect(recorder).toHaveValue("recorder-1");
+  await expect(recorder.getByRole("option", { name: "Beatriz · 6000000-K" })).toHaveCount(1);
+
+  await page.reload();
+  await openEntry();
+  await expect(recorder).toHaveValue("recorder-1");
 });

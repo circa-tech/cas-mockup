@@ -119,7 +119,6 @@ const emptyWellMeasurementForm = (): WellMeasurementFormState => ({
   ph: "",
   pressure: "",
   totalizer: "",
-  userRut: "",
   waterTableDepth: "",
   waterLevelCondition: "",
 });
@@ -479,14 +478,15 @@ export function useWellsController({
     }
   };
 
-  const handleWellMeasurementSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleWellMeasurementSubmit = async (event: FormEvent<HTMLFormElement>, userRut: string) => {
     event.preventDefault();
-    if (!authIdToken) return;
+    if (!authIdToken || !userRut) return;
     setWellMeasurementStatus("loading");
     setWellMeasurementMessage(null);
     try {
       await ingestWellMeasurement(authIdToken, {
         ...wellMeasurementForm,
+        userRut,
         conductivity: wellMeasurementForm.conductivity || null,
         isOperating:
           wellMeasurementForm.isOperating === ""
