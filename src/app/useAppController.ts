@@ -4,7 +4,7 @@ import { useWellsController } from "../features/wells/useWellsController";
 import { useAuthSession } from "./useAuthSession";
 import { useDashboardData } from "./useDashboardData";
 import { useOfflineState } from "../offline/state";
-import { useOfflinePreparation } from "../offline/prepare";
+import { useOfflineCopy } from "../offline/prepare";
 import { isFirebaseConfigured } from "../services/firebaseAuth";
 
 export function useAppController() {
@@ -20,11 +20,15 @@ export function useAppController() {
   const [appScreen, setAppScreen] = useState<"dashboard" | "login">("dashboard");
   const auth = useAuthSession();
   const offline = useOfflineState();
-  const readOnly = !offline.online || offline.networkUnavailable || !auth.authIdToken;
+  const [offlineMenuOpen, setOfflineMenuOpen] = useState(false);
+  const readOnly = !offline.online || !auth.authIdToken;
   const canManageUsers = auth.authPermissions.includes("users:manage") && !readOnly;
   const canDownloadEt = auth.authPermissions.includes("et:download");
-  const hasAuthenticatedApiSession = auth.authReady && auth.isLoggedIn && Boolean(auth.authUid);
-  useOfflinePreparation(hasAuthenticatedApiSession);
+  const signedIn = auth.authReady && auth.isLoggedIn && Boolean(auth.authUid);
+  useOfflineCopy(signedIn, offlineMenuOpen);
+  const hasAuthenticatedApiSession = signedIn && (offline.online
+    ? Boolean(auth.authIdToken)
+    : Boolean(offline.lastSync));
   const canViewCommunity =
     hasAuthenticatedApiSession &&
     ["cas_user", "technical_admin", "general_admin"].includes(auth.authRole);
@@ -101,6 +105,7 @@ export function useAppController() {
   };
   const handleLogout = async () => {
     await auth.logout();
+    setOfflineMenuOpen(false);
     finishLogin();
   };
 
@@ -108,7 +113,10 @@ export function useAppController() {
     activeView: visibleActiveView,
     authReady: auth.authReady,
     readOnly,
-    offlineAccessUnavailable: isFirebaseConfigured && !auth.isLoggedIn && !offline.online,
+    offlineAccessUnavailable: isFirebaseConfigured && !offline.online && (!signedIn || offline.copyChecked && !offline.lastSync),
+    offlineCopyLoading: isFirebaseConfigured && !offline.online && signedIn && !offline.copyChecked,
+    offlineMenuOpen,
+    setOfflineMenuOpen,
     appScreen,
     authIdToken: auth.authIdToken,
     authRole: auth.authRole,

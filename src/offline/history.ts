@@ -37,7 +37,7 @@ export async function fetchHistoryResponse(url: string, init: RequestInit, prese
   try {
     return await apiFetch(url, init);
   } catch (error) {
-    if (!(error instanceof OfflineDataUnavailableError) || preset === undefined) throw error;
+    if (!(error instanceof OfflineDataUnavailableError) || preset === undefined || getOfflineState().online) throw error;
     const entries = await listResponses().catch(() => {
       updateOfflineState({ storageError: true });
       return [];

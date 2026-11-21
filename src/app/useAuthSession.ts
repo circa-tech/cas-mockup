@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { queryClient } from "../lib/queryClient";
-import { clearSavedData, readSavedSession, saveSession } from "../offline/storage";
-import { getOfflineState, sessionScope, setOfflineSession, updateOfflineState } from "../offline/state";
+import { clearSavedData, hasOfflineDatabase, reconcileSavedIdentity } from "../offline/storage";
+import { getOfflineState, sessionScope, setOfflineSession } from "../offline/state";
 import {
   isFirebaseConfigured,
   signInWithEmailPassword,
@@ -37,8 +37,15 @@ export function useAuthSession() {
   const [authPermissions, setAuthPermissions] = useState<string[]>([]);
   const [authRole, setAuthRole] = useState("public_user");
   const [authUid, setAuthUid] = useState<string | null>(null);
-  const previousAuthUid = useRef<string | null>(null);
   const transition = useRef(0);
+  const copyCleanup = useRef<Promise<void>>();
+
+  const clearExistingCopy = () => {
+    copyCleanup.current ??= hasOfflineDatabase().then(async (exists) => {
+      if (exists) await clearSavedData();
+    }).catch(() => undefined).finally(() => { copyCleanup.current = undefined; });
+    return copyCleanup.current;
+  };
   const [authReady, setAuthReady] = useState(!isFirebaseConfigured);
 
   const applySession = async (session: AuthSession) => {
@@ -48,28 +55,25 @@ export function useAuthSession() {
       uid: session.uid, role: session.role, permissions: session.permissions,
       userName: session.userName, verifiedAt: session.verifiedAt ?? Date.now(),
     } : null;
-    const previous = session.uid ? await readSavedSession(session.uid).catch(() => undefined) : undefined;
-    if (revision !== transition.current) return;
-    const scopeChanged = getOfflineState().scope !== (saved ? sessionScope(saved) : "anonymous");
-    if (scopeChanged || !session.uid) {
+    const previous = getOfflineState().session;
+    const scope = saved ? sessionScope(saved) : "anonymous";
+    const scopeChanged = getOfflineState().scope !== scope;
+    if (scopeChanged) {
       setAuthReady(false);
       setOfflineSession(null);
+      if (previous && !session.verificationUnavailable) void clearExistingCopy();
       await queryClient.cancelQueries();
       queryClient.clear();
     }
-    if (revision !== transition.current) return;
-    if (!session.uid || (previousAuthUid.current && previousAuthUid.current !== session.uid) ||
-      (previous && saved && sessionScope(previous) !== sessionScope(saved))) {
-      await clearSavedData().catch(() => updateOfflineState({ storageError: true }));
-      try { window.localStorage.removeItem("cas_weather_stations_snapshot"); } catch { /* Legacy cache cleanup is best-effort. */ }
-    }
+    await copyCleanup.current;
     if (revision !== transition.current) return;
     setOfflineSession(saved ? { ...saved, idToken: session.idToken } : null);
-    if (saved && session.idToken && navigator.onLine) {
-      await saveSession(saved).catch(() => updateOfflineState({ storageError: true }));
+    if (scopeChanged && saved && session.idToken && navigator.onLine) {
+      // Reconcile existing legacy rows in the background without blocking
+      // healthy login or saving a private copy for new visitors.
+      const current = () => getOfflineState().scope === scope;
+      void reconcileSavedIdentity(saved.uid, scope, current).catch(() => undefined);
     }
-    if (revision !== transition.current) return;
-    previousAuthUid.current = session.uid;
     setIsLoggedIn(session.isLoggedIn);
     setAuthUserName(
       session.userName.trim().length > 0 ? session.userName : defaultAuthUserName,
@@ -103,6 +107,7 @@ export function useAuthSession() {
     applySession(await signInWithEmailPassword(email, password));
   const logout = async () => {
     await signOutFromGoogle();
+    await clearExistingCopy();
     await applySession({
       idToken: null,
       isConfigured: isFirebaseConfigured,
