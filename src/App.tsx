@@ -234,6 +234,7 @@ export default function App() {
               wellMeasurementForm={app.wellMeasurementForm}
               wellMeasurementMessage={app.wellMeasurementMessage}
               wellMeasurementStatus={app.wellMeasurementStatus}
+              wellCreationConnectionMessage={app.wellCreationConnectionMessage}
               wellRegistryEntries={app.wellRegistryEntries}
               wellRegistryForm={app.wellRegistryForm}
               wellRegistryMessage={app.wellRegistryMessage}
