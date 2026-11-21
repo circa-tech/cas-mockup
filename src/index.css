@@ -43,6 +43,8 @@
   --good: #2f8b57;
   --warning: #b87316;
   --danger: #bf4257;
+  --chart-range-fill: hsl(213 50% 97%);
+  --chart-range-stroke: hsl(213 50% 75%);
   --shadow-soft: 0 1px 2px rgba(15, 35, 65, 0.08);
   --shadow-hover: 0 8px 22px rgba(15, 35, 65, 0.14);
 }
@@ -772,18 +774,23 @@ select:focus-visible {
   background: hsl(210 30% 97%);
 }
 
-.snow-season-brush > rect {
+:is(.snow-season-brush, .well-chart-brush) > rect {
   rx: 6px;
   ry: 6px;
 }
 
-.snow-season-brush .recharts-brush-traveller rect {
+:is(.snow-season-brush, .well-chart-brush) .recharts-brush-traveller rect {
   rx: 5px;
   ry: 5px;
 }
 
-.snow-season-brush .recharts-brush-texts text {
+:is(.snow-season-brush, .well-chart-brush) .recharts-brush-texts text {
   font-size: 11px;
+}
+
+.well-chart-brush,
+.well-chart-brush rect {
+  touch-action: none;
 }
 
 @media (max-width: 760px) {
@@ -2520,6 +2527,11 @@ select:focus-visible {
   color: #2f8152;
 }
 
+.well-monitoring {
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .well-chart-controls {
   display: grid;
   grid-template-columns: minmax(165px, 0.9fr) minmax(180px, 1fr) minmax(230px, 1.4fr) minmax(220px, 1.25fr);
@@ -2535,6 +2547,25 @@ select:focus-visible {
 
 .well-chart-panel:focus-within {
   z-index: 10;
+}
+
+.well-chart-panel > .panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.well-chart-range-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-bottom: 8px;
+}
+
+.well-chart-range-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .well-chart-plot-area {
@@ -2846,6 +2877,11 @@ select:focus-visible {
 @media (max-width: 760px) {
   .well-chart-controls {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .well-monitoring .snow-subnav button {
+    min-width: 0;
+    white-space: normal;
   }
 }
 
@@ -4438,8 +4474,8 @@ body {
   font-size: 13px;
 }
 
-.etr-download-form button {
-  margin-top: 4px;
+.etr-download-form button,
+.well-chart-download {
   min-height: 44px;
   border: 0;
   border-radius: 8px;
@@ -4448,6 +4484,26 @@ body {
   font-weight: 620;
   cursor: pointer;
   box-shadow: 0 8px 18px rgba(21, 102, 186, 0.24);
+}
+
+.etr-download-form button {
+  margin-top: 4px;
+}
+
+.well-chart-download {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--chart-range-stroke);
+  background: linear-gradient(180deg, var(--chart-range-fill), var(--chart-range-stroke));
+  color: var(--text);
+}
+
+.well-chart-download:disabled {
+  opacity: .65;
+  cursor: default;
 }
 
 .etr-download-form button:disabled {
