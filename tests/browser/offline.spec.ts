@@ -768,6 +768,8 @@ test("well chart explains flow outside the selected 24-hour window", async ({ pa
   await expect(page.getByText("Sin datos de caudal en el período", { exact: true })).toBeVisible();
 });
 
+test.describe("Wells platform verification", () => {
+  test.use({ serviceWorkers: "block" });
 test("chart export follows the brush and includes secondary-only readings", async ({ page, context }) => {
   await page.clock.setFixedTime(new Date("2026-10-09T16:00:00Z"));
   await mockServices(context, () => false);
@@ -877,6 +879,8 @@ test("chart export follows the brush and includes secondary-only readings", asyn
   await expect(page.getByRole("button", { name: "Descargar", exact: true })).toBeDisabled();
   await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-1");
   expect((await readDownload()).sheet.rowCount).toBe(8);
+});
+
 });
 
 
