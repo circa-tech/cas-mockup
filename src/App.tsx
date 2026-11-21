@@ -223,14 +223,14 @@ export default function App() {
               onWellMeasurementChange={app.handleWellMeasurementChange}
               onWellMeasurementValidationClear={app.clearWellMeasurementValidation}
               wellMeasurementValidationReport={app.wellMeasurementValidationReport}
-              onWellMeasurementCsvUpload={app.handleWellMeasurementCsvUpload}
+              onWellMeasurementExcelUpload={app.handleWellMeasurementExcelUpload}
               onWellMeasurementSubmit={app.handleWellMeasurementSubmit}
               onSelectWell={app.setSelectedWellId}
               selectedWellId={app.selectedWellId}
               status={app.wellsStatus}
               errorMessage={app.wellsErrorMessage}
-              wellMeasurementCsvMessage={app.wellMeasurementCsvMessage}
-              wellMeasurementCsvStatus={app.wellMeasurementCsvStatus}
+              wellMeasurementExcelMessage={app.wellMeasurementExcelMessage}
+              wellMeasurementExcelStatus={app.wellMeasurementExcelStatus}
               wellMeasurementForm={app.wellMeasurementForm}
               wellMeasurementMessage={app.wellMeasurementMessage}
               wellMeasurementStatus={app.wellMeasurementStatus}
