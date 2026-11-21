@@ -47,6 +47,7 @@ export function WellsView({
   wellRegistryEntries,
   wellRegistryForm,
   wellRegistryMessage,
+  wellCreationConnectionMessage,
   wellRegistryStatus,
   wells,
 }: {
@@ -83,6 +84,7 @@ export function WellsView({
   wellRegistryEntries: WellRegistryEntry[];
   wellRegistryForm: WellRegistryFormState;
   wellRegistryMessage: string | null;
+  wellCreationConnectionMessage: string | null;
   wellRegistryStatus: RemoteLoadStatus;
   wells: WellMapPoint[];
 }) {
@@ -213,7 +215,14 @@ export function WellsView({
       onSelectWell={onSelectWell}
       selectedWellId={selectedWellId}
       status={status}
-      subnav={wellsSubnav}
+      subnav={(
+        <>
+          {wellsSubnav}
+          {wellCreationConnectionMessage && (
+            <p className="form-feedback is-error" role="alert">{wellCreationConnectionMessage}</p>
+          )}
+        </>
+      )}
       wellRegistryEntries={wellRegistryEntries}
       wells={wells}
     />

@@ -930,3 +930,98 @@ test("Excel validation download maps server rows and clears after source changes
   await expect(page.locator(".csv-upload-box [role=alert]")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
 });
+
+test("well creation shows distinct diagnostics for API responses and a missing response", async ({ page, context }) => {
+  await mockServices(context, () => false);
+  await context.route("**/api/v1/wells/cas/mine", (route) => route.fulfill({ json: [{ id: "cas-1", code: "CAS", name: "Comunidad de prueba", active: true }] }));
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => route.fulfill({ json: { well_id: "well-1", resolution: "native", points: [] } }));
+
+  type DiagnosticLog = { diagnosticId: string; method: string; route: string; status: number | null; cause: string };
+  const logs: DiagnosticLog[] = [];
+  page.on("console", async (message) => {
+    if (message.type() === "warning" && message.text().startsWith("well_creation")) {
+      logs.push(await message.args()[1].jsonValue() as DiagnosticLog);
+    }
+  });
+  const diagnostics: string[] = [];
+  const outcomes = [401, 403, 409, 422, 503, 201, null];
+  await context.route("**/api/v1/wells/registry", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    const diagnosticId = (await route.request().allHeaders())["x-diagnostic-id"];
+    expect(diagnosticId).toMatch(/^[a-f0-9-]{36}$/);
+    const outcome = outcomes[diagnostics.length];
+    diagnostics.push(diagnosticId);
+    if (outcome === null) return route.abort("failed");
+    return route.fulfill({
+      status: outcome,
+      headers: { "X-Diagnostic-ID": diagnosticId },
+      json: outcome === 201
+        ? { id: "well-2", name: "Pozo de prueba", casCode: "CAS", casName: "Comunidad de prueba" }
+        : { detail: outcome === 422
+          ? [
+            { loc: ["body", "lat"], msg: "raw confidential detail", type: "float_parsing" },
+            { loc: ["body", "waterRights", 0, "authorizedVolume"], msg: "raw confidential detail", type: "decimal_parsing" },
+          ]
+          : "raw confidential detail" },
+    });
+  });
+
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  await page.getByRole("tab", { name: "Administrar pozos", exact: true }).click();
+  const form = page.locator(".registry-editor-form");
+  const submit = form.getByRole("button", { name: "Crear pozo", exact: true });
+  await expect(form.getByRole("combobox", { name: "CAS *", exact: true })).toHaveValue("cas-1");
+  const fillRequired = async () => {
+    await form.getByLabel("Nombre *", { exact: true }).fill("Pozo de prueba");
+    await form.getByLabel("Código de obra (opcional)", { exact: true }).fill("OB-1");
+    await form.getByLabel("Latitud *", { exact: true }).fill("-27.3");
+    await form.getByLabel("Longitud *", { exact: true }).fill("-70.5");
+    await form.getByLabel("Caudal autorizado (L/s) *", { exact: true }).fill("10");
+    await form.getByLabel("Volumen anual autorizado (m³/año) *", { exact: true }).fill("50");
+    await form.getByLabel("Nombre del titular *", { exact: true }).fill("Titular de prueba");
+    await form.getByLabel("RUT del titular *", { exact: true }).fill("12345678-5");
+  };
+  await fillRequired();
+  const failures = [
+    { status: 401, cause: "invalid_session", message: /No pudimos validar tu sesión/ },
+    { status: 403, cause: "permission_denied", message: /no tiene permiso para crear pozos/ },
+    { status: 409, cause: "duplicate_work_code", message: /código de obra ya está registrado/ },
+    { status: 422, cause: "invalid_fields", message: /Latitud, Derecho de aprovechamiento 1 \(Volumen anual autorizado\)/ },
+    { status: 503, cause: "service_error", message: /El servicio devolvió un error/ },
+  ];
+
+  for (const [index, failure] of failures.entries()) {
+    await submit.click();
+    const alert = form.getByRole("alert");
+    await expect(alert).toContainText(failure.message);
+    await expect(alert).toContainText(`Referencia de diagnóstico: ${diagnostics[index]}`);
+    await expect(alert).not.toContainText("raw confidential detail");
+    await expect.poll(() => logs[index]).toEqual({
+      diagnosticId: diagnostics[index],
+      method: "POST",
+      route: "/api/v1/wells/registry",
+      status: failure.status,
+      cause: failure.cause,
+    });
+    await expect(form.getByLabel("Nombre *", { exact: true })).toHaveValue("Pozo de prueba");
+  }
+
+  await submit.click();
+  await expect(form.getByRole("status")).toContainText("Pozo Pozo de prueba asociado a CAS.");
+  await expect(form.getByLabel("Nombre *", { exact: true })).toHaveValue("");
+  expect(logs).toHaveLength(5);
+
+  await fillRequired();
+  await submit.click();
+  const networkError = page.getByRole("alert").filter({ hasText: "No recibimos respuesta" });
+  await expect(networkError).toContainText(`Referencia de diagnóstico: ${diagnostics[6]}`);
+  await expect.poll(() => logs[5]).toEqual({
+    diagnosticId: diagnostics[6],
+    method: "POST",
+    route: "/api/v1/wells/registry",
+    status: null,
+    cause: "no_response",
+  });
+  expect(new Set(diagnostics).size).toBe(7);
+});
