@@ -2468,9 +2468,22 @@ select:focus-visible {
 .meteo-station-variables .meteo-measurement-grid { padding: 0; }
 .meteo-derived-card { min-width: 0; }
 .meteo-daily-statistics { margin: 12px 0 0; font-size: 11px; }
-.meteo-daily-statistics > div { display: flex; gap: 8px; justify-content: space-between; margin: 5px 0; }
+.meteo-daily-statistics > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 5px 0;
+}
 .meteo-daily-statistics dt { color: var(--muted); }
-.meteo-daily-statistics dd { margin: 0; text-align: right; }
+.meteo-daily-statistics dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
 .meteo-daily-statistics > small { color: var(--muted); }
 .meteo-trend { height: 54px; margin-top: 10px; color: #0f8c82; touch-action: pan-y; outline-offset: 3px; }
 .meteo-trend svg { display: block; width: 100%; height: 100%; overflow: visible; }
