@@ -1,9 +1,19 @@
+export const diagnosticHeader = "X-Diagnostic-ID";
+
+export class ApiTransportError extends Error {
+  constructor(readonly reason: "offline" | "no_response") {
+    super(reason);
+    this.name = "ApiTransportError";
+  }
+}
+
 export class ApiRequestError extends Error {
   constructor(
     message: string,
     readonly status: number,
     readonly detail: string,
     readonly rawDetail?: unknown,
+    readonly diagnosticId: string | null = null,
   ) {
     super(message);
     this.name = "ApiRequestError";
@@ -42,5 +52,6 @@ export const throwApiError = async (response: Response, label: string): Promise<
     response.status,
     detail,
     rawDetail,
+    response.headers.get(diagnosticHeader),
   );
 };

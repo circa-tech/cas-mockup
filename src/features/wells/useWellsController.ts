@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getFreshnessStatus, staleThresholdDaysDefault, wellMapPoints } from "../../data/mockupData";
 import { queryKeys } from "../../lib/queryKeys";
-import { ApiRequestError } from "../../services/apiError";
+import { ApiRequestError, ApiTransportError } from "../../services/apiError";
 import {
   createWellRegistryEntry,
   deleteWellRegistryEntry,
@@ -25,6 +25,7 @@ import { toRemoteErrorMessage } from "../../app/remoteError";
 import { dateInChile } from "../../utils/date";
 import { parseMeasurementWorkbook, readMeasurementFile, normalizeHeader, type MeasurementValidationReport } from "./measurementWorkbook";
 import { workbookUploadErrorMessage, workbookUploadIssues } from "./measurementErrors";
+import { reportWellCreationFailure } from "./wellCreationErrors";
 import type { WellMeasurementFormState, WellRegistryFormState } from "./WellsView";
 
 const emptyCapabilities: WellsCapabilities = {
@@ -124,7 +125,7 @@ const emptyWellMeasurementForm = (): WellMeasurementFormState => ({
   waterLevelCondition: "",
 });
 
-const getWellCreationErrorMessage = (error: unknown) => {
+const getWellUpdateErrorMessage = (error: unknown) => {
   if (error instanceof ApiRequestError) {
     if (error.status === 409) return "Este código de obra ya está registrado.";
     if (error.status === 422 && /casId|cas_id/i.test(error.detail)) {
@@ -279,6 +280,7 @@ export function useWellsController({
   const [selectedWellId, setSelectedWellId] = useState(wellMapPoints[0].id);
   const [wellRegistryStatus, setWellRegistryStatus] = useState<RemoteLoadStatus>("idle");
   const [wellRegistryMessage, setWellRegistryMessage] = useState<string | null>(null);
+  const [wellCreationConnectionMessage, setWellCreationConnectionMessage] = useState<string | null>(null);
   const [wellMeasurementStatus, setWellMeasurementStatus] =
     useState<RemoteLoadStatus>("idle");
   const [wellMeasurementMessage, setWellMeasurementMessage] = useState<string | null>(null);
@@ -302,6 +304,7 @@ export function useWellsController({
   useEffect(clearWellMeasurementValidation, [authUid, clearWellMeasurementValidation]);
 
   useEffect(() => {
+    setWellCreationConnectionMessage(null);
     setWellRegistryForm(emptyWellRegistryForm());
     setWellMeasurementForm(emptyWellMeasurementForm());
     setWellMeasurementValidationReport(null);
@@ -409,6 +412,7 @@ export function useWellsController({
   const handleWellRegistrySubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!authIdToken) return;
+    setWellCreationConnectionMessage(null);
     const result = buildWellRegistryPayload(wellRegistryForm);
     if ("error" in result) {
       setWellRegistryStatus("error");
@@ -418,9 +422,10 @@ export function useWellsController({
 
     setWellRegistryStatus("loading");
     setWellRegistryMessage(null);
+    const diagnosticId = crypto.randomUUID();
     try {
-      const created = await createWellRegistryEntry(authIdToken, result.payload);
-      await registryQuery.refetch();
+      const created = await createWellRegistryEntry(authIdToken, result.payload, diagnosticId);
+      await registryQuery.refetch().catch(() => undefined);
       setWellRegistryForm((previous) => ({
         ...emptyWellRegistryForm(),
         casId: previous.casId,
@@ -431,7 +436,9 @@ export function useWellsController({
       );
     } catch (error) {
       setWellRegistryStatus("error");
-      setWellRegistryMessage(getWellCreationErrorMessage(error));
+      const errorMessage = reportWellCreationFailure(error, diagnosticId);
+      setWellRegistryMessage(errorMessage);
+      if (error instanceof ApiTransportError) setWellCreationConnectionMessage(errorMessage);
     }
   };
 
@@ -441,6 +448,7 @@ export function useWellsController({
   ) => {
     event.preventDefault();
     if (!authIdToken) return;
+    setWellCreationConnectionMessage(null);
     const result = buildWellRegistryPayload(wellRegistryForm);
     if ("error" in result) {
       setWellRegistryStatus("error");
@@ -458,7 +466,7 @@ export function useWellsController({
       setWellRegistryMessage(`Pozo ${updated.name} actualizado.`);
     } catch (error) {
       setWellRegistryStatus("error");
-      setWellRegistryMessage(getWellCreationErrorMessage(error));
+      setWellRegistryMessage(getWellUpdateErrorMessage(error));
     }
   };
 
@@ -573,6 +581,7 @@ export function useWellsController({
     clearWellMeasurementValidation,
     handleWellMeasurementSubmit,
     handleWellRegistryChange: (next: Partial<WellRegistryFormState>) => {
+      setWellCreationConnectionMessage(null);
       setWellRegistryForm((previous) => ({ ...previous, ...next }));
       setWellRegistryMessage(null);
       setWellRegistryStatus("ready");
@@ -588,6 +597,7 @@ export function useWellsController({
     wellMeasurementForm,
     wellMeasurementMessage,
     wellMeasurementStatus,
+    wellCreationConnectionMessage,
     wellRegistryEntries,
     wellRegistryForm,
     wellRegistryMessage,
