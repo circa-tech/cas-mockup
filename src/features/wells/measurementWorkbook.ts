@@ -7,9 +7,9 @@ const MAX_ROWS = 1000;
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_EXPANDED_BYTES = 32 * 1024 * 1024;
 type Well = Pick<WellRegistryEntry, "id" | "name" | "codigoObra">;
-type Field = "well" | "date" | "userRut" | "flowRate" | "waterTableDepth" | "waterLevelCondition" | "totalizer" | "pressure" | "ph" | "conductivity" | "isOperating" | "observations";
+type Field = "date" | "userRut" | "flowRate" | "waterTableDepth" | "waterLevelCondition" | "totalizer" | "pressure" | "ph" | "conductivity" | "isOperating" | "observations";
 export const validationNotesHeader = "Notas de validación CAS";
-export type MeasurementValidationReport = { workbook: Workbook; issues: WorkbookIssue[]; total: number; filename: string; selectedWellId: string };
+export type MeasurementValidationReport = { workbook: Workbook; issues: WorkbookIssue[]; total: number; filename: string; selectedWell: Well };
 export type WorkbookIssue = { category: string; row?: number; column?: string; message: string };
 export class MeasurementWorkbookError extends Error {
   constructor(readonly issues: WorkbookIssue[]) {
@@ -25,7 +25,6 @@ export class MeasurementWorkbookError extends Error {
 export const normalizeHeader = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
   .toLowerCase().replace(/\*/g, "").replace(/\s+/g, " ").trim();
 const columns: { id: Field; title: string; required: boolean; description: string; format: string; example: CellValue; aliases?: string[] }[] = [
-  { id: "well", title: "Pozo", required: true, description: "Pozo donde se tomó la medición.", format: "Nombre o código de un pozo donde tienes permiso.", example: "Pozo Norte", aliases: ["codigoobra", "código de obra"] },
   { id: "date", title: "Fecha y hora", required: true, description: "Momento de la medición, en hora de Chile.", format: "dd-mm-aaaa hh:mm", example: new Date("2026-01-15T10:30:00Z") },
   { id: "userRut", title: "RUT de quien mide", required: true, description: "Identificación de la persona que midió.", format: "Con o sin puntos y guion.", example: "12.345.678-5", aliases: ["userrut"] },
   { id: "flowRate", title: "Caudal (L/s)", required: true, description: "Agua extraída por segundo.", format: "Número mayor o igual a cero; coma o punto decimal.", example: 3.5, aliases: ["caudal", "flowrate"] },
@@ -44,20 +43,22 @@ const rowFingerprint = (values: Partial<Record<Field, CellValue>>) => JSON.strin
   columns.map(({ id }) => [id, canonical(values[id])]),
 ));
 
-export const createMeasurementTemplate = async (selectedWell: Well | undefined, now = new Date()) => {
+const instructionsIntro = "Completa Mediciones. No cambies los nombres de las columnas ni agregues o borres columnas.";
+const wellInstructions = (well: Well) => `Todas las mediciones se cargarán en el pozo ${well.name}.`;
+
+export const createMeasurementTemplate = async (selectedWell: Well, now = new Date()) => {
   const workbook = await createWorkbook();
   const sheet = workbook.addWorksheet("Mediciones");
-  const fields = columns.filter(({ id }) => id !== "well" || !selectedWell);
   const yesterday = new Date(`${dateInChile(now)}T10:30:00Z`);
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-  const example = Object.fromEntries(fields.map((field) => [field.id, field.id === "date" ? yesterday : field.example]));
+  const example = Object.fromEntries(columns.map((field) => [field.id, field.id === "date" ? yesterday : field.example]));
   workbook.creator = "CAS";
   workbook.description = JSON.stringify({ template: "cas-mediciones", version: 1, example: rowFingerprint(example) });
-  sheet.columns = fields.map((field) => ({ key: field.id, header: field.title + (field.required ? " *" : ""), width: field.id === "observations" ? 55 : 25 }));
+  sheet.columns = columns.map((field) => ({ key: field.id, header: field.title + (field.required ? " *" : ""), width: field.id === "observations" ? 55 : 25 }));
   sheet.addRow(example);
   sheet.getRow(1).eachCell((cell, index) => {
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fields[index - 1].required ? "FF0B6470" : "FFE2E8F0" } };
-    cell.font = { bold: true, color: { argb: fields[index - 1].required ? "FFFFFFFF" : "FF243746" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: columns[index - 1].required ? "FF0B6470" : "FFE2E8F0" } };
+    cell.font = { bold: true, color: { argb: columns[index - 1].required ? "FFFFFFFF" : "FF243746" } };
   });
   sheet.getRow(2).font = { italic: true, color: { argb: "FF64748B" } };
   sheet.getRow(2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
@@ -70,23 +71,23 @@ export const createMeasurementTemplate = async (selectedWell: Well | undefined, 
   sheet.views = [{ state: "frozen", ySplit: 1 }];
   const instructions = workbook.addWorksheet("Instrucciones");
   instructions.columns = [{ width: 26 }, { width: 18 }, { width: 48 }, { width: 57 }, { width: 58 }];
-  instructions.addRow(["Completa Mediciones. No cambies los nombres de las columnas ni agregues o borres columnas."]);
+  instructions.addRow([instructionsIntro]);
   instructions.mergeCells("A1:E1");
   instructions.addRow(["La fila gris es un ejemplo: si no la modificas, se ignora. Agrega tus mediciones debajo o reemplaza el ejemplo."]);
   instructions.mergeCells("A2:E2");
-  instructions.addRow([selectedWell ? `Todas las mediciones se cargarán en el pozo ${selectedWell.name}.` : "Indica el nombre o código del pozo en cada fila."]);
+  instructions.addRow([wellInstructions(selectedWell)]);
   instructions.mergeCells("A3:E3");
   instructions.addRow(["Máximo: 1.000 mediciones y 5 MiB. Si hay errores, no se guarda ninguna medición."]);
   instructions.mergeCells("A4:E4");
   instructions.addRow([]);
   instructions.addRow(["Campo", "¿Obligatorio?", "Qué significa", "Formato o valores permitidos", "Ejemplo"]);
   instructions.getRow(6).font = { bold: true };
-  for (const field of fields) instructions.addRow([field.title, field.required ? "Sí" : "No", field.description, field.format,
+  for (const field of columns) instructions.addRow([field.title, field.required ? "Sí" : "No", field.description, field.format,
     field.id === "date" ? `${yesterday.getUTCDate()}-${yesterday.getUTCMonth() + 1}-${yesterday.getUTCFullYear()} 10:30` : field.example]);
   instructions.eachRow((row) => { row.alignment = { vertical: "top", wrapText: true }; });
   return workbook;
 };
-export const downloadMeasurementTemplate = async (selectedWell?: Well) =>
+export const downloadMeasurementTemplate = async (selectedWell: Well) =>
   downloadWorkbook(await createMeasurementTemplate(selectedWell), "Planilla_mediciones.xlsx");
 
 const scalar = (value: CellValue): string | number | boolean | Date | null => {
@@ -132,25 +133,47 @@ export const parseMeasurementDate = (value: unknown): { date: string; time: stri
   return { date, time, instant };
 };
 
-export const parseMeasurementWorkbook = (workbook: Workbook, wells: readonly Well[], selectedWellId = "", now = new Date()) => {
+const legacyWellHeaders = new Set(["pozo", "codigoobra", "codigo de obra"]);
+const wellIdentifiers = (well: Well) => [well.name, well.codigoObra ?? ""].map(normalizeHeader).filter(Boolean);
+
+export const parseMeasurementWorkbook = (workbook: Workbook, wells: readonly Well[], selectedWellId: string, now = new Date()) => {
+  const selectedWell = wells.find((well) => well.id === selectedWellId);
+  if (!selectedWell) throw new MeasurementWorkbookError([{ category: "Pozo", message: "Selecciona un pozo para cargar las mediciones." }]);
   const issues: WorkbookIssue[] = [];
   const sheet = workbook.worksheets.find((sheet) => normalizeHeader(sheet.name) === "mediciones");
   if (!sheet) throw new MeasurementWorkbookError([{ category: "Planilla", message: "No encontramos la hoja ‘Mediciones’. Descarga la planilla y completa tus datos allí." }]);
   const fields = new Map<Field, number>();
+  const legacyWellColumns: number[] = [];
   const aliases = new Map(columns.flatMap((column) => [column.title, ...(column.aliases ?? [])].map((alias) => [normalizeHeader(alias), column.id] as const)));
   sheet.getRow(1).eachCell((cell, index) => {
     const header = normalizeHeader(cell.text);
+    if (legacyWellHeaders.has(header)) {
+      legacyWellColumns.push(index);
+      return;
+    }
     if (header === normalizeHeader(validationNotesHeader)) return;
     if (["companyrut", "rut del titular", "rut titular"].includes(header)) return;
     const field = aliases.get(header);
     if (field && fields.has(field)) issues.push({ category: "Planilla", row: 1, column: fieldTitles[field], message: "Esta columna aparece más de una vez. Deja solo una." });
     else if (field) fields.set(field, index);
   });
-  const missing = columns.filter((column) => column.required && (column.id !== "well" || !selectedWellId) && !fields.has(column.id));
+  const missing = columns.filter((column) => column.required && !fields.has(column.id));
   if (missing.length) issues.push({ category: "Planilla", message: `No reconocimos la planilla. Faltan las columnas: ${missing.map((column) => column.title).join(", ")}. Descarga la planilla nuevamente y no cambies los nombres de las columnas.` });
   if (issues.length) throw new MeasurementWorkbookError(issues);
   let example: string | undefined;
-  try { const metadata = JSON.parse(workbook.description); if (metadata.template === "cas-mediciones" && metadata.version === 1) example = metadata.example; } catch { /* Legacy sheets have no marker. */ }
+  let exampleWell: unknown = null;
+  try {
+    const metadata = JSON.parse(workbook.description);
+    if (metadata.template === "cas-mediciones" && metadata.version === 1) {
+      // A change to a legacy example's Pozo cell also makes it a real measurement.
+      const fingerprint = JSON.parse(metadata.example);
+      exampleWell = fingerprint.well ?? null;
+      delete fingerprint.well;
+      example = JSON.stringify(fingerprint);
+    }
+  } catch { /* Sheets without a valid marker have no identifiable example. */ }
+  const otherWellIdentifiers = new Set(wells.filter((well) => well.id !== selectedWellId).flatMap(wellIdentifiers));
+  const allowedLegacyTargets = new Set(wellIdentifiers(selectedWell).filter((identifier) => !otherWellIdentifiers.has(identifier)));
   const payloads: IngestWellMeasurementPayload[] = [];
   const rowNumbers: number[] = [];
   const duplicateRows = new Map<string, number[]>();
@@ -159,20 +182,37 @@ export const parseMeasurementWorkbook = (workbook: Workbook, wells: readonly Wel
     if (rowNumber === 1) return;
     const raw = Object.fromEntries([...fields].map(([id, index]) => [id, row.getCell(index).value]));
     if (Object.values(raw).every((value) => value === null || value === undefined || (typeof value === "string" && !value.trim()))) return;
-    if (example && rowFingerprint(raw) === example) return;
+    if (example && rowFingerprint(raw) === example) {
+      const legacyTargets = legacyWellColumns.map((index) => canonical(row.getCell(index).value)).filter((value) => value !== null);
+      const sameWell = exampleWell === null
+        ? legacyTargets.length === 0
+        : legacyTargets.length === 1 && legacyTargets[0] === exampleWell;
+      if (sameWell) return;
+    }
     dataRows++;
     if (dataRows > MAX_ROWS) return;
+    for (const column of legacyWellColumns) {
+      const cell = row.getCell(column);
+      let legacyTarget: string | null = null;
+      try {
+        legacyTarget = normalizeHeader(textValue(scalar(cell.value)));
+      } catch { /* Unreadable values cannot verify the selected destination. */ }
+      if (legacyTarget === null || (legacyTarget && !allowedLegacyTargets.has(legacyTarget))) {
+        issues.push({
+          category: "Pozo",
+          row: rowNumber,
+          column: sheet.getRow(1).getCell(column).text,
+          message: "El pozo indicado en esta planilla antigua no coincide de forma inequívoca con el pozo seleccionado. Descarga una planilla nueva y copia solo las mediciones del pozo que elijas en la pantalla.",
+        });
+      }
+    }
     const values: Partial<Record<Field, ReturnType<typeof scalar>>> = {};
     const issue = (category: string, field: Field, message: string) => issues.push({ category, row: rowNumber, column: fieldTitles[field], message });
     for (const [id, value] of Object.entries(raw)) {
       try { values[id as Field] = scalar(value); }
       catch (error) { issue("Valores", id as Field, (error as Error).message); }
     }
-    for (const column of columns) if (column.required && (column.id !== "well" || !selectedWellId) && !textValue(values[column.id])) issue("Campos obligatorios", column.id, "Falta completar este campo, que es obligatorio.");
-    const wellText = textValue(values.well);
-    const matches = selectedWellId ? wells.filter((well) => well.id === selectedWellId)
-      : wells.filter((well) => [well.name, well.codigoObra].some((value) => value && normalizeHeader(value) === normalizeHeader(wellText)));
-    if (matches.length !== 1) issue("Pozos", "well", matches.length ? `El nombre ‘${preview(wellText)}’ coincide con varios pozos. Usa el código o selecciona un pozo en la pantalla.` : `No encontramos el pozo ‘${preview(wellText || selectedWellId)}’ entre tus pozos permitidos. Revisa el nombre en Administrar pozos.`);
+    for (const column of columns) if (column.required && !textValue(values[column.id])) issue("Campos obligatorios", column.id, "Falta completar este campo, que es obligatorio.");
     const date = parseMeasurementDate(typeof values.date === "number" && workbook.properties.date1904 ? values.date + 1462 : values.date);
     if (!date && textValue(values.date)) issue("Fechas", "date", `‘${preview(textValue(values.date))}’ no es una fecha válida. Usa dd-mm-aaaa hh:mm, en hora de Chile.`);
     if (date && date.instant > now.getTime()) issue("Fechas", "date", "La fecha es posterior a ahora. Revisa que sea correcta.");
@@ -197,13 +237,13 @@ export const parseMeasurementWorkbook = (workbook: Workbook, wells: readonly Wel
     const observations = textValue(values.observations) || null;
     if (observations && observations.length > 1000) issue("Observaciones", "observations", "Acorta el texto a un máximo de 1.000 caracteres.");
     const payload: IngestWellMeasurementPayload = {
-      wellId: matches[0]?.id ?? "", userRut: rut ?? "", measurementDate: date?.date ?? "", measurementTime: date?.time ?? "",
+      wellId: selectedWellId, userRut: rut ?? "", measurementDate: date?.date ?? "", measurementTime: date?.time ?? "",
       flowRate: numeric("flowRate", 1e8) ?? "", totalizer: numeric("totalizer", 999999999999999, true, true) ?? "",
       waterTableDepth: numeric("waterTableDepth", 1e8), pressure: numeric("pressure", 1e8), ph: numeric("ph", 14, true), conductivity: numeric("conductivity", 1e10),
       waterLevelCondition: condition, isOperating, observations,
     };
-    if (date && matches.length === 1) {
-      const key = `${payload.wellId}|${date.date}|${date.time}`;
+    if (date) {
+      const key = `${date.date}|${date.time}`;
       duplicateRows.set(key, [...(duplicateRows.get(key) ?? []), rowNumber]);
     }
     payloads.push(payload); rowNumbers.push(rowNumber);
@@ -235,11 +275,20 @@ export const readMeasurementFile = async (file: File) => {
 
 
 /** Clone the uploaded workbook so its cells, sheets, formats and example marker survive correction. */
-export const createMeasurementValidationWorkbook = async ({ workbook, issues, total }: MeasurementValidationReport) => {
+export const createMeasurementValidationWorkbook = async ({ workbook, issues, total, selectedWell }: MeasurementValidationReport) => {
   if (!issues.length) throw new Error("No hay errores de validación para descargar.");
   const copy = await readWorkbook(new Uint8Array(await writeWorkbook(workbook)).buffer);
   const sheet = copy.worksheets.find((item) => normalizeHeader(item.name) === "mediciones");
   if (!sheet) throw new Error("No encontramos la hoja Mediciones para marcar las correcciones.");
+  // Update instructions from CAS templates while preserving custom sheets and measurement cells.
+  const instructions = copy.getWorksheet("Instrucciones");
+  if (instructions?.getCell("A1").text === instructionsIntro) {
+    instructions.getCell("A3").value = wellInstructions(selectedWell);
+    if (instructions.getCell("A7").text === "Pozo" &&
+        instructions.getCell("D7").text === "Nombre o código de un pozo donde tienes permiso.") {
+      instructions.getRow(7).eachCell((cell, index) => { if (index <= 5) cell.value = null; });
+    }
+  }
   const existing: number[] = [];
   sheet.getRow(1).eachCell((cell, index) => {
     if (normalizeHeader(cell.text) === normalizeHeader(validationNotesHeader)) existing.push(index);
@@ -299,6 +348,7 @@ export const createMeasurementValidationWorkbook = async ({ workbook, issues, to
     summary = undefined;
   }
   header.note = [
+    wellInstructions(selectedWell),
     "Corrige las celdas indicadas y vuelve a cargar esta planilla. Esta columna no se importa ni reemplaza las Observaciones de la medición.",
     summaryMessage,
     ...(summary ? [`Revisa también la hoja ‘${summary.name}’.`] : []),
