@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getFreshnessStatus, staleThresholdDaysDefault, wellMapPoints } from "../../data/mockupData";
 import { queryKeys } from "../../lib/queryKeys";
-import { ApiRequestError } from "../../services/apiError";
+import { ApiRequestError, ApiTransportError } from "../../services/apiError";
 import {
   createWellRegistryEntry,
   deleteWellRegistryEntry,
@@ -25,6 +25,7 @@ import { toRemoteErrorMessage } from "../../app/remoteError";
 import { dateInChile } from "../../utils/date";
 import { parseMeasurementWorkbook, readMeasurementFile, normalizeHeader, type MeasurementValidationReport } from "./measurementWorkbook";
 import { workbookUploadErrorMessage, workbookUploadIssues } from "./measurementErrors";
+import { reportWellCreationFailure } from "./wellCreationErrors";
 import type { WellMeasurementFormState, WellRegistryFormState } from "./WellsView";
 
 const emptyCapabilities: WellsCapabilities = {
@@ -119,12 +120,11 @@ const emptyWellMeasurementForm = (): WellMeasurementFormState => ({
   ph: "",
   pressure: "",
   totalizer: "",
-  userRut: "",
   waterTableDepth: "",
   waterLevelCondition: "",
 });
 
-const getWellCreationErrorMessage = (error: unknown) => {
+const getWellUpdateErrorMessage = (error: unknown) => {
   if (error instanceof ApiRequestError) {
     if (error.status === 409) return "Este código de obra ya está registrado.";
     if (error.status === 422 && /casId|cas_id/i.test(error.detail)) {
@@ -279,12 +279,13 @@ export function useWellsController({
   const [selectedWellId, setSelectedWellId] = useState(wellMapPoints[0].id);
   const [wellRegistryStatus, setWellRegistryStatus] = useState<RemoteLoadStatus>("idle");
   const [wellRegistryMessage, setWellRegistryMessage] = useState<string | null>(null);
+  const [wellCreationConnectionMessage, setWellCreationConnectionMessage] = useState<string | null>(null);
   const [wellMeasurementStatus, setWellMeasurementStatus] =
     useState<RemoteLoadStatus>("idle");
   const [wellMeasurementMessage, setWellMeasurementMessage] = useState<string | null>(null);
-  const [wellMeasurementCsvStatus, setWellMeasurementCsvStatus] =
+  const [wellMeasurementExcelStatus, setWellMeasurementExcelStatus] =
     useState<RemoteLoadStatus>("idle");
-  const [wellMeasurementCsvMessage, setWellMeasurementCsvMessage] =
+  const [wellMeasurementExcelMessage, setWellMeasurementExcelMessage] =
     useState<string | null>(null);
   const uploadGeneration = useRef(0);
   const [wellMeasurementValidationReport, setWellMeasurementValidationReport] = useState<MeasurementValidationReport | null>(null);
@@ -296,12 +297,13 @@ export function useWellsController({
   const clearWellMeasurementValidation = useCallback(() => {
     uploadGeneration.current++;
     setWellMeasurementValidationReport(null);
-    setWellMeasurementCsvMessage(null);
-    setWellMeasurementCsvStatus("idle");
+    setWellMeasurementExcelMessage(null);
+    setWellMeasurementExcelStatus("idle");
   }, []);
-  useEffect(clearWellMeasurementValidation, [authUid, selectedWellId, clearWellMeasurementValidation]);
+  useEffect(clearWellMeasurementValidation, [authUid, clearWellMeasurementValidation]);
 
   useEffect(() => {
+    setWellCreationConnectionMessage(null);
     setWellRegistryForm(emptyWellRegistryForm());
     setWellMeasurementForm(emptyWellMeasurementForm());
     setWellMeasurementValidationReport(null);
@@ -409,6 +411,7 @@ export function useWellsController({
   const handleWellRegistrySubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!authIdToken) return;
+    setWellCreationConnectionMessage(null);
     const result = buildWellRegistryPayload(wellRegistryForm);
     if ("error" in result) {
       setWellRegistryStatus("error");
@@ -418,9 +421,10 @@ export function useWellsController({
 
     setWellRegistryStatus("loading");
     setWellRegistryMessage(null);
+    const diagnosticId = crypto.randomUUID();
     try {
-      const created = await createWellRegistryEntry(authIdToken, result.payload);
-      await registryQuery.refetch();
+      const created = await createWellRegistryEntry(authIdToken, result.payload, diagnosticId);
+      await registryQuery.refetch().catch(() => undefined);
       setWellRegistryForm((previous) => ({
         ...emptyWellRegistryForm(),
         casId: previous.casId,
@@ -431,7 +435,9 @@ export function useWellsController({
       );
     } catch (error) {
       setWellRegistryStatus("error");
-      setWellRegistryMessage(getWellCreationErrorMessage(error));
+      const errorMessage = reportWellCreationFailure(error, diagnosticId);
+      setWellRegistryMessage(errorMessage);
+      if (error instanceof ApiTransportError) setWellCreationConnectionMessage(errorMessage);
     }
   };
 
@@ -441,6 +447,7 @@ export function useWellsController({
   ) => {
     event.preventDefault();
     if (!authIdToken) return;
+    setWellCreationConnectionMessage(null);
     const result = buildWellRegistryPayload(wellRegistryForm);
     if ("error" in result) {
       setWellRegistryStatus("error");
@@ -458,7 +465,7 @@ export function useWellsController({
       setWellRegistryMessage(`Pozo ${updated.name} actualizado.`);
     } catch (error) {
       setWellRegistryStatus("error");
-      setWellRegistryMessage(getWellCreationErrorMessage(error));
+      setWellRegistryMessage(getWellUpdateErrorMessage(error));
     }
   };
 
@@ -479,14 +486,15 @@ export function useWellsController({
     }
   };
 
-  const handleWellMeasurementSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleWellMeasurementSubmit = async (event: FormEvent<HTMLFormElement>, userRut: string) => {
     event.preventDefault();
-    if (!authIdToken) return;
+    if (!authIdToken || !userRut) return;
     setWellMeasurementStatus("loading");
     setWellMeasurementMessage(null);
     try {
       await ingestWellMeasurement(authIdToken, {
         ...wellMeasurementForm,
+        userRut,
         conductivity: wellMeasurementForm.conductivity || null,
         isOperating:
           wellMeasurementForm.isOperating === ""
@@ -524,40 +532,43 @@ export function useWellsController({
     }
   };
 
-  const handleWellMeasurementCsvUpload = async (file: File, fallbackWellId: string) => {
+  const handleWellMeasurementExcelUpload = async (file: File, uploadWellId: string) => {
     if (!authIdToken) return false;
+    const selectedWell = wellRegistryEntries.find((entry) => entry.id === uploadWellId);
     const generation = ++uploadGeneration.current;
     const isCurrentUpload = () => generation === uploadGeneration.current;
-    setWellMeasurementCsvStatus("loading");
-    setWellMeasurementCsvMessage(null);
+    setWellMeasurementExcelStatus("loading");
+    setWellMeasurementExcelMessage(null);
     setWellMeasurementValidationReport(null);
     let workbook: MeasurementValidationReport["workbook"] | undefined;
     let rowNumbers: number[] = [];
     try {
+      if (!uploadWellId) throw new Error("Selecciona un pozo para cargar las mediciones.");
       workbook = await readMeasurementFile(file);
       if (!isCurrentUpload()) return false;
       const writableIds = new Set(await fetchWritableWellIds(authIdToken));
       if (!isCurrentUpload()) return false;
-      const allowed = wellRegistryEntries.filter((entry) => writableIds.has(entry.id));
-      const parsed = parseMeasurementWorkbook(workbook, allowed, fallbackWellId);
+      if (!selectedWell || !writableIds.has(selectedWell.id)) {
+        throw new Error("El pozo seleccionado ya no está disponible para la carga. Actualiza la página y selecciona un pozo donde tengas permiso.");
+      }
+      const parsed = parseMeasurementWorkbook(workbook, wellRegistryEntries, selectedWell.id);
       rowNumbers = parsed.rowNumbers;
       const result = await ingestWellMeasurementsBatch(authIdToken, parsed.payloads);
       if (!isCurrentUpload()) return false;
-      setWellMeasurementCsvStatus("ready");
-      const wellName = allowed.find((well) => well.id === fallbackWellId)?.name;
-      setWellMeasurementCsvMessage(
-        `Se cargaron ${result.insertedCount} mediciones${wellName ? ` en el pozo ${wellName}` : ""}.${result.skippedCount ? ` ${result.skippedCount} ya estaban guardadas y no se duplicaron.` : ""}`,
+      setWellMeasurementExcelStatus("ready");
+      setWellMeasurementExcelMessage(
+        `Se cargaron ${result.insertedCount} mediciones en el pozo ${selectedWell.name}.${result.skippedCount ? ` ${result.skippedCount} ya estaban guardadas y no se duplicaron.` : ""}`,
       );
       // A failed summary refresh must not report a committed batch as unsuccessful.
       await refreshWells().catch(() => undefined);
       return isCurrentUpload();
     } catch (error) {
       if (!isCurrentUpload()) return false;
-      setWellMeasurementCsvStatus("error");
-      setWellMeasurementCsvMessage(workbookUploadErrorMessage(error, rowNumbers));
+      setWellMeasurementExcelStatus("error");
+      setWellMeasurementExcelMessage(workbookUploadErrorMessage(error, rowNumbers));
       const { issues, total } = workbookUploadIssues(error, rowNumbers);
-      if (workbook?.worksheets.some((sheet) => normalizeHeader(sheet.name) === "mediciones") && issues.length) {
-        setWellMeasurementValidationReport({ workbook, issues, total, filename: file.name, selectedWellId: fallbackWellId });
+      if (selectedWell && workbook?.worksheets.some((sheet) => normalizeHeader(sheet.name) === "mediciones") && issues.length) {
+        setWellMeasurementValidationReport({ workbook, issues, total, filename: file.name, selectedWell });
       }
       return false;
     }
@@ -566,10 +577,11 @@ export function useWellsController({
   return {
     handleWellMeasurementChange: (next: Partial<WellMeasurementFormState>) =>
       setWellMeasurementForm((previous) => ({ ...previous, ...next })),
-    handleWellMeasurementCsvUpload,
+    handleWellMeasurementExcelUpload,
     clearWellMeasurementValidation,
     handleWellMeasurementSubmit,
     handleWellRegistryChange: (next: Partial<WellRegistryFormState>) => {
+      setWellCreationConnectionMessage(null);
       setWellRegistryForm((previous) => ({ ...previous, ...next }));
       setWellRegistryMessage(null);
       setWellRegistryStatus("ready");
@@ -580,11 +592,12 @@ export function useWellsController({
     selectedWellId,
     setSelectedWellId,
     wellMeasurementValidationReport,
-    wellMeasurementCsvMessage,
-    wellMeasurementCsvStatus,
+    wellMeasurementExcelMessage,
+    wellMeasurementExcelStatus,
     wellMeasurementForm,
     wellMeasurementMessage,
     wellMeasurementStatus,
+    wellCreationConnectionMessage,
     wellRegistryEntries,
     wellRegistryForm,
     wellRegistryMessage,

@@ -22,7 +22,7 @@ export const workbookUploadIssues = (error: unknown, rowNumbers: number[] = []):
     return { category: "Revisión de la carga", row: typeof index === "number" ? rowNumbers[index] : undefined, column,
       message: item.code === "permission" ? "Ya no tienes permiso para cargar en este pozo. Revisa el pozo seleccionado."
         : item.code === "not_found" ? "El pozo ya no está disponible. Revisa su nombre en Administrar pozos."
-        : item.code === "duplicate" ? "Esta medición está repetida. Deja una sola fila por pozo, fecha y hora."
+        : item.code === "duplicate" ? "Esta medición está repetida. Deja una sola fila por fecha y hora."
         : `Revisa ‘${column}’ y corrige el valor siguiendo la hoja Instrucciones.` };
   });
   const reportedTotal = raw && typeof raw === "object" && "totalErrors" in raw ? Number(raw.totalErrors) : issues.length;
@@ -36,9 +36,9 @@ export const workbookUploadErrorMessage = (error: unknown, rowNumbers: number[] 
     return total > issues.length ? message.replace(/Encontramos \d+ (?:error|errores)\./, `Encontramos ${total} errores. Mostramos los primeros ${Math.min(50, issues.length)}.`) : message;
   }
   if (error instanceof ApiRequestError) {
-    if (error.status === 409) return "Ya existe una medición con otros valores para uno de los pozos, fechas y horas del archivo. No se cargó ninguna fila. Revisa las mediciones existentes antes de volver a intentarlo.";
-    if (error.status === 403) return "Ya no tienes permiso para cargar en uno de estos pozos. No se cargó ninguna medición. Actualiza la página y revisa tus pozos disponibles.";
-    if (error.status === 404) return "Uno de los pozos ya no está disponible. No se cargó ninguna medición. Revisa el nombre en Administrar pozos.";
+    if (error.status === 409) return "Ya existe una medición con otros valores para el pozo seleccionado en una de las fechas y horas del archivo. No se cargó ninguna fila. Revisa las mediciones existentes antes de volver a intentarlo.";
+    if (error.status === 403) return "Ya no tienes permiso para cargar en el pozo seleccionado. No se cargó ninguna medición. Actualiza la página y revisa tus pozos disponibles.";
+    if (error.status === 404) return "El pozo seleccionado ya no está disponible. No se cargó ninguna medición. Revisa el nombre en Administrar pozos.";
     if (error.status === 422) return "Hay datos que debemos revisar. No se cargó ninguna medición. Revisa los campos obligatorios, fechas y valores de acuerdo con la hoja Instrucciones.";
     return "Tuvimos un problema al confirmar la carga. Intenta nuevamente en unos minutos; las mediciones ya recibidas no se duplicarán.";
   }

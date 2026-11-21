@@ -82,7 +82,7 @@ export function HistoricalSeriesChart({ authIdToken, module, selection = {} }: P
         : query.isError ? <RemoteDataState className="is-chart" tone={missingPublication || offlineMissing ? "empty" : "error"}
           title={missingPublication ? "Historial aún no disponible" : offlineMissing ? "Período no guardado" : "No se pudo cargar el historial"}
           message={missingPublication ? "Todavía no hay una serie histórica publicada para esta selección."
-            : offlineMissing ? "Conéctate para consultar este período y guardarlo para usarlo sin conexión."
+            : offlineMissing ? "Este período requiere conexión. La copia incluye el período de un año de las selecciones previstas."
             : "Intenta consultar el período nuevamente."} />
           : !hasValues ? <RemoteDataState className="is-chart" tone="empty" title="Sin mediciones en este período" message="Prueba otro período dentro de las fechas disponibles." />
             : <>

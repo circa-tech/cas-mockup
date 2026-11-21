@@ -28,7 +28,7 @@ beforeEach(async () => {
   await clearSavedData();
   setOfflineSession(null);
   setOfflineSession(session);
-  updateOfflineState({ online: false, networkUnavailable: false, storageError: false });
+  updateOfflineState({ online: false, storageError: false });
 });
 afterEach(() => Object.assign(globalThis, { fetch: originalFetch, window: originalWindow }));
 
@@ -82,12 +82,12 @@ test("offline fetch preserves saved bounds without aliasing them to today or cus
   await assert.rejects(fetchHistoryResponse(requested, {}, 1), OfflineDataUnavailableError);
 });
 
-test("transport failures allow preset fallback, reconnect fetches today, and denials are never masked", async () => {
+test("the connected history path fetches today and never uses a saved period for server or transport errors", async () => {
   await saveResponse(entry(historyUrl(1, yesterday)));
   const requested = historyUrl(1, new Date(now));
   updateOfflineState({ online: true });
   globalThis.fetch = async () => { throw new TypeError("Network unavailable"); };
-  assert.equal((await (await fetchHistoryResponse(requested, {}, 1)).json()).end_date, yesterday.toISOString().slice(0, 10));
+  await assert.rejects(fetchHistoryResponse(requested, {}, 1), /Network unavailable/);
   for (const status of [401, 403, 404]) {
     globalThis.fetch = async () => new Response(null, { status });
     assert.equal((await fetchHistoryResponse(requested, {}, 1)).status, status);
@@ -97,4 +97,30 @@ test("transport failures allow preset fallback, reconnect fetches today, and den
     return Response.json(historyPreset(1, new Date(now)));
   };
   assert.equal((await (await fetchHistoryResponse(requested, {}, 1)).json()).end_date, new Date(now).toISOString().slice(0, 10));
+});
+
+test("a denied series cannot return its older saved preset after loss of access", async () => {
+  const previous = historyUrl(1, yesterday);
+  await saveResponse(entry(previous));
+  const today = historyUrl(1, new Date(now));
+  updateOfflineState({ online: true });
+  globalThis.fetch = async () => new Response(null, { status: 403 });
+  assert.equal((await fetchHistoryResponse(today, {}, 1)).status, 403);
+  updateOfflineState({ online: false });
+  await assert.rejects(fetchHistoryResponse(today, {}, 1), OfflineDataUnavailableError);
+});
+
+test("snow season history remains counted and readable the day after saving", async () => {
+  const fullHistory = (day: Date) => canonicalUrl(
+    `https://example.test/api/v1/modis-snow/history?${new URLSearchParams({
+      ...historyPreset("all", day), area: "ae", resolution: "native", max_points: "5000",
+    })}`,
+  );
+  const saved = entry(fullHistory(yesterday));
+  await saveResponse(saved);
+  setOfflineSession({ ...session, idToken: null });
+  const requested = fullHistory(new Date(now));
+  assert.equal(snapshotCompleteness([saved], saved.scope, [requested]).completed, 1);
+  const data = await (await fetchHistoryResponse(requested, {}, "all")).json();
+  assert.equal(data.end_date, yesterday.toISOString().slice(0, 10));
 });

@@ -1,10 +1,11 @@
 import { normalizeMeasurementNumber } from "../features/wells/measurementNumbers";
-import { apiFetch } from "../offline/apiFetch";
+import { apiFetch, OfflineDataUnavailableError } from "../offline/apiFetch";
+import { isReadOnly } from "../offline/state";
 import type { LinePoint } from "../components/SimpleLineChart";
 import type { WellMapPoint, WellMeasurementVariable } from "../data/mockupData";
 import { authQueryScope, queryClient } from "../lib/queryClient";
 import { toZonedDateTimeIso } from "../utils/date";
-import { throwApiError } from "./apiError";
+import { ApiTransportError, diagnosticHeader, throwApiError } from "./apiError";
 
 type GroundwaterMeasurement = {
   conductivity?: string | number | null;
@@ -300,13 +301,27 @@ export const fetchMyWellRegistryEntries = async (
 export const createWellRegistryEntry = async (
   idToken: string | null,
   payload: CreateWellRegistryEntryPayload,
+  diagnosticId: string,
 ): Promise<WellRegistryEntry> => {
-  const response = await requestWells("registry", idToken, {
-    body: JSON.stringify(payload),
-    method: "POST",
-  });
-  await invalidateWells(idToken);
-  return response.json() as Promise<WellRegistryEntry>;
+  if (isReadOnly()) throw new ApiTransportError("offline");
+  let response: Response;
+  try {
+    response = await requestWells("registry", idToken, {
+      body: JSON.stringify(payload),
+      headers: { [diagnosticHeader]: diagnosticId },
+      method: "POST",
+    });
+  } catch (error) {
+    if (error instanceof OfflineDataUnavailableError) throw new ApiTransportError("offline");
+    if (error instanceof TypeError || (error instanceof DOMException && error.name === "AbortError")) {
+      throw new ApiTransportError("no_response");
+    }
+    throw error;
+  }
+  const created = (await response.json()) as WellRegistryEntry;
+  // A failed list refresh does not undo a successful POST.
+  await invalidateWells(idToken).catch(() => undefined);
+  return created;
 };
 
 export const updateWellRegistryEntry = async (
@@ -418,6 +433,31 @@ export const revokeCasMembership = async (
     method: "DELETE",
   });
   await invalidateWells(idToken);
+};
+
+export type MeasurementRecorder = {
+  id: string;
+  name: string;
+  rut: string;
+};
+
+export const fetchMeasurementRecorders = async (
+  idToken: string,
+  signal: AbortSignal,
+): Promise<MeasurementRecorder[]> => {
+  const response = await requestWells("measurement-recorders", idToken, { signal });
+  return response.json();
+};
+
+export const createMeasurementRecorder = async (
+  idToken: string,
+  recorder: Pick<MeasurementRecorder, "name" | "rut">,
+): Promise<MeasurementRecorder> => {
+  const response = await requestWells("measurement-recorders", idToken, {
+    method: "POST",
+    body: JSON.stringify(recorder),
+  });
+  return response.json();
 };
 
 export const fetchWritableWellIds = async (idToken: string | null): Promise<string[]> => {

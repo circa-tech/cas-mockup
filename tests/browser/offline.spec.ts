@@ -1,13 +1,18 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
+const noCopy = "Sin conexión. Para usar la plataforma sin internet, guarda una copia antes de salir.";
+const savedBanner = /^Mostrando datos guardados el /;
+
 const uid = "offline-alice";
+const alice = { id: uid, email: "alice@example.test", name: "Alice Offline", role: "cas_user" };
+const bob = { id: "offline-bob", email: "bob@example.test", name: "Bob Offline", role: "cas_user" };
 const threadId = "b22f6858-e52a-4b33-91c7-8f0caf878682";
 const secondThreadId = "cdf4cfed-8a0a-473b-a5e3-f109f311e510";
-const token = () => {
+const token = ({ id = uid, role = "cas_user" } = {}) => {
   const now = Math.floor(Date.now() / 1000);
   return [
     { alg: "none", typ: "JWT" },
-    { sub: uid, user_id: uid, iat: now, exp: now + 3600, auth_time: now, role: "cas_user", permissions: ["et:download"], firebase: { sign_in_provider: "password" } },
+    { sub: id, user_id: id, iat: now, exp: now + 3600, auth_time: now, role, permissions: ["et:download"], firebase: { sign_in_provider: "password" } },
   ].map((part) => Buffer.from(JSON.stringify(part)).toString("base64url")).join(".") + ".signature";
 };
 const geometry = { type: "Polygon", coordinates: [[[-70.6, -27.4], [-70.4, -27.4], [-70.4, -27.2], [-70.6, -27.2], [-70.6, -27.4]]] };
@@ -15,19 +20,26 @@ const map = (id: number, properties: Record<string, unknown>) => ({ type: "Featu
 const etSeries = [{ fecha: "2026-10-01", etr: 1.2, etmax: 2.4 }, { fecha: "2026-10-09", etr: 1.4, etmax: 2.6 }];
 const thread = { id: threadId, title: "Datos de terreno", author_name: "Alice", created_at: "2026-10-09T10:00:00Z", last_activity_at: "2026-10-09T10:00:00Z", reply_count: 0, can_edit: true, can_delete: true };
 
-async function mockServices(context: BrowserContext, isOffline: () => boolean, failFirstSummary = false, missingWeather = false) {
+async function mockServices(
+  context: BrowserContext,
+  isOffline: () => boolean,
+  failFirstSummary = false,
+  missingWeather = false,
+  account = () => alice,
+) {
   const attempted = new Set<string>();
   await context.route("https://**/*", async (route) => {
     if (isOffline()) return route.abort("internetdisconnected");
     const url = route.request().url();
+    const { id, email, name, role } = account();
     if (url.includes("identitytoolkit.googleapis.com")) {
       if (url.includes("accounts:lookup")) {
-        return route.fulfill({ json: { users: [{ localId: uid, email: "alice@example.test", displayName: "Alice Offline", emailVerified: true, providerUserInfo: [{ providerId: "password", email: "alice@example.test", federatedId: "alice@example.test" }] }] } });
+        return route.fulfill({ json: { users: [{ localId: id, email, displayName: name, emailVerified: true, providerUserInfo: [{ providerId: "password", email, federatedId: email }] }] } });
       }
-      return route.fulfill({ json: { localId: uid, email: "alice@example.test", displayName: "Alice Offline", idToken: token(), refreshToken: "test-refresh", expiresIn: "3600", registered: true } });
+      return route.fulfill({ json: { localId: id, email, displayName: name, idToken: token({ id, role }), refreshToken: "test-refresh", expiresIn: "3600", registered: true } });
     }
     if (url.includes("securetoken.googleapis.com")) {
-      return route.fulfill({ json: { access_token: token(), id_token: token(), refresh_token: "test-refresh", expires_in: "3600", user_id: uid, token_type: "Bearer", project_id: "offline-test" } });
+      return route.fulfill({ json: { access_token: token({ id, role }), id_token: token({ id, role }), refresh_token: "test-refresh", expires_in: "3600", user_id: id, token_type: "Bearer", project_id: "offline-test" } });
     }
     // No test makes requests to real third-party map/video/font services.
     return route.abort();
@@ -47,7 +59,7 @@ async function mockServices(context: BrowserContext, isOffline: () => boolean, f
     else if (path === "wells/groundwater-measurements") data = [{ wellId: "well-1", name: "Pozo guardado", lat: -27.3, lng: -70.5, groundwaterMeasurement: { measurementDate: "2026-10-09", measurementTime: "12:00:00", waterTableDepth: 22, flowRate: 3, source: "manual" } }];
     else if (path === "wells/admin/me") data = { canViewWells: true, canAddMeasurements: true, canManageCas: false, canCreateWells: true };
     else if (path.startsWith("wells/registry")) data = [];
-    else if (path === "wells/writable") data = [];
+    else if (path === "wells/writable" || path === "wells/measurement-recorders") data = [];
     else if (path === "et-lat/std-ae") data = { fecha: "2026-10-09", etr: 1.4, etmax: 2.6 };
     else if (["et-lat/serie-et", "et-lat/et-poly"].includes(path)) data = etSeries;
     else if (path === "et-lat/et-cult") data = [{ cultivo: "Parronales", etr: 1.4, etmax: 2.6 }];
@@ -61,11 +73,13 @@ async function mockServices(context: BrowserContext, isOffline: () => boolean, f
     else if (["et-lat/history", "modis-snow/history"].includes(path)) {
       const params = new URL(route.request().url()).searchParams;
       const snow = path.startsWith("modis-snow");
-      const monthly = params.get("start_date") === "2021-01-01";
+      const monthly = !snow && params.get("start_date") === "2021-01-01" &&
+        (params.get("end_date") ?? "") > "2022-01-01";
       const values = snow ? { coverage: 42 } : { etr: 1.2, etmax: 2.4 };
       data = { series_id: snow ? `snow_${params.get("area")}` : "et_all", start_date: params.get("start_date"), end_date: params.get("end_date"),
         available_from: "2021-01-01", available_to: "2026-10-09", generated_at: "2026-10-09T12:00:00Z", version: "history-test-v1", resolution: monthly ? "monthly" : "native",
-        points: (monthly ? ["2021-01-01", "2021-02-01", "2021-03-01"] : ["2026-10-01", "2026-10-09"]).map((fecha) => ({ fecha, values, minimum: values, maximum: values, count: snow ? { coverage: 20 } : { etr: 20, etmax: 20 } })) };
+        points: (snow ? ["2024-04-01", "2024-05-09", "2025-04-01", "2025-05-09", "2026-05-09"] : monthly
+          ? ["2021-01-01", "2021-02-01", "2021-03-01"] : ["2026-10-01", "2026-10-09"]).map((fecha) => ({ fecha, values, minimum: values, maximum: values, count: snow ? { coverage: 20 } : { etr: 20, etmax: 20 } })) };
     }
     else if (path === "modis-snow/coverage-series") data = Object.fromEntries(["ae", "jorquera", "pulido", "manflas"].map((basin) => [basin, [{ fecha: "2026-10-09", esteano: 12, anopar: 10 }]]));
     else if (path === "modis-snow/basins-geojson") data = map(1, { name: "ae" });
@@ -81,13 +95,26 @@ async function mockServices(context: BrowserContext, isOffline: () => boolean, f
   });
 }
 
-async function signIn(page: Page, waitForReady = true) {
+async function openCopyMenu(page: Page) {
+  await page.locator(".auth-user-menu summary").click();
+  await page.getByRole("button", { name: "Datos sin conexión" }).click();
+}
+
+async function saveCopy(page: Page) {
+  await openCopyMenu(page);
+  await page.getByRole("button", { name: "Guardar copia ahora" }).click();
+  await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await page.locator(".auth-user-menu summary").click();
+}
+
+async function signIn(page: Page, prepareCopy = true, account = alice) {
   await page.goto("./");
   await page.getByRole("button", { name: "Iniciar sesión", exact: true }).click();
-  await page.getByLabel("Correo electrónico").fill("alice@example.test");
+  await page.getByLabel("Correo electrónico").fill(account.email);
   await page.getByLabel("Contraseña", { exact: true }).fill("offline-test-password");
   await page.getByRole("button", { name: "Ingresar", exact: true }).click();
-  if (waitForReady) await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator(".auth-user-menu summary")).toContainText(account.name);
+  if (prepareCopy) await saveCopy(page);
 }
 
 test("well chart keeps its secondary selection and labels both axes", async ({ page, context }) => {
@@ -163,7 +190,7 @@ test("prepared data and lazy tab assets survive an offline reload with an expire
   offline = true;
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByText("Sin conexión · Solo lectura", { exact: true })).toBeVisible();
+  await expect(page.getByText(savedBanner)).toBeVisible();
   await expect(page.locator(".overview-card").first().locator(".recharts-line-curve")).toHaveCount(2);
   await expect(page.locator(".overview-card").last()).toContainText("23,0 °C");
   await page.getByRole("button", { name: "Meteo", exact: true }).click();
@@ -213,7 +240,7 @@ test("prepared data and lazy tab assets survive an offline reload with an expire
   await expect(page.getByRole("button", { name: "Publicar respuesta" })).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Cerrar sesión" }).click();
   await expect(page.getByRole("button", { name: "Iniciar sesión", exact: true })).toBeVisible();
-  const savedCount = await page.evaluate(async () => {
+  const savedCount = () => page.evaluate(async () => {
     const names = await indexedDB.databases();
     const name = names.find((item) => item.name?.startsWith("cas-offline-v1:"))!.name!;
     return new Promise<number>((resolve) => {
@@ -224,7 +251,7 @@ test("prepared data and lazy tab assets survive an offline reload with an expire
       };
     });
   });
-  expect(savedCount).toBe(0);
+  await expect.poll(savedCount).toBe(0);
 });
 
 test("a previously opened app without a saved login explains that offline access is unavailable", async ({ page, context }) => {
@@ -238,7 +265,7 @@ test("a previously opened app without a saved login explains that offline access
   offline = true;
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByText("Conéctate para iniciar sesión", { exact: true })).toBeVisible();
+  await expect(page.getByText(noCopy, { exact: true })).toBeVisible();
   await expect(page.getByRole("navigation")).toHaveCount(0);
 });
 
@@ -248,47 +275,244 @@ test("offline logout propagates to another tab and removes saved data", async ({
   await signIn(page);
   const second = await context.newPage();
   await second.goto("./");
-  await expect(second.getByText("Datos principales disponibles sin conexión", { exact: true })).toBeVisible();
+  await expect(second.locator(".auth-user-menu summary")).toBeVisible();
   offline = true;
   await context.setOffline(true);
   for (const tab of [page, second]) {
     await tab.evaluate(() => window.dispatchEvent(new Event("offline")));
   }
   await page.getByRole("button", { name: "Cerrar sesión" }).click();
-  await expect(page.getByText("Conéctate para iniciar sesión", { exact: true })).toBeVisible();
-  await expect(second.getByText("Conéctate para iniciar sesión", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(noCopy, { exact: true })).toBeVisible();
+  await expect(second.getByText(noCopy, { exact: true })).toBeVisible({ timeout: 15_000 });
 });
 
 
-test("initial summary failures recover on the home page during preparation", async ({ page, context }) => {
+test("initial summary failures recover without creating an offline copy", async ({ page, context }) => {
   let offline = false;
   await mockServices(context, () => offline, true);
-  let release!: () => void;
-  const slowMap = new Promise<void>((resolve) => { release = resolve; });
-  await context.route("**/api/v1/et-lat/mapa-cult", async (route) => { await slowMap; await route.fallback(); });
+  const requests = new Set<string>();
+  page.on("request", (request) => requests.add(new URL(request.url()).pathname));
   await signIn(page, false);
   await expect(page.locator(".overview-card").first().locator(".recharts-line-curve")).toHaveCount(2);
   await expect(page.locator(".overview-card").last()).toContainText("23,0 °C");
-  await expect(page.locator(".overview-card").last()).toContainText("guardada");
-  await expect(page.getByLabel("Disponibilidad sin conexión")).toContainText("Preparando datos sin conexión");
-  await page.screenshot({ path: "test-results/summary-during-preparation.png", fullPage: true, animations: "disabled" });
-  release();
-  await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toBeVisible();
-  expect(await page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
+  await expect(page.getByLabel("Disponibilidad sin conexión")).toHaveCount(0);
+  expect(requests.has("/api/v1/et-lat/mapa-cult")).toBe(false);
+  expect(await page.evaluate(async () => (await indexedDB.databases()).some((db) => db.name?.startsWith("cas-offline-v1:")))).toBe(false);
+  await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
   offline = true;
   await context.setOffline(true);
   await page.evaluate(() => window.dispatchEvent(new Event("offline")));
-  await page.getByRole("button", { name: "Meteo", exact: true }).click();
-  await expect(page.getByText("Estación guardada").first()).toBeVisible();
-  await expect(page.locator('[data-metric="atmospheric_pressure"] strong')).toHaveText("Sin datos");
+  await expect(page.getByText(noCopy, { exact: true })).toBeVisible();
 });
 
 test("missing climate data is reported as a partial copy", async ({ page, context }) => {
   await mockServices(context, () => false, false, true);
   await signIn(page, false);
+  await openCopyMenu(page);
+  await page.getByRole("button", { name: "Guardar copia ahora" }).click();
   await expect(page.getByLabel("Disponibilidad sin conexión")).toContainText("Falta guardar: Clima", { timeout: 30_000 });
   await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Disponibilidad sin conexión")).toContainText("Copia parcial");
+});
+
+test("a single unavailable ET history gives 85/86 while the other administrator ET series remain readable", async ({ page, context }) => {
+  let offline = false;
+  const administrator = { ...alice, role: "general_admin" };
+  await mockServices(context, () => offline, false, false, () => administrator);
+  const sectors = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 19, 20, 21];
+  await context.route("**/api/v1/et-lat/mapa-sectores", (route) => route.fulfill({
+    json: { type: "FeatureCollection", features: sectors.flatMap((id) => map(id, { sector_id: id, nombre: `Sector ${id}` }).features) },
+  }));
+  const failures: string[] = [];
+  await context.route("**/api/v1/et-lat/history?**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("sector_id") !== "21") return route.fallback();
+    failures.push(url.href);
+    return route.fulfill({ status: 503 });
+  });
+  await signIn(page, false, administrator);
+  await openCopyMenu(page);
+  await page.getByRole("button", { name: "Guardar copia ahora" }).click();
+  const partialCopy = "Copia parcial (85/86). Falta guardar: Evapotranspiración.";
+  await expect(page.getByText(partialCopy, { exact: true })).toBeVisible();
+  expect(failures.length).toBe(2);
+  expect(new Set(failures).size).toBe(1);
+  await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+  offline = true;
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.getByText(partialCopy, { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Evapotranspiración", exact: true }).click();
+  await page.getByRole("tab", { name: "Por parcela", exact: true }).click();
+  await expect(page.locator(".etr-usage-chart-grid .recharts-wrapper")).toHaveCount(2);
+});
+
+test("online data stays fresh and a failed replacement preserves the saved copy", async ({ page, context }) => {
+  let disconnected = false;
+  let temperature = 23;
+  let failWeather = false;
+  const requests = new Set<string>();
+  await mockServices(context, () => disconnected);
+  await context.route("**/api/v1/weather-stations/snapshot", (route) => {
+    if (disconnected) return route.abort("internetdisconnected");
+    if (failWeather) return route.fulfill({ status: 503 });
+    return route.fulfill({ json: { generatedAt: "2026-10-09", stations: [{
+      id: "station-1", name: "Estación guardada", lat: -27.3, lng: -70.5, lastUpdate: "2026-10-09T12:00:00Z",
+      temperatureValue: temperature, measurements: [{ measurementName: "Air Temperature", portNumber: 1, recordedAt: "2026-10-09T12:00:00Z", value: temperature }],
+    }] } });
+  });
+  page.on("request", (request) => requests.add(new URL(request.url()).pathname));
+  await signIn(page);
+  expect(requests.has("/api/v1/et-lat/kc-poly")).toBe(false);
+  expect(requests.has("/api/v1/et-lat/lai-poly")).toBe(false);
+  const climate = page.locator(".overview-card").last();
+  await expect(climate).toContainText("23,0 °C");
+  temperature = 29;
+  await page.reload();
+  await expect(climate).toContainText("29,0 °C");
+  await expect(page.getByLabel("Disponibilidad sin conexión")).toHaveCount(0);
+
+  // Simulate a recoverable failure during an explicit replacement only.
+  await openCopyMenu(page);
+  const copyTime = page.locator("#offline-copy-controls time");
+  await expect(copyTime).toBeVisible();
+  const originalDate = await copyTime.getAttribute("datetime");
+  failWeather = true;
+  await page.getByRole("button", { name: "Guardar copia ahora" }).click();
+  await expect(page.getByText(/Se conservaron los datos disponibles de la copia anterior/)).toBeVisible();
+  await expect(copyTime).toHaveAttribute("datetime", originalDate!);
+  await page.locator(".auth-user-menu summary").click();
+  failWeather = false;
+  disconnected = true;
+  await context.setOffline(true);
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+  await expect(page.getByText(savedBanner)).toBeVisible();
+  await expect(climate).toContainText("23,0 °C");
+  disconnected = false;
+  await context.setOffline(false);
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect(page.getByText(savedBanner)).toHaveCount(0);
+  await expect(climate).toContainText("29,0 °C");
+});
+
+test("deleting during the first download prevents a late response from recreating the copy", async ({ page, context }) => {
+  await mockServices(context, () => false);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  await context.route("**/api/v1/et-lat/mapa-cult", async (route) => {
+    await held;
+    await route.fallback();
+  });
+  await signIn(page, false);
+  await openCopyMenu(page);
+  const started = page.waitForRequest("**/api/v1/et-lat/mapa-cult");
+  await page.getByRole("button", { name: "Guardar copia ahora" }).click();
+  try {
+    await started;
+    await page.getByRole("button", { name: "Eliminar copia" }).click();
+  } finally {
+    release();
+  }
+  await expect(page.getByRole("button", { name: "Guardar copia ahora" })).toBeEnabled();
+  await expect(page.getByText("En este dispositivo no hay una copia guardada.")).toBeVisible();
+  await context.setOffline(true);
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+  await expect(page.getByText(noCopy, { exact: true })).toBeVisible();
+});
+
+test("signing into another account in a second tab cancels the previous user's first copy", async ({ page, context }) => {
+  let account = alice;
+  let offline = false;
+  await mockServices(context, () => offline, false, false, () => account);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  await context.route("**/api/v1/et-lat/mapa-cult", async (route) => {
+    await held;
+    await route.fallback();
+  });
+  await signIn(page, false);
+  const second = await context.newPage();
+  await second.goto(page.url());
+  await expect(second.locator(".auth-user-menu summary")).toContainText(alice.name);
+  await openCopyMenu(page);
+  const started = page.waitForRequest("**/api/v1/et-lat/mapa-cult");
+  await page.getByRole("button", { name: "Guardar copia ahora" }).click();
+  try {
+    await started;
+    await second.getByRole("button", { name: "Cerrar sesión" }).click();
+    await expect(page.getByRole("button", { name: "Iniciar sesión", exact: true })).toBeVisible();
+    account = bob;
+    await signIn(second, false, bob);
+    await expect(page.locator(".auth-user-menu summary")).toContainText(bob.name);
+  } finally {
+    release();
+  }
+  offline = true;
+  await context.setOffline(true);
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+  await expect(page.getByText(noCopy, { exact: true })).toBeVisible();
+  await expect(page.getByText(savedBanner)).toHaveCount(0);
+});
+
+test("a second app origin cannot see a copy saved on the first", async ({ page, context }) => {
+  let offline = false;
+  await mockServices(context, () => offline);
+  await signIn(page);
+  const first = new URL(page.url());
+  const second = new URL(first);
+  second.hostname = "localhost";
+  const other = await context.newPage();
+  await other.goto(second.href);
+  await expect(other.getByRole("button", { name: "Iniciar sesión", exact: true })).toBeVisible();
+  await expect.poll(() => other.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+  expect(await other.evaluate(async () => (await indexedDB.databases()).some((db) => db.name?.startsWith("cas-offline-v1:")))).toBe(false);
+  offline = true;
+  await context.setOffline(true);
+  await other.addInitScript(() => Object.defineProperty(navigator, "onLine", { get: () => false }));
+  await other.reload();
+  await expect(other.getByText(noCopy, { exact: true })).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+  await expect(page.getByText(savedBanner)).toBeVisible();
+});
+
+test("an old database survives the schema update and offline browser restart", async ({ page, context }) => {
+  let disconnected = false;
+  await mockServices(context, () => disconnected);
+  const response = page.waitForResponse("**/api/v1/weather-stations/snapshot");
+  await signIn(page, false);
+  const payload = await (await response).json();
+  await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+  await page.evaluate(async ({ uid, payload }) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(`cas-offline-v1:offline-test:${location.origin}`, 1);
+      request.onupgradeneeded = () => {
+        request.result.createObjectStore("sessions", { keyPath: "uid" });
+        request.result.createObjectStore("responses", { keyPath: "key" });
+      };
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(["sessions", "responses"], "readwrite");
+      const role = "cas_user";
+      const permissions = ["et:download"];
+      const scope = JSON.stringify([uid, role, permissions]);
+      const url = new URL("/api/v1/weather-stations/snapshot", location.origin).href;
+      const savedAt = Date.now() - 24 * 60 * 60 * 1000;
+      tx.objectStore("sessions").put({ uid, userName: "Alice Offline", role, permissions, verifiedAt: savedAt });
+      tx.objectStore("responses").put({ key: JSON.stringify([scope, url]), scope, url, savedAt,
+        headers: [["content-type", "application/json"]], body: new Blob([JSON.stringify(payload)]) });
+      tx.oncomplete = () => resolve();
+      tx.onabort = tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  }, { uid, payload });
+  disconnected = true;
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.getByText(savedBanner)).toBeVisible();
+  await expect(page.getByLabel("Disponibilidad sin conexión")).toContainText("Copia parcial");
+  await expect(page.locator(".overview-card").last()).toContainText("23,0 °C");
 });
 
 test("summary loading states do not display demo dates or stale-data warnings", async ({ page, context }) => {
@@ -305,13 +529,11 @@ test("summary loading states do not display demo dates or stale-data warnings", 
     await expect(cards).toHaveCount(4);
     await expect(cards.locator(".status-pill.is-neutral")).toHaveText(Array(4).fill("Cargando…"));
     await expect(cards.locator("small")).toHaveText(Array(4).fill("Consultando fecha de actualización…"));
-    await expect(page.getByLabel("Disponibilidad sin conexión")).toContainText("Preparando datos sin conexión");
-    await expect(page.getByLabel("Disponibilidad sin conexión")).not.toContainText("Copia parcial");
+    await expect(page.getByLabel("Disponibilidad sin conexión")).toHaveCount(0);
     await page.screenshot({ path: "test-results/summary-loading.png", fullPage: true, animations: "disabled" });
   } finally {
     release();
   }
-  await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toBeVisible();
   await expect(cards.locator("small")).toHaveText(Array(4).fill(/Última actualización:.*2026/));
   await expect(cards.last()).toContainText("23,0 °C promedio de 1 estación");
   await expect(cards.last()).toContainText("2 estaciones monitoreadas");
@@ -348,7 +570,7 @@ test("empty sector datasets are explained after preparation, online and offline"
   await page.screenshot({ path: "test-results/empty-sector-offline.png", fullPage: true, animations: "disabled" });
   offline = false;
   await context.setOffline(false);
-  await expect(page.getByText("Sin conexión · Solo lectura", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(savedBanner)).toHaveCount(0);
   await expect(emptyCharts).toHaveCount(1);
   await expect(page.getByText("Sin mediciones en este período", { exact: true })).toBeVisible();
 });
@@ -367,7 +589,7 @@ test("ET and snow history support presets, custom periods, zoom and saved ranges
   await page.getByRole("button", { name: "Evapotranspiración", exact: true }).click();
   const chart = page.locator(".historical-series").first();
   await expect(chart.locator('[data-resolution="native"]')).toBeVisible();
-  await chart.getByRole("button", { name: "Todo (desde 2021)", exact: true }).click();
+  await chart.getByRole("button", { name: "Todo", exact: true }).click();
   await expect(chart.locator('[data-resolution="monthly"]')).toBeVisible();
   expect(requests.at(-1)?.searchParams.get("start_date")).toBe("2021-01-01");
   await page.screenshot({ path: "test-results/history-et-all.png", fullPage: true, animations: "disabled" });
@@ -380,8 +602,9 @@ test("ET and snow history support presets, custom periods, zoom and saved ranges
   await page.mouse.down();
   await page.mouse.move((box.x + lastBox.x) / 2 + box.width, box.y + box.height / 2, { steps: 6 });
   await page.mouse.up();
-  await expect(chart.getByRole("button", { name: "Aplicar zoom seleccionado" })).toBeEnabled();
-  await chart.getByRole("button", { name: "Aplicar zoom seleccionado" }).click();
+  await expect.poll(() => requests.some((request) =>
+    request.searchParams.get("start_date") === "2021-02-01" &&
+    request.searchParams.get("end_date") === "2021-03-31")).toBe(true);
   await expect(chart.locator('[data-resolution="native"]')).toBeVisible();
   await chart.getByLabel("Desde", { exact: true }).fill("2022-01-01");
   await chart.getByLabel("Hasta", { exact: true }).fill("2022-12-31");
@@ -389,20 +612,23 @@ test("ET and snow history support presets, custom periods, zoom and saved ranges
   await expect.poll(() => requests.at(-1)?.searchParams.get("end_date")).toBe("2022-12-31");
   await expect(chart.locator('[data-resolution="native"]')).toBeVisible();
   await page.getByRole("button", { name: "Nieve", exact: true }).click();
-  await expect(page.locator('.historical-series [data-resolution="native"]')).toHaveCount(4);
-  await page.locator(".historical-series").first().getByRole("button", { name: "Todo (desde 2021)", exact: true }).click();
-  await expect(page.locator('.historical-series [data-resolution="monthly"]')).toHaveCount(1);
+  const seasons = page.getByRole("group", { name: "Comparación de temporadas de nieve" });
+  await expect(seasons.getByRole("combobox", { name: "Temporada", exact: true }).locator("option[value='2024']")).toHaveCount(1);
+  await seasons.getByRole("combobox", { name: "Temporada", exact: true }).selectOption("2024");
+  await expect(seasons.getByRole("combobox", { name: "Temporada", exact: true })).toHaveValue("2024");
   await page.screenshot({ path: "test-results/history-snow.png", fullPage: true, animations: "disabled" });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: "test-results/history-mobile.png", fullPage: true, animations: "disabled" });
-  const chartWidths = await page.locator(".historical-series").evaluateAll((elements) => elements.map((element) => ({ width: element.clientWidth, scroll: element.scrollWidth })));
+  const chartWidths = await page.locator(".snow-charts .recharts-wrapper").evaluateAll((elements) => elements.map((element) => ({ width: element.clientWidth, scroll: element.scrollWidth })));
+  expect(chartWidths).toHaveLength(4);
   expect(chartWidths.every(({ width, scroll }) => scroll <= width + 1)).toBe(true);
   offline = true;
   await context.setOffline(true);
   await page.evaluate(() => window.dispatchEvent(new Event("offline")));
-  await page.locator(".historical-series").first().getByRole("button", { name: "1 año", exact: true }).click();
-  await expect(page.locator('.historical-series [data-resolution="native"]')).toHaveCount(4);
-  await page.locator(".historical-series").first().getByRole("button", { name: "2 años", exact: true }).click();
+  await expect(seasons.getByRole("combobox", { name: "Temporada", exact: true })).toHaveValue("2024");
+  await page.getByRole("button", { name: "Evapotranspiración", exact: true }).click();
+  await expect(chart.locator('[data-resolution="native"]')).toBeVisible();
+  await chart.getByRole("button", { name: "2 años", exact: true }).click();
   await expect(page.getByText("Período no guardado", { exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -418,21 +644,20 @@ test("saved history presets survive a next-day offline reload and refresh on rec
   await signIn(page);
   await page.getByRole("button", { name: "Evapotranspiración", exact: true }).click();
   const chart = page.locator(".historical-series").first();
-  await chart.getByRole("button", { name: "Todo (desde 2021)", exact: true }).click();
+  await chart.getByRole("button", { name: "Todo", exact: true }).click();
   await expect(chart.locator('[data-resolution="monthly"]')).toBeVisible();
   offline = true;
   await context.setOffline(true);
   await page.clock.setFixedTime(nextDay);
   await page.reload();
-  await expect(page.getByText("Sin conexión · Solo lectura", { exact: true })).toBeVisible();
+  await expect(page.getByText(savedBanner)).toBeVisible();
   await page.getByRole("button", { name: "Evapotranspiración", exact: true }).click();
   await expect(chart.locator('[data-resolution="native"]')).toBeVisible();
   await expect(chart.getByLabel("Hasta", { exact: true })).toHaveValue(savedEnd);
   await expect(chart.getByText(/Mostrando el período guardado/)).toBeVisible();
-  await expect(page.getByLabel("Disponibilidad sin conexión")).toContainText("Copia principal completa.");
-  await chart.getByRole("button", { name: "Todo (desde 2021)", exact: true }).click();
-  await expect(chart.locator('[data-resolution="monthly"]')).toBeVisible();
-  await expect(chart.getByLabel("Hasta", { exact: true })).toHaveValue(savedEnd);
+  await expect(page.getByLabel("Disponibilidad sin conexión")).not.toContainText("Copia parcial");
+  await chart.getByRole("button", { name: "Todo", exact: true }).click();
+  await expect(chart.getByText("Período no guardado", { exact: true })).toBeVisible();
   await chart.getByRole("button", { name: "2 años", exact: true }).click();
   await expect(chart.getByText("Período no guardado", { exact: true })).toBeVisible();
   // An explicit custom range must never silently substitute different dates.
@@ -444,8 +669,13 @@ test("saved history presets survive a next-day offline reload and refresh on rec
   await expect(chart.locator('[data-resolution="native"]')).toBeVisible();
   await expect(chart.getByLabel("Hasta", { exact: true })).toHaveValue(savedEnd);
   await page.getByRole("button", { name: "Nieve", exact: true }).click();
-  await expect(page.locator('.historical-series [data-resolution="native"]')).toHaveCount(4);
-  await expect(page.locator('.historical-series input[type="date"]').nth(1)).toHaveValue(savedEnd);
+  const seasons = page.getByRole("group", { name: "Comparación de temporadas de nieve" });
+  // 2024 exists only in the saved native histories, never in the summary.
+  await expect(seasons.getByRole("combobox", { name: "Temporada", exact: true }).locator("option[value='2024']")).toHaveCount(1);
+  await seasons.getByRole("combobox", { name: "Temporada", exact: true }).selectOption("2024");
+  await expect(seasons.getByRole("combobox", { name: "Temporada", exact: true })).toHaveValue("2024");
+  await page.getByRole("button", { name: "Evapotranspiración", exact: true }).click();
+  await expect(chart.getByLabel("Hasta", { exact: true })).toHaveValue(savedEnd);
   // Reconnection must also work when the first query runs before Firebase
   // restores the expired credential, rather than relying on request timing.
   let restoreCredential!: () => void;
@@ -460,12 +690,12 @@ test("saved history presets survive a next-day offline reload and refresh on rec
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   try {
     await refreshRequest;
-    await expect(chart.getByText(/Mostrando el período guardado/)).toBeVisible();
-    await expect(chart.getByLabel("Hasta", { exact: true })).toHaveValue(savedEnd);
+    await expect(chart.getByText(/Mostrando el período guardado/)).toHaveCount(0);
+    await expect(page.getByText(savedBanner)).toHaveCount(0);
   } finally {
     restoreCredential();
   }
-  await expect(page.getByText("Datos principales disponibles sin conexión", { exact: true })).toBeVisible();
+  await expect(chart.locator('[data-resolution="native"]')).toBeVisible();
   await expect(chart.getByText(/Mostrando el período guardado/)).toHaveCount(0);
   await expect(chart.getByLabel("Hasta", { exact: true })).toHaveValue(nextEnd);
 });
@@ -553,7 +783,7 @@ test("titular is optional at the well and absent from measurements", async ({ pa
   await signIn(page, false);
   await page.getByRole("button", { name: "Pozos", exact: true }).click();
   await page.getByRole("tab", { name: "Agregar medición", exact: true }).click();
-  await expect(page.getByLabel(/^RUT de quien mide/)).toBeVisible();
+  await expect(page.getByLabel("Registrado por *")).toBeVisible();
   await expect(page.getByText("RUT del titular *", { exact: true })).toHaveCount(0);
   await page.getByRole("tab", { name: "Administrar pozos", exact: true }).click();
   await page.getByRole("button", { name: "Editar pozo Pozo guardado" }).click();
@@ -577,10 +807,10 @@ test("titular is optional at the well and absent from measurements", async ({ pa
 test("Excel import validates every row before one atomic submission", async ({ page, context }) => {
   await mockServices(context, () => false);
   const registry = { id: "well-1", name: "Pozo guardado", codigoObra: "OB-1", casId: "cas-1", casCode: "CAS", casName: "CAS", lat: -27.3, lng: -70.5, active: true };
-  await context.route("**/api/v1/wells/registry/mine", (route) => route.fulfill({ json: [registry] }));
-  await context.route("**/api/v1/wells/registry/writable", (route) => route.fulfill({ json: ["well-1"] }));
+  await context.route("**/api/v1/wells/registry/mine", (route) => route.fulfill({ json: [registry, { ...registry, id: "well-2", name: "Otro pozo", codigoObra: "OB-2" }] }));
+  await context.route("**/api/v1/wells/registry/writable", (route) => route.fulfill({ json: ["well-1", "well-2"] }));
   await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => route.fulfill({ json: { well_id: "well-1", resolution: "native", points: [] } }));
-  const submissions: { measurements: { credentials: Record<string, string>; groundwaterMeasurement: Record<string, unknown> }[] }[] = [];
+  const submissions: { measurements: { wellId: string; credentials: Record<string, string>; groundwaterMeasurement: Record<string, unknown> }[] }[] = [];
   await context.route("**/api/v1/wells/groundwater-measurements/batch", (route) => {
     submissions.push(route.request().postDataJSON());
     return route.fulfill({ json: { insertedCount: 2, skippedCount: 0 } });
@@ -589,13 +819,32 @@ test("Excel import validates every row before one atomic submission", async ({ p
   await page.getByRole("button", { name: "Pozos", exact: true }).click();
   await page.getByRole("tab", { name: "Agregar medición", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Carga CSV", exact: true })).toHaveCount(0);
-  await expect(page.getByText("Las mediciones se cargarán en el pozo Pozo guardado", { exact: true })).toBeVisible();
-  const pending = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Descargar planilla", exact: true }).click();
-  const download = await pending;
+  const wellSelect = page.getByLabel("Pozo para la carga", { exact: true });
+  const upload = page.getByLabel("Planilla Excel de mediciones", { exact: true });
+  const downloadButton = page.getByRole("button", { name: "Descargar planilla", exact: true });
+  const submit = page.getByRole("button", { name: "Cargar mediciones", exact: true });
+  await expect(wellSelect.locator("option")).toHaveCount(3);
+  await expect(wellSelect.getByRole("option", { name: /varios pozos/i })).toHaveCount(0);
+  await expect(wellSelect).toHaveValue("");
+  await expect(downloadButton).toBeDisabled();
+  await expect(upload).toBeDisabled();
+  await expect(submit).toBeDisabled();
+
   const ExcelJS = (await import("exceljs")).default;
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile((await download.path())!);
+  const downloadTemplate = async (wellId: string, name: string) => {
+    await wellSelect.selectOption(wellId);
+    await expect(page.getByText(`Las mediciones se cargarán en el pozo ${name}`, { exact: true })).toBeVisible();
+    const pending = page.waitForEvent("download");
+    await downloadButton.click();
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile((await (await pending).path())!);
+    const instructions = workbook.getWorksheet("Instrucciones")!;
+    expect(instructions.getCell("A3").text).toBe(`Todas las mediciones se cargarán en el pozo ${name}.`);
+    expect(instructions.getColumn(1).values).not.toContain("Pozo");
+    return workbook;
+  };
+  await downloadTemplate("well-2", "Otro pozo");
+  const workbook = await downloadTemplate("well-1", "Pozo guardado");
   expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(["Mediciones", "Instrucciones"]);
   const sheet = workbook.getWorksheet("Mediciones")!;
   expect(sheet.getCell("A1").value).toBe("Fecha y hora *");
@@ -603,7 +852,6 @@ test("Excel import validates every row before one atomic submission", async ({ p
   sheet.getCell("C1").value = "  CAUDAL (L/s)  ";
   sheet.getRow(3).values = [new Date("2026-01-01T10:30:00Z"), "12.345.678-5", "bad", 10, "ESTATICO", 123, 1, 20, 5, "No", "Primera"];
   sheet.getRow(4).values = [new Date("2026-01-01T11:30:00Z"), "12.345.678-5", "0,00001", 20, "dinámico", 124, 1, 7, 5, "Sí", "Segunda"];
-  const upload = page.getByLabel("Planilla Excel de mediciones", { exact: true });
   await upload.setInputFiles({ name: "mediciones.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(await workbook.xlsx.writeBuffer()) });
   await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
   const feedback = page.locator(".csv-upload-box [role=alert]");
@@ -633,6 +881,7 @@ test("Excel import validates every row before one atomic submission", async ({ p
   await expect(page.getByText("Se cargaron 2 mediciones en el pozo Pozo guardado.", { exact: true })).toBeVisible();
   expect(submissions).toHaveLength(1);
   expect(submissions[0].measurements).toHaveLength(2);
+  expect(submissions[0].measurements.map((measurement) => measurement.wellId)).toEqual(["well-1", "well-1"]);
   expect(submissions[0].measurements[0].credentials).toEqual({ userRut: "12345678-5" });
   expect(submissions[0].measurements[0].groundwaterMeasurement.flowRate).toBe("3.123456789123456789");
   expect(submissions[0].measurements[1].groundwaterMeasurement.flowRate).toBe("0.00001");
@@ -640,6 +889,25 @@ test("Excel import validates every row before one atomic submission", async ({ p
   expect(submissions[0].measurements[0].groundwaterMeasurement.observations).toBe("Primera");
   expect(submissions[0].measurements[1].groundwaterMeasurement.observations).toBe("Segunda");
   await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
+
+  // Older multi-well files must never redirect rows or silently assign them to a different well.
+  correctedSheet.getCell("M1").value = "Pozo *";
+  const metadata = JSON.parse(corrected.description!);
+  metadata.example = JSON.stringify({ well: "Pozo guardado", ...JSON.parse(metadata.example) });
+  corrected.description = JSON.stringify(metadata);
+  correctedSheet.getCell("M2").value = "OB-2";
+  correctedSheet.getCell("M3").value = "OB-1";
+  correctedSheet.getCell("M4").value = "OB-1";
+  await upload.setInputFiles({ name: "planilla-antigua.xlsx", buffer: Buffer.from(await corrected.xlsx.writeBuffer()), mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  await submit.click();
+  await expect(feedback).toContainText("Fila 2, «Pozo *»");
+  await expect(feedback).toContainText("Descarga una planilla nueva y copia solo las mediciones");
+  expect(submissions).toHaveLength(1);
+
+  await wellSelect.selectOption("well-2");
+  await expect(page.getByText("planilla-antigua.xlsx", { exact: true })).toHaveCount(0);
+  await expect(feedback).toHaveCount(0);
+  await expect(submit).toBeDisabled();
 });
 
 test("Meteo daily cards keep raw variables collapsed and reset at Chile midnight", async ({ page, context }) => {
@@ -913,6 +1181,8 @@ test("Excel validation download maps server rows and clears after source changes
   sheet.getRow(3).values = ["01/01/2026 10:30", "12345678-5", 3, 100, "Primera", 7];
   sheet.getRow(8).values = ["01/01/2026 11:30", "12345678-5", 4, 101, "Segunda", 7];
   const upload = page.getByLabel("Planilla Excel de mediciones", { exact: true });
+  const wellSelect = page.getByLabel("Pozo para la carga", { exact: true });
+  await wellSelect.selectOption("well-1");
   await upload.setInputFiles({ name: "mediciones.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(await workbook.xlsx.writeBuffer()) });
   await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
   await expect(page.locator(".csv-upload-box [role=alert]")).toContainText("Fila 8, «pH»");
@@ -931,7 +1201,7 @@ test("Excel validation download maps server rows and clears after source changes
   await page.getByRole("tab", { name: "Monitoreo de pozos", exact: true }).click();
   await page.getByLabel("Pozo seleccionado", { exact: true }).selectOption("well-2");
   await page.getByRole("tab", { name: "Agregar medición", exact: true }).click();
-  await expect(page.getByLabel("Pozo para la carga", { exact: true })).toHaveValue("well-2");
+  await expect(wellSelect).toHaveValue("");
   await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
   await page.getByLabel("Pozo para la carga", { exact: true }).selectOption("well-1");
   marked.getCell("F8").value = 6.5;
@@ -943,7 +1213,7 @@ test("Excel validation download maps server rows and clears after source changes
   await expect(page.getByText("Se cargaron 2 mediciones en el pozo Pozo guardado.", { exact: true })).toBeVisible();
   expect(submissions).toBe(3);
   await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
-  // An old request must not restore its errors after the monitoring well changes and the panel remounts.
+  // An old request must not restore its errors after the user leaves and reopens Excel import.
   await upload.setInputFiles({ name: "mediciones.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(await workbook.xlsx.writeBuffer()) });
   await page.getByRole("button", { name: "Cargar mediciones", exact: true }).click();
   await expect.poll(() => Boolean(releaseLateError)).toBe(true);
@@ -957,4 +1227,200 @@ test("Excel validation download maps server rows and clears after source changes
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   await expect(page.locator(".csv-upload-box [role=alert]")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Descargar Excel con observaciones", exact: true })).toHaveCount(0);
+});
+
+test("well creation shows distinct diagnostics for API responses and a missing response", async ({ page, context }) => {
+  await mockServices(context, () => false);
+  await context.route("**/api/v1/wells/cas/mine", (route) => route.fulfill({ json: [{ id: "cas-1", code: "CAS", name: "Comunidad de prueba", active: true }] }));
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) => route.fulfill({ json: { well_id: "well-1", resolution: "native", points: [] } }));
+
+  type DiagnosticLog = { diagnosticId: string; method: string; route: string; status: number | null; cause: string };
+  const logs: DiagnosticLog[] = [];
+  page.on("console", async (message) => {
+    if (message.type() === "warning" && message.text().startsWith("well_creation")) {
+      logs.push(await message.args()[1].jsonValue() as DiagnosticLog);
+    }
+  });
+  const diagnostics: string[] = [];
+  const outcomes = [401, 403, 409, 422, 503, 201, null];
+  await context.route("**/api/v1/wells/registry", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    const diagnosticId = (await route.request().allHeaders())["x-diagnostic-id"];
+    expect(diagnosticId).toMatch(/^[a-f0-9-]{36}$/);
+    const outcome = outcomes[diagnostics.length];
+    diagnostics.push(diagnosticId);
+    if (outcome === null) return route.abort("failed");
+    return route.fulfill({
+      status: outcome,
+      headers: { "X-Diagnostic-ID": diagnosticId },
+      json: outcome === 201
+        ? { id: "well-2", name: "Pozo de prueba", casCode: "CAS", casName: "Comunidad de prueba" }
+        : { detail: outcome === 422
+          ? [
+            { loc: ["body", "lat"], msg: "raw confidential detail", type: "float_parsing" },
+            { loc: ["body", "waterRights", 0, "authorizedVolume"], msg: "raw confidential detail", type: "decimal_parsing" },
+          ]
+          : "raw confidential detail" },
+    });
+  });
+
+  await signIn(page, false);
+  await page.getByRole("button", { name: "Pozos", exact: true }).click();
+  await page.getByRole("tab", { name: "Administrar pozos", exact: true }).click();
+  const form = page.locator(".registry-editor-form");
+  const submit = form.getByRole("button", { name: "Crear pozo", exact: true });
+  await expect(form.getByRole("combobox", { name: "CAS *", exact: true })).toHaveValue("cas-1");
+  const fillRequired = async () => {
+    await form.getByLabel("Nombre *", { exact: true }).fill("Pozo de prueba");
+    await form.getByLabel("Código de obra (opcional)", { exact: true }).fill("OB-1");
+    await form.getByLabel("Latitud *", { exact: true }).fill("-27.3");
+    await form.getByLabel("Longitud *", { exact: true }).fill("-70.5");
+    await form.getByLabel("Caudal autorizado (L/s) *", { exact: true }).fill("10");
+    await form.getByLabel("Volumen anual autorizado (m³/año) *", { exact: true }).fill("50");
+    await form.getByLabel("Nombre del titular *", { exact: true }).fill("Titular de prueba");
+    await form.getByLabel("RUT del titular *", { exact: true }).fill("12345678-5");
+  };
+  await fillRequired();
+  const failures = [
+    { status: 401, cause: "invalid_session", message: /No pudimos validar tu sesión/ },
+    { status: 403, cause: "permission_denied", message: /no tiene permiso para crear pozos/ },
+    { status: 409, cause: "duplicate_work_code", message: /código de obra ya está registrado/ },
+    { status: 422, cause: "invalid_fields", message: /Latitud, Derecho de aprovechamiento 1 \(Volumen anual autorizado\)/ },
+    { status: 503, cause: "service_error", message: /El servicio devolvió un error/ },
+  ];
+
+  for (const [index, failure] of failures.entries()) {
+    await submit.click();
+    const alert = form.getByRole("alert");
+    await expect(alert).toContainText(failure.message);
+    await expect(alert).toContainText(`Referencia de diagnóstico: ${diagnostics[index]}`);
+    await expect(alert).not.toContainText("raw confidential detail");
+    await expect.poll(() => logs[index]).toEqual({
+      diagnosticId: diagnostics[index],
+      method: "POST",
+      route: "/api/v1/wells/registry",
+      status: failure.status,
+      cause: failure.cause,
+    });
+    await expect(form.getByLabel("Nombre *", { exact: true })).toHaveValue("Pozo de prueba");
+  }
+
+  await submit.click();
+  await expect(form.getByRole("status")).toContainText("Pozo Pozo de prueba asociado a CAS.");
+  await expect(form.getByLabel("Nombre *", { exact: true })).toHaveValue("");
+  expect(logs).toHaveLength(5);
+
+  await fillRequired();
+  await submit.click();
+  const networkError = page.getByRole("alert").filter({ hasText: "No recibimos respuesta" });
+  await expect(networkError).toContainText(`Referencia de diagnóstico: ${diagnostics[6]}`);
+  await expect.poll(() => logs[5]).toEqual({
+    diagnosticId: diagnostics[6],
+    method: "POST",
+    route: "/api/v1/wells/registry",
+    status: null,
+    cause: "no_response",
+  });
+  expect(new Set(diagnostics).size).toBe(7);
+});
+
+test("manual recorder directory shares entries and remembers each signed-in user's choice", async ({ page, context }) => {
+  let actor = "writer-a";
+  const writer = () => ({ id: actor, email: `${actor}@example.test`, name: actor, role: "technical_admin" });
+  await mockServices(context, () => false, false, false, writer);
+  const entry = { id: "well-1", name: "Pozo guardado", codigoObra: "OB-1", casId: "cas-1",
+    casCode: "CAS", casName: "CAS", lat: -27.3, lng: -70.5, active: true };
+  await context.route("**/api/v1/wells/registry/mine", (route) => route.fulfill({ json: [entry] }));
+  await context.route("**/api/v1/wells/registry/writable", (route) => route.fulfill({ json: [entry.id] }));
+  await context.route("**/api/v1/wells/groundwater-measurements/history?**", (route) =>
+    route.fulfill({ json: { well_id: entry.id, resolution: "native", points: [] } }),
+  );
+  const people: Array<{ id: string; name: string; rut: string }> = [];
+  let registrations = 0;
+  await context.route("**/api/v1/wells/measurement-recorders", (route) => {
+    const bearer = route.request().headers().authorization!.replace("Bearer ", "");
+    expect(JSON.parse(Buffer.from(bearer.split(".")[1], "base64url").toString()).sub).toBe(actor);
+    if (route.request().method() === "GET") return route.fulfill({ json: people });
+    registrations++;
+    const { name, rut } = route.request().postDataJSON();
+    const existing = people.find((person) => person.rut === rut);
+    if (existing) return route.fulfill({ json: existing });
+    const created = { id: `recorder-${people.length + 1}`, name, rut };
+    people.push(created);
+    return route.fulfill({ json: created });
+  });
+  let submittedRut: string | undefined;
+  await context.route("**/api/v1/wells/groundwater-measurements", (route) => {
+    if (route.request().method() === "GET") return route.fallback();
+    submittedRut = route.request().postDataJSON().credentials.userRut;
+    return route.fulfill({ status: 201, json: {} });
+  });
+
+  const openEntry = async () => {
+    await page.getByRole("button", { name: "Pozos", exact: true }).click();
+    await page.getByRole("tab", { name: "Agregar medición", exact: true }).click();
+    await expect(page.getByLabel("Registrado por *")).toBeEnabled();
+  };
+  await signIn(page, false, writer());
+  await openEntry();
+  const recorder = page.getByLabel("Registrado por *");
+  const saveMeasurement = page.getByRole("button", { name: "Guardar medicion individual" });
+  await expect(recorder).toHaveValue("");
+  await expect(saveMeasurement).toBeDisabled();
+
+  const openAdd = async (name: string, rut: string) => {
+    await page.getByRole("button", { name: "+ Agregar persona", exact: true }).click();
+    const modal = page.getByRole("dialog", { name: "Agregar persona" });
+    await modal.getByLabel("Nombre", { exact: true }).fill(name);
+    await modal.getByLabel("RUT", { exact: true }).fill(rut);
+    return modal;
+  };
+  const invalid = await openAdd("Ana Pérez", "12.345.678-0");
+  await invalid.getByRole("button", { name: "Guardar persona" }).click();
+  await expect(invalid.getByRole("alert")).toContainText("dígito verificador");
+  expect(registrations).toBe(0);
+  await invalid.getByLabel("RUT", { exact: true }).fill("12.345.678-5");
+  await invalid.getByRole("button", { name: "Guardar persona" }).click();
+  await expect(recorder).toHaveValue("recorder-1");
+  await expect(recorder.locator("option:checked")).toHaveText("Ana Pérez · 12345678-5");
+
+  await page.getByRole("combobox", { name: /^Pozo \*/ }).selectOption(entry.id);
+  await page.getByLabel("Caudal *", { exact: true }).fill("2.5");
+  await page.getByLabel("Totalizador *", { exact: true }).fill("100");
+  await saveMeasurement.click();
+  await expect.poll(() => submittedRut).toBe("12345678-5");
+
+  await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Iniciar sesión", exact: true })).toBeVisible();
+  actor = "writer-b";
+  await signIn(page, false, writer());
+  await openEntry();
+  await expect(recorder).toHaveValue("");
+  const search = page.getByLabel("Buscar por nombre o RUT", { exact: true });
+  await search.fill("perez");
+  await expect(recorder.getByRole("option", { name: /Ana Pérez/ })).toHaveCount(1);
+  await search.fill("12.345.678");
+  await expect(recorder.getByRole("option", { name: /Ana Pérez/ })).toHaveCount(1);
+
+  const duplicate = await openAdd("Nombre alternativo", "123456785");
+  await duplicate.getByRole("button", { name: "Guardar persona" }).click();
+  await expect(recorder).toHaveValue("recorder-1");
+  await expect(recorder.locator("option:checked")).toHaveText("Ana Pérez · 12345678-5");
+
+  const second = await openAdd("Beatriz", "6.000.000-k");
+  await second.getByRole("button", { name: "Guardar persona" }).click();
+  await expect(recorder).toHaveValue("recorder-2");
+  expect(people).toHaveLength(2);
+
+  await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Iniciar sesión", exact: true })).toBeVisible();
+  actor = "writer-a";
+  await signIn(page, false, writer());
+  await openEntry();
+  await expect(recorder).toHaveValue("recorder-1");
+  await expect(recorder.getByRole("option", { name: "Beatriz · 6000000-K" })).toHaveCount(1);
+
+  await page.reload();
+  await openEntry();
+  await expect(recorder).toHaveValue("recorder-1");
 });

@@ -4,7 +4,7 @@ import {
   Download,
   Upload
 } from "lucide-react";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Panel } from "../../components/Panel";
 import {
   downloadMeasurementTemplate,
@@ -18,6 +18,7 @@ import type { RemoteLoadStatus } from "../../types/remote";
 
 
 import type { WellMeasurementFormState } from "./wellsView.types";
+import { MeasurementRecorderPicker, useMeasurementRecorderDirectory } from "./MeasurementRecorderPicker";
 
 const suggestedWaterLevelCondition = (isOperating: string) => {
   if (isOperating === "true") return "dynamic";
@@ -26,22 +27,24 @@ const suggestedWaterLevelCondition = (isOperating: string) => {
 };
 
 export function WellMeasurementIngestPanel({
-  selectedWellId,
-  csvMessage,
-  csvStatus,
+  authIdToken,
+  authUid,
+  excelMessage,
+  excelStatus,
   entries,
   form,
   individualStatus,
   message,
   onChange,
-  onCsvUpload,
+  onExcelUpload,
   onValidationClear,
   validationReport,
   onSubmit,
 }: {
-  selectedWellId: string;
-  csvMessage: string | null;
-  csvStatus: RemoteLoadStatus;
+  authIdToken: string | null;
+  authUid: string | null;
+  excelMessage: string | null;
+  excelStatus: RemoteLoadStatus;
   entries: WellRegistryEntry[];
   form: WellMeasurementFormState;
   individualStatus: RemoteLoadStatus;
@@ -49,34 +52,41 @@ export function WellMeasurementIngestPanel({
   onChange: (next: Partial<WellMeasurementFormState>) => void;
   onValidationClear: () => void;
   validationReport: MeasurementValidationReport | null;
-  onCsvUpload: (file: File, fallbackWellId: string) => Promise<boolean>;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onExcelUpload: (file: File, uploadWellId: string) => Promise<boolean>;
+  onSubmit: (event: FormEvent<HTMLFormElement>, userRut: string) => void;
 }) {
   const hasRegistryEntries = entries.length > 0;
+  const directory = useMeasurementRecorderDirectory(authIdToken, authUid, hasRegistryEntries);
   const isMeasurementOperationLoading =
-    individualStatus === "loading" || csvStatus === "loading";
-  const [selectedCsvFile, setSelectedCsvFile] = useState<File | null>(null);
-  const [csvWellId, setCsvWellId] = useState(entries.some((entry) => entry.id === selectedWellId) ? selectedWellId : "");
+    individualStatus === "loading" || excelStatus === "loading";
+  const [selectedExcelFile, setSelectedExcelFile] = useState<File | null>(null);
+  const [uploadWellId, setUploadWellId] = useState("");
   const [templateError, setTemplateError] = useState<string | null>(null);
   const [downloadingValidation, setDownloadingValidation] = useState(false);
   const [validationDownloadError, setValidationDownloadError] = useState<string | null>(null);
+  const selectedUploadWell = entries.find((entry) => entry.id === uploadWellId);
+  useEffect(() => {
+    if (uploadWellId && !selectedUploadWell) {
+      setUploadWellId("");
+      setSelectedExcelFile(null);
+      setTemplateError(null);
+      onValidationClear();
+    }
+  }, [uploadWellId, selectedUploadWell, onValidationClear]);
   useEffect(() => { setValidationDownloadError(null); }, [validationReport]);
-  const userSelectedUploadWell = useRef(false);
-  useEffect(() => {
-    if (!userSelectedUploadWell.current && entries.some((entry) => entry.id === selectedWellId)) setCsvWellId(selectedWellId);
-  }, [entries, selectedWellId]);
-  useEffect(() => {
-    if (validationReport && validationReport.selectedWellId !== csvWellId) onValidationClear();
-  }, [csvWellId, validationReport, onValidationClear]);
-  const activeValidationReport = validationReport?.selectedWellId === csvWellId ? validationReport : null;
-  const selectedUploadWell = entries.find((entry) => entry.id === csvWellId);
+  const activeValidationReport = validationReport?.selectedWell.id === selectedUploadWell?.id ? validationReport : null;
 
   return (
     <div className="measurement-upload-grid">
       <Panel
         title="Medición individual"
       >
-        <form className="manual-entry-form measurement-entry-form" onSubmit={onSubmit}>
+        <form className="manual-entry-form measurement-entry-form" onSubmit={(event) => {
+          event.preventDefault();
+          if (directory.selectedRecorder && !isMeasurementOperationLoading) {
+            onSubmit(event, directory.selectedRecorder.rut);
+          }
+        }}>
           <div className="well-admin-intro">
             <span className="well-admin-intro-icon" aria-hidden="true"><ClipboardPlus size={22} /></span>
             <div>
@@ -111,21 +121,7 @@ export function WellMeasurementIngestPanel({
             <small className="field-help">Solo aparecen pozos donde tienes permiso de carga.</small>
           </label>
 
-          <div className="manual-two-col">
-            <label>
-              <span>RUT de quien mide *</span>
-              <input
-                type="text"
-                value={form.userRut}
-                placeholder="20999888-7"
-                onChange={(event) => onChange({ userRut: event.target.value })}
-                required
-              />
-              <small className="field-help">
-                RUT de la persona que hizo la medición.
-              </small>
-            </label>
-          </div>
+          <MeasurementRecorderPicker directory={directory} disabled={isMeasurementOperationLoading} />
 
           <div className="manual-two-col measurement-datetime-row">
             <label>
@@ -281,7 +277,7 @@ export function WellMeasurementIngestPanel({
           )}
           <button
             type="submit"
-            disabled={isMeasurementOperationLoading || !hasRegistryEntries}
+            disabled={isMeasurementOperationLoading || !hasRegistryEntries || !directory.selectedRecorder}
           >
             {individualStatus === "loading"
               ? "Guardando..."
@@ -292,11 +288,38 @@ export function WellMeasurementIngestPanel({
 
       <Panel title="Carga Excel" subtitle="Carga una o varias mediciones">
         <div className="csv-upload-box">
+          <label>
+            <span>Pozo para la carga</span>
+            <select
+              aria-label="Pozo para la carga"
+              className="well-chart-select"
+              value={selectedUploadWell?.id ?? ""}
+              onChange={(event) => {
+                setUploadWellId(event.target.value);
+                setSelectedExcelFile(null);
+                setTemplateError(null);
+                onValidationClear();
+              }}
+              disabled={!hasRegistryEntries || isMeasurementOperationLoading}
+              required
+            >
+              <option value="">Selecciona un pozo</option>
+              {entries.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.name} · {entry.codigoObra ?? `${entry.casCode} (${entry.lat.toFixed(4)}, ${entry.lng.toFixed(4)})`}
+                </option>
+              ))}
+            </select>
+            <small className="field-help">{selectedUploadWell
+              ? `Las mediciones se cargarán en el pozo ${selectedUploadWell.name}`
+              : "Selecciona un pozo para descargar la planilla o cargar mediciones."}</small>
+          </label>
           <button
             type="button"
             className="csv-template-action"
-            disabled={!hasRegistryEntries || isMeasurementOperationLoading}
+            disabled={!selectedUploadWell || isMeasurementOperationLoading}
             onClick={async () => {
+              if (!selectedUploadWell) return;
               setTemplateError(null);
               try { await downloadMeasurementTemplate(selectedUploadWell); }
               catch { setTemplateError("No pudimos preparar la planilla. Intenta nuevamente."); }
@@ -305,53 +328,41 @@ export function WellMeasurementIngestPanel({
             <Download size={16} />
             Descargar planilla
           </button>
-          <label>
-            <span>Pozo para la carga</span>
-            <select aria-label="Pozo para la carga" className="well-chart-select" value={csvWellId} onChange={(event) => { userSelectedUploadWell.current = true; setCsvWellId(event.target.value); onValidationClear(); }} disabled={!hasRegistryEntries || isMeasurementOperationLoading}>
-              <option value="">Varios pozos (indicarlos en la planilla)</option>
-              {entries.map((entry) => (
-                <option key={entry.id} value={entry.id}>
-                  {entry.name} · {entry.codigoObra ?? `${entry.casCode} (${entry.lat.toFixed(4)}, ${entry.lng.toFixed(4)})`}
-                </option>
-              ))}
-            </select>
-            <small className="field-help">{selectedUploadWell ? `Las mediciones se cargarán en el pozo ${selectedUploadWell.name}` : "La planilla incluirá la columna Pozo: escribe su nombre o código en cada fila."}</small>
-          </label>
           <input
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             aria-label="Planilla Excel de mediciones"
             type="file"
-            disabled={isMeasurementOperationLoading || !hasRegistryEntries}
+            disabled={isMeasurementOperationLoading || !selectedUploadWell}
             onChange={(event) => {
               const file = event.target.files?.[0];
-              setSelectedCsvFile(file ?? null);
+              setSelectedExcelFile(file ?? null);
               onValidationClear();
               event.currentTarget.value = "";
             }}
           />
-          {selectedCsvFile && (
-            <span className="csv-selected-file">{selectedCsvFile.name}</span>
+          {selectedExcelFile && (
+            <span className="csv-selected-file">{selectedExcelFile.name}</span>
           )}
           <button
             type="button"
             className="csv-upload-action"
-            disabled={isMeasurementOperationLoading || !selectedCsvFile}
+            disabled={isMeasurementOperationLoading || !selectedUploadWell || !selectedExcelFile}
             onClick={async () => {
-              if (!selectedCsvFile) {
+              if (!selectedUploadWell || !selectedExcelFile) {
                 return;
               }
-              const uploaded = await onCsvUpload(selectedCsvFile, csvWellId);
+              const uploaded = await onExcelUpload(selectedExcelFile, selectedUploadWell.id);
               if (uploaded) {
-                setSelectedCsvFile(null);
+                setSelectedExcelFile(null);
               }
             }}
           >
             <Upload size={16} />
-            {csvStatus === "loading" ? "Cargando..." : "Cargar mediciones"}
+            {excelStatus === "loading" ? "Cargando..." : "Cargar mediciones"}
           </button>
           <small>Máximo 1.000 mediciones y 5 MiB. Se guardan todas juntas solo si no hay errores.</small>
           {templateError && <p role="alert">{templateError}</p>}
-          {activeValidationReport && csvStatus === "error" && (
+          {activeValidationReport && excelStatus === "error" && (
             <>
               <button type="button" className="csv-template-action" disabled={downloadingValidation || isMeasurementOperationLoading}
                 onClick={async () => {
@@ -370,14 +381,14 @@ export function WellMeasurementIngestPanel({
             </>
           )}
           {validationDownloadError && <p role="alert">{validationDownloadError}</p>}
-          {csvMessage && (
+          {excelMessage && (
             <p
               style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
-              className={`form-feedback ${csvStatus === "ready" ? "is-success" : "is-error"}`}
-              role={csvStatus === "error" ? "alert" : "status"}
-              aria-live={csvStatus === "error" ? "assertive" : "polite"}
+              className={`form-feedback ${excelStatus === "ready" ? "is-success" : "is-error"}`}
+              role={excelStatus === "error" ? "alert" : "status"}
+              aria-live={excelStatus === "error" ? "assertive" : "polite"}
             >
-              {csvMessage}
+              {excelMessage}
             </p>
           )}
         </div>
