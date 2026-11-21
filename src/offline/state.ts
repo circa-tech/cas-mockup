@@ -10,14 +10,16 @@ type OfflineState = {
   session: (SavedSession & { idToken: string | null }) | null;
   scope: string;
   generation: number;
-  networkUnavailable: boolean;
+  connectivityRevision: number;
   storageError: boolean;
   shellReady: boolean;
   shellUpdateAvailable: boolean;
   preparing: boolean;
   completed: number;
   total: number;
-  requiredUrls: string[];
+  copyChecked: boolean;
+  saveError: string | null;
+  progress: { completed: number; total: number } | null;
   missingSections: string[];
   forumTruncated: boolean;
   lastSync: number | null;
@@ -27,14 +29,16 @@ let state: OfflineState = {
   session: null,
   scope: "anonymous",
   generation: 0,
-  networkUnavailable: false,
+  connectivityRevision: 0,
   storageError: false,
   shellReady: false,
   shellUpdateAvailable: false,
   preparing: false,
   completed: 0,
   total: 0,
-  requiredUrls: [],
+  copyChecked: false,
+  saveError: null,
+  progress: null,
   missingSections: [],
   forumTruncated: false,
   lastSync: null,
@@ -42,7 +46,14 @@ let state: OfflineState = {
 const listeners = new Set<() => void>();
 export const getOfflineState = () => state;
 export function updateOfflineState(update: Partial<OfflineState>) {
-  state = { ...state, ...update };
+  const changedNetwork = update.online !== undefined && update.online !== state.online;
+  const changedCopy = !state.online && (update.lastSync !== undefined && update.lastSync !== state.lastSync ||
+    update.completed !== undefined && update.completed !== state.completed);
+  state = {
+    ...state,
+    ...update,
+    connectivityRevision: changedNetwork || changedCopy ? state.connectivityRevision + 1 : state.connectivityRevision,
+  };
   listeners.forEach((listener) => listener());
 }
 export function setOfflineSession(session: OfflineState["session"]) {
@@ -51,7 +62,7 @@ export function setOfflineSession(session: OfflineState["session"]) {
   updateOfflineState({
     session,
     scope,
-    ...(changed ? { generation: state.generation + 1, completed: 0, total: 0, requiredUrls: [], missingSections: [], forumTruncated: false, lastSync: null, preparing: false, storageError: false } : {}),
+    ...(changed ? { generation: state.generation + 1, completed: 0, total: 0, copyChecked: false, saveError: null, progress: null, missingSections: [], forumTruncated: false, lastSync: null, preparing: false, storageError: false } : {}),
   });
 }
 export function useOfflineState() {
@@ -62,10 +73,10 @@ export function useOfflineState() {
 }
 export const isReadOnly = () => {
   const current = getOfflineState();
-  return !current.online || current.networkUnavailable || !current.session?.idToken;
+  return !current.online || !current.session?.idToken;
 };
 
 if (typeof window !== "undefined") {
   window.addEventListener("offline", () => updateOfflineState({ online: false }));
-  window.addEventListener("online", () => updateOfflineState({ online: true, networkUnavailable: false }));
+  window.addEventListener("online", () => updateOfflineState({ online: true }));
 }

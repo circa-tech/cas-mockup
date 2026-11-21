@@ -130,7 +130,7 @@ export function ForumView(props: Props) {
 
 function AuthenticatedForum({ token }: { token: string | null }) {
   const offline = useOfflineState();
-  const readOnly = !offline.online || offline.networkUnavailable || !token;
+  const readOnly = !offline.online || !token;
   const client = useQueryClient();
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [initialLocation] = useState(() =>

@@ -22,8 +22,7 @@ function readLastRecorder(key: string | null) {
 }
 
 export function useMeasurementRecorderDirectory(authIdToken: string | null, authUid: string | null, canRecord: boolean) {
-  const offline = useOfflineState();
-  const online = offline.online && !offline.networkUnavailable;
+  const { online } = useOfflineState();
   const enabled = Boolean(authIdToken && authUid && online && canRecord);
   const storageKey = lastRecorderKey(authUid);
   const [selectedId, setSelectedId] = useState(() => readLastRecorder(storageKey));

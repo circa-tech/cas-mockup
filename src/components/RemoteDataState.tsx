@@ -19,10 +19,10 @@ export function RemoteDataState({
 }: RemoteDataStateProps) {
   const offline = useOfflineState();
   const missingOfflineData = tone === "error" && Boolean(offline.session) &&
-    (!offline.online || offline.networkUnavailable || !offline.session?.idToken);
+    !offline.online;
   if (missingOfflineData) {
     title = "Datos no disponibles sin conexión";
-    message = "Esta selección aún no se ha guardado. Vuelve a consultarla cuando tengas internet.";
+    message = "Esta selección no está en la copia guardada.";
   }
   const Icon = tone === "loading" ? LoaderCircle : tone === "empty" ? Info : AlertTriangle;
   const stateClassName = [

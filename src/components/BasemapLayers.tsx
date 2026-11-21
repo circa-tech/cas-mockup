@@ -3,8 +3,8 @@ import { useOfflineState } from "../offline/state";
 import { RegionalBasemap } from "./RegionalBasemap";
 
 export function BasemapLayers() {
-  const { online, networkUnavailable, session } = useOfflineState();
-  const offline = !online || networkUnavailable || Boolean(session && !session.idToken);
+  const { online } = useOfflineState();
+  const offline = !online;
   return <>
     <LayersControl.BaseLayer checked={offline} name="Mapa regional sin conexión">
       <LayerGroup><RegionalBasemap /></LayerGroup>

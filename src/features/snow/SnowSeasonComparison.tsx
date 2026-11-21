@@ -311,7 +311,7 @@ export function SnowSeasonComparison({
   const [rangeRevision, setRangeRevision] = useState(0);
   const { online, session } = useOfflineState();
   const endDate = new Date().toISOString().slice(0, 10);
-  const historyEnabled = isLoggedIn && Boolean(authIdToken || session?.idToken);
+  const historyEnabled = isLoggedIn;
   const coverageQuery = useQuery({
     queryKey: queryKeys.snow.coverage(authIdToken),
     queryFn: () => fetchModisSnowCoverageSeries(authIdToken),
@@ -323,7 +323,7 @@ export function SnowSeasonComparison({
       const params = { area, start_date: HISTORY_START, end_date: endDate, resolution: "native", max_points: 5000 };
       return {
         queryKey: ["history", authQueryScope(authIdToken), "modis-snow", params, "snow-season-comparison", online, Boolean(session?.idToken)],
-        queryFn: ({ signal }: { signal: AbortSignal }) => fetchHistory("modis-snow", params, authIdToken, signal),
+        queryFn: ({ signal }: { signal: AbortSignal }) => fetchHistory("modis-snow", params, authIdToken, signal, "all"),
         enabled: historyEnabled,
         staleTime: 5 * 60 * 1000,
         retry: (count: number, error: unknown) => !(error instanceof OfflineDataUnavailableError)
@@ -417,7 +417,7 @@ export function SnowSeasonComparison({
                   message={sessionRejected ? "El servicio rechazó la sesión. Vuelve a iniciar sesión y recarga esta vista."
                     : coverageQuery.isError ? "El historial no está publicado y también falló la serie de respaldo. Revisa la disponibilidad del servicio local."
                       : query.error instanceof ApiRequestError && query.error.status === 404 ? "Todavía no hay una serie histórica publicada para esta cuenca."
-                        : query.error instanceof OfflineDataUnavailableError ? "Conéctate para consultar y guardar las temporadas históricas."
+                        : query.error instanceof OfflineDataUnavailableError ? "Conéctate para consultar las temporadas o vuelve a guardar la copia."
                           : "Intenta cargar las temporadas nuevamente."} />
                   : firstYear !== null && secondYear !== null ? <SeasonChart
                     points={query.data?.points ?? []}

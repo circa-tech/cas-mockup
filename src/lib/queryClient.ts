@@ -25,4 +25,7 @@ export const queryClient = new QueryClient({
 
 // The credential is deliberately excluded: refreshing it must not discard data.
 // Auth installs this scope before mounting any authenticated query observers.
-export const authQueryScope = (_idToken?: string | null) => getOfflineState().scope;
+export const authQueryScope = (_idToken?: string | null) => {
+  const { scope, connectivityRevision } = getOfflineState();
+  return JSON.stringify([scope, connectivityRevision]);
+};

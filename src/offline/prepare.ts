@@ -1,109 +1,107 @@
 import { useEffect } from "react";
-import { apiFetch, canonicalUrl } from "./apiFetch";
+import { canSaveResponse, canonicalUrl, fetchLiveResponse } from "./apiFetch";
 import { getOfflineState, updateOfflineState, useOfflineState } from "./state";
-import { listResponses, readResponse } from "./storage";
+import {
+  clearSavedData, commitCopy, hasOfflineDatabase, invalidateResponses, reserveCopy,
+  OFFLINE_COPY_CHANGED, OFFLINE_MAX_AGE, readCopyContents, responseKey,
+  type SavedCopy, type SavedResponse, type SavedSession,
+} from "./storage";
 import { snapshotCompleteness } from "./completeness";
-import { queryClient } from "../lib/queryClient";
 import { HISTORY_START, historyPreset } from "../utils/history";
 
-const defaultHistoryPath = (module: "et-lat" | "modis-snow", selection: Record<string, string> = {}) =>
-  `${module}/history?${new URLSearchParams({ ...selection, ...historyPreset(1), resolution: "auto", max_points: "1200" })}`;
-const fullSnowHistoryPath = (area: string) =>
+const defaultHistoryPath = (module: "et-lat" | "modis-snow", date: Date, selection: Record<string, string> = {}) =>
+  `${module}/history?${new URLSearchParams({ ...selection, ...historyPreset(1, date), resolution: "auto", max_points: "1200" })}`;
+const fullSnowHistoryPath = (area: string, date: Date) =>
   `modis-snow/history?${new URLSearchParams({
     area,
     start_date: HISTORY_START,
-    end_date: new Date().toISOString().slice(0, 10),
+    end_date: date.toISOString().slice(0, 10),
     resolution: "native",
     max_points: "5000",
   })}`;
 
-const apiBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+const apiBase = import.meta.env?.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
 const summaryPaths = ["weather-stations/snapshot", "et-lat/std-ae", "et-lat/serie-et", "modis-snow/coverage-series"];
 const corePaths = [
   ...summaryPaths,
-  "et-lat/et-cult", "et-lat/mapa-sectores",
-  "et-lat/mapa-cult", "et-lat/mapa-cuadrantes",
+  "et-lat/et-cult", "et-lat/mapa-sectores", "et-lat/mapa-cult",
   "et-lat/serie-et?sector_id=19", "et-lat/et-cult?sector_id=19",
   "modis-snow/basins-geojson", "modis-snow/latest-image",
 ];
-let runRevision = 0;
-export function offlinePaths(role: string) {
+function offlinePaths(session: SavedSession, date: Date) {
+  const { role, permissions } = session;
   return [
     ...corePaths,
-    defaultHistoryPath("et-lat"),
-    defaultHistoryPath("et-lat", { sector_id: "19" }),
-    ...["ae", "jorquera", "pulido", "manflas"].map(fullSnowHistoryPath),
+    ...(permissions.includes("et:download") ? ["et-lat/mapa-cuadrantes"] : []),
+    defaultHistoryPath("et-lat", date),
+    defaultHistoryPath("et-lat", date, { sector_id: "19" }),
+    ...["ae", "jorquera", "pulido", "manflas"].map((area) => fullSnowHistoryPath(area, date)),
     ...(role !== "public_user" ? ["wells/groundwater-measurements", "wells/admin/me", "wells/registry/mine"] : []),
     ...(["cas_user", "technical_admin", "general_admin"].includes(role)
       ? ["forum/threads?page=1&page_size=20"] : []),
   ];
 }
 
-export async function prepareOfflineData(refresh = false) {
-  const initial = getOfflineState();
-  if (!initial.session || !apiBase) return;
-  const { generation, scope } = initial;
-  const revision = ++runRevision;
-  const current = () => getOfflineState().generation === generation && revision === runRevision;
+const urlFor = (path: string) => canonicalUrl(`${apiBase}/api/v1/${path}`);
+
+async function planCopy(
+  session: SavedSession,
+  date: Date,
+  getEntry: (url: string) => Promise<SavedResponse | undefined>,
+  current: () => boolean,
+  status?: (completed: number, total: number) => void,
+) {
+  const required = new Set<string>();
+  const entries = new Map<string, SavedResponse>();
   const paths: string[] = [];
-  let completed = 0;
-  let cursor = 0;
-  updateOfflineState({ preparing: initial.online && Boolean(initial.session.idToken), completed: 0, total: paths.length });
-  const run = async () => {
-    while (cursor < paths.length && current() && getOfflineState().online) {
-      const path = paths[cursor++];
-      // Retry a transient login-burst failure before discovering dependencies
-      // (not afterwards, which could incorrectly omit forum replies/maps).
-      for (let attempt = 0; attempt < 2 && current() && getOfflineState().online; attempt++) {
-        try {
-          const response = await apiFetch(`${apiBase}/api/v1/${path}`, { cache: refresh ? "reload" : "default" });
-          if (response.ok && current()) { completed += 1; break; }
-          if (response.status < 500) break;
-        } catch { /* One retry, then report the missing section. */ }
-      }
-      if (current()) updateOfflineState({ completed });
-    }
-  };
-  const runPhase = async (extra: string[] = [], repair = false) => {
+  const runPhase = async (extra: string[]) => {
+    if (!current()) return;
+    const urls = extra.map(urlFor).filter((url) => {
+      if (required.has(url)) return false;
+      required.add(url);
+      return true;
+    });
     paths.push(...extra.filter((path) => !paths.includes(path)));
-    if (current()) updateOfflineState({ total: paths.length, requiredUrls: paths.map((path) => canonicalUrl(`${apiBase}/api/v1/${path}`)) });
-    if (initial.online && initial.session?.idToken) await Promise.all([run(), run(), run()]);
-    // A successful raw download must also repair any failed foreground query.
-    // Reading its just-saved response avoids another network request.
-    if (current() && repair) await queryClient.refetchQueries({ type: "active", predicate: (query) => query.state.status === "error" }, { cancelRefetch: false });
+    let next = 0;
+    status?.(entries.size, required.size);
+    const run = async () => {
+      while (current() && next < urls.length) {
+        const url = urls[next++];
+        const entry = await getEntry(url);
+        if (entry) entries.set(url, entry);
+        if (current()) status?.(entries.size, required.size);
+      }
+    };
+    await Promise.all([run(), run(), run()]);
   };
   const savedJson = async (path: string) => {
-    const entry = await readResponse(scope, canonicalUrl(`${apiBase}/api/v1/${path}`)).catch(() => undefined);
+    const entry = entries.get(urlFor(path));
     return entry ? new Response(entry.body).json().catch(() => undefined) : undefined;
   };
-  await runPhase(summaryPaths, true);
-  if (!current()) return;
-  await runPhase(offlinePaths(initial.session.role));
-  if (!current()) return;
+  await runPhase(offlinePaths(session, date));
   const [sectorMap, parcelMap, capabilities] = await Promise.all([
     savedJson("et-lat/mapa-sectores"), savedJson("et-lat/mapa-cult"),
-    initial.session.role !== "public_user" ? savedJson("wells/admin/me") : undefined,
+    session.role !== "public_user" ? savedJson("wells/admin/me") : undefined,
   ]);
   // The map currently contains 22 sectors. Bound preparation if the backend
-  // expands the area; all other selections are still saved when visited.
+  // expands the area. Other selections require connectivity.
   const sectors = ((sectorMap?.features ?? []) as { id?: number; properties?: { sector_id?: number } }[])
     .map((feature) => Number(feature.properties?.sector_id ?? feature.id))
     .filter((id) => Number.isInteger(id) && id > 0 && ![14, 17, 18].includes(id)).slice(0, 24);
   const parcels = (parcelMap?.features ?? []) as { id?: number; properties?: { uso_id?: number } }[];
   const parcel = parcels.find((feature) => Number(feature.properties?.uso_id ?? feature.id) === 855) ?? parcels[0];
   const parcelId = Number(parcel?.properties?.uso_id ?? parcel?.id);
-  const downloads = initial.session.permissions.includes("et:download");
+  const downloads = session.permissions.includes("et:download");
   const downloadPath = "et-lat/data-cuad?cuadrante_id=273&variable=ETR";
   await runPhase([
     ...sectors.flatMap((id) => [`et-lat/serie-et?sector_id=${id}`, `et-lat/et-cult?sector_id=${id}`]),
-    ...sectors.map((id) => defaultHistoryPath("et-lat", { sector_id: String(id) })),
-    ...(Number.isInteger(parcelId) && parcelId > 0 ? [defaultHistoryPath("et-lat", { uso_id: String(parcelId) })] : []),
-    ...(Number.isInteger(parcelId) && parcelId > 0 ? ["et-poly", "kc-poly", "lai-poly"].map((resource) => `et-lat/${resource}?uso_id=${parcelId}`) : []),
+    ...sectors.map((id) => defaultHistoryPath("et-lat", date, { sector_id: String(id) })),
+    ...(Number.isInteger(parcelId) && parcelId > 0 ? [defaultHistoryPath("et-lat", date, { uso_id: String(parcelId) })] : []),
+    ...(Number.isInteger(parcelId) && parcelId > 0 ? ["et-poly", ...(session.role === "general_admin" ? ["kc-poly", "lai-poly"] : [])].map((resource) => `et-lat/${resource}?uso_id=${parcelId}`) : []),
     ...(capabilities?.canManageCas ? ["wells/registry"] : []),
     ...(downloads ? [downloadPath] : []),
   ]);
-  if (!current()) return;
-  if (downloads) {
+  if (downloads && current()) {
     const years = (await savedJson(downloadPath))?.anos as number[] | undefined;
     const year = years?.includes(2025) ? 2025 : Math.max(...(years ?? []));
     if (Number.isFinite(year)) {
@@ -114,7 +112,6 @@ export async function prepareOfflineData(refresh = false) {
       if (Number.isFinite(month)) await runPhase([`${monthPath}&mes=${month}`]);
     }
   }
-  if (!current()) return;
   // Follow forum pagination and save every downloaded topic's body/replies.
   // Bound unusually large archives and disclose any remaining online-only pages.
   const forumQueue = paths.filter((path) => path.startsWith("forum/"));
@@ -144,55 +141,157 @@ export async function prepareOfflineData(refresh = false) {
     allowed.forEach((entry) => { discovered.add(entry); forumQueue.push(entry); });
     if (allowed.length) await runPhase(allowed);
   }
-  if (!current()) return;
-  await queryClient.refetchQueries({ type: "active", predicate: (query) => query.state.status === "error" }, { cancelRefetch: false });
-  if (!current()) return;
-  // Read committed entries before reporting readiness, including offline restarts.
+  return { entries: [...entries.values()], requiredUrls: [...required], forumTruncated };
+}
+
+let saveController: AbortController | undefined;
+let inspectionRevision = 0;
+
+async function inspectCopy() {
+  const { generation, scope, session } = getOfflineState();
+  const revision = ++inspectionRevision;
+  const current = () => getOfflineState().generation === generation && inspectionRevision === revision;
+  if (!session) return;
   try {
-    const status = snapshotCompleteness(await listResponses(), scope, paths.map((path) => canonicalUrl(`${apiBase}/api/v1/${path}`)));
-    if (current()) updateOfflineState({ ...status, forumTruncated });
-  } catch { if (current()) updateOfflineState({ storageError: true }); }
-  finally { if (current()) updateOfflineState({ preparing: false }); }
+    const exists = await hasOfflineDatabase();
+    const { entries, copy } = exists ? await readCopyContents(scope) : { entries: [], copy: undefined };
+    const scoped = entries.filter((entry) => entry.scope === scope && Date.now() - entry.savedAt < OFFLINE_MAX_AGE);
+    if (!scoped.length) {
+      if (current()) updateOfflineState({ copyChecked: true, storageError: false, completed: 0, total: 0, lastSync: null, missingSections: [], forumTruncated: false });
+      return false;
+    }
+    const legacy = new Map(scoped.map((entry) => [entry.url, entry]));
+    // Legacy rows can contain several days of opportunistic saves. Resolve the
+    // presets as the UI would today, then display the original retained date.
+    const plan = copy ?? await planCopy(session, new Date(), async (url) => legacy.get(url), current);
+    const status = snapshotCompleteness(scoped, scope, plan.requiredUrls);
+    const savedAt = copy?.savedAt ?? status.lastSync ?? Math.min(...scoped.map((entry) => entry.savedAt));
+    if (current()) updateOfflineState({
+      ...status, copyChecked: true, storageError: false, lastSync: savedAt, total: plan.requiredUrls.length, forumTruncated: plan.forumTruncated,
+    });
+    return true;
+  } catch {
+    if (current()) updateOfflineState({ copyChecked: true, storageError: true, lastSync: null });
+  }
 }
 
-let preparation: Promise<void> | null = null;
-export function refreshOfflineData() {
-  if (preparation) return preparation;
-  updateOfflineState({ networkUnavailable: false, storageError: false });
-  preparation = prepareOfflineData(true).then(() => queryClient.invalidateQueries()).finally(() => { preparation = null; });
-  return preparation;
-}
+export async function saveOfflineCopy() {
+  const { online, session, scope, generation } = getOfflineState();
+  if (!online || !session?.idToken || !apiBase || saveController) return;
+  const controller = new AbortController();
+  saveController = controller;
+  const current = () => getOfflineState().generation === generation && !controller.signal.aborted;
+  updateOfflineState({ preparing: true, progress: null, storageError: false, saveError: null });
 
-export function useOfflinePreparation(enabled: boolean) {
-  const { scope, online, session } = useOfflineState();
-  const hasCredential = Boolean(session?.idToken);
-  useEffect(() => {
-    if (!enabled) return;
-    // Allow initial screen requests to start first. StrictMode cleanup cancels
-    // the redundant scheduling before a second preparation job is launched.
-    const timer = window.setTimeout(() => { void prepareOfflineData(); }, 500);
-    return () => clearTimeout(timer);
-  }, [enabled, scope, online, hasCredential]);
-  useEffect(() => {
-    if (!enabled) return;
-    let timer: number;
-    const verify = () => {
-      clearTimeout(timer);
-      timer = window.setTimeout(async () => {
-        const snapshot = getOfflineState();
-        if (snapshot.preparing || !snapshot.requiredUrls.length) return;
+  try {
+    const revision = await reserveCopy(scope);
+    const hasPreviousCopy = await inspectCopy();
+    if (!current()) return;
+    if (hasPreviousCopy === undefined) throw new Error("No se pudo leer la copia anterior.");
+    const denied = new Set<string>();
+    let sessionRejected = false;
+    const date = new Date();
+    const download = async (url: string) => {
+      if (!canSaveResponse(url)) return undefined;
+      for (let attempt = 0; attempt < 2 && current() && getOfflineState().online; attempt++) {
         try {
-          const status = snapshotCompleteness(await listResponses(), snapshot.scope, snapshot.requiredUrls);
-          if (getOfflineState().generation === snapshot.generation) updateOfflineState(status);
-        } catch { updateOfflineState({ storageError: true }); }
-      }, 300);
+          const response = await fetchLiveResponse(url, { signal: controller.signal }, true);
+          if (response.ok) {
+            // Read the body before declaring the request complete.
+            const body = await response.blob();
+            if (new URL(url).pathname === "/api/v1/modis-snow/latest-image") {
+              if (!body.size || body.type !== "image/png") throw new Error("La respuesta no contiene una imagen PNG.");
+            } else {
+              await new Response(body).json();
+            }
+            return {
+              key: responseKey(scope, url), scope, url, body, savedAt: date.getTime(),
+              headers: [...response.headers.entries()].filter(([name]) =>
+                ["content-type", "x-image-date", "x-image-bounds", "x-image-crs"].includes(name)),
+            } satisfies SavedResponse;
+          }
+          if (response.status === 401) sessionRejected = true;
+          if ([403, 404].includes(response.status)) denied.add(url);
+          if (response.status < 500) break;
+        } catch {
+          // Retry transport and interrupted-body failures once while connected.
+        }
+      }
+      return undefined;
     };
-    window.addEventListener("cas-offline-cache-changed", verify);
-    document.addEventListener("visibilitychange", verify);
+
+    const plan = await planCopy(session, date, download, current, (completed, total) =>
+      updateOfflineState({ progress: { completed, total } }));
+    if (!current()) return;
+    if (sessionRejected) {
+      await clearSavedData({ scope, isCurrent: current });
+      if (current()) updateOfflineState({ saveError: "La sesión dejó de ser válida. Vuelve a iniciar sesión para guardar una copia." });
+      return;
+    }
+    const partial = plan.entries.length < plan.requiredUrls.length;
+    if (hasPreviousCopy && partial) {
+      // An authoritative denial must remove an affected old response, even
+      // when the rest of the usable copy is kept after a failed replacement.
+      for (const url of denied) {
+        await invalidateResponses(scope, "", url);
+      }
+      if (current()) updateOfflineState({ saveError: "No se pudo guardar una copia completa. Se conservaron los datos disponibles de la copia anterior." });
+      return;
+    }
+    if (!plan.entries.length) {
+      updateOfflineState({ saveError: "No se pudo guardar la copia. Vuelve a intentarlo con conexión." });
+      return;
+    }
+    const copy: SavedCopy = { scope, savedAt: date.getTime(), requiredUrls: plan.requiredUrls, forumTruncated: plan.forumTruncated };
+    const identity = { uid: session.uid, role: session.role, userName: session.userName, permissions: session.permissions, verifiedAt: date.getTime() };
+    if (!await commitCopy(identity, copy, plan.entries, revision, current) && current()) {
+      updateOfflineState({ saveError: "La copia cambió en otra pestaña. Vuelve a intentarlo." });
+    }
+  } catch {
+    if (current()) updateOfflineState({ saveError: "No se pudo guardar la copia en este navegador." });
+  } finally {
+    if (saveController === controller) {
+      saveController = undefined;
+      if (getOfflineState().generation === generation) {
+        await inspectCopy();
+        if (getOfflineState().generation === generation && !saveController) {
+          updateOfflineState({ preparing: false, progress: null });
+        }
+      }
+    }
+  }
+}
+
+export async function deleteOfflineCopy() {
+  saveController?.abort();
+  const { generation } = getOfflineState();
+  try {
+    if (await hasOfflineDatabase()) await clearSavedData();
+    if (getOfflineState().generation === generation) {
+      updateOfflineState({ saveError: null, storageError: false });
+      await inspectCopy();
+    }
+  } catch {
+    if (getOfflineState().generation === generation) updateOfflineState({ saveError: "No se pudo eliminar la copia." });
+  }
+}
+
+export function useOfflineCopy(enabled: boolean, menuOpen: boolean) {
+  const { online, scope } = useOfflineState();
+  useEffect(() => {
+    if (!enabled || (online && !menuOpen)) return;
+    void inspectCopy();
+    const changed = () => { void inspectCopy(); };
+    const fromOtherTab = (event: StorageEvent) => {
+      if (event.key === OFFLINE_COPY_CHANGED) changed();
+    };
+    window.addEventListener(OFFLINE_COPY_CHANGED, changed);
+    window.addEventListener("storage", fromOtherTab);
+    document.addEventListener("visibilitychange", changed);
     return () => {
-      clearTimeout(timer);
-      window.removeEventListener("cas-offline-cache-changed", verify);
-      document.removeEventListener("visibilitychange", verify);
+      window.removeEventListener(OFFLINE_COPY_CHANGED, changed);
+      window.removeEventListener("storage", fromOtherTab);
+      document.removeEventListener("visibilitychange", changed);
     };
-  }, [enabled, scope]);
+  }, [enabled, menuOpen, online, scope]);
 }
