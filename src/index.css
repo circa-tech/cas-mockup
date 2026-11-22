@@ -2482,7 +2482,12 @@ select:focus-visible {
   gap: 8px;
   margin: 5px 0;
 }
-.meteo-daily-statistics dt { color: var(--muted); }
+.meteo-daily-statistics dt {
+  color: #475467;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
 .meteo-daily-statistics dd {
   margin: 0;
   font-size: 15px;
