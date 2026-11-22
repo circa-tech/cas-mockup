@@ -32,21 +32,22 @@ export function WellsView({
   onWellRegistrySubmit,
   onWellRegistryUpdate,
   onWellMeasurementChange,
-  onWellMeasurementCsvUpload,
+  onWellMeasurementExcelUpload,
   onWellMeasurementValidationClear,
   wellMeasurementValidationReport,
   onWellMeasurementSubmit,
   onSelectWell,
   selectedWellId,
   status,
-  wellMeasurementCsvMessage,
-  wellMeasurementCsvStatus,
+  wellMeasurementExcelMessage,
+  wellMeasurementExcelStatus,
   wellMeasurementForm,
   wellMeasurementMessage,
   wellMeasurementStatus,
   wellRegistryEntries,
   wellRegistryForm,
   wellRegistryMessage,
+  wellCreationConnectionMessage,
   wellRegistryStatus,
   wells,
 }: {
@@ -70,19 +71,20 @@ export function WellsView({
   onWellMeasurementChange: (next: Partial<WellMeasurementFormState>) => void;
   onWellMeasurementValidationClear: () => void;
   wellMeasurementValidationReport: MeasurementValidationReport | null;
-  onWellMeasurementCsvUpload: (file: File, fallbackWellId: string) => Promise<boolean>;
-  onWellMeasurementSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onWellMeasurementExcelUpload: (file: File, uploadWellId: string) => Promise<boolean>;
+  onWellMeasurementSubmit: (event: FormEvent<HTMLFormElement>, userRut: string) => void;
   onSelectWell: (wellId: string) => void;
   selectedWellId: string;
   status: RemoteLoadStatus;
-  wellMeasurementCsvMessage: string | null;
-  wellMeasurementCsvStatus: RemoteLoadStatus;
+  wellMeasurementExcelMessage: string | null;
+  wellMeasurementExcelStatus: RemoteLoadStatus;
   wellMeasurementForm: WellMeasurementFormState;
   wellMeasurementMessage: string | null;
   wellMeasurementStatus: RemoteLoadStatus;
   wellRegistryEntries: WellRegistryEntry[];
   wellRegistryForm: WellRegistryFormState;
   wellRegistryMessage: string | null;
+  wellCreationConnectionMessage: string | null;
   wellRegistryStatus: RemoteLoadStatus;
   wells: WellMapPoint[];
 }) {
@@ -122,7 +124,10 @@ export function WellsView({
           role="tab"
           aria-selected={activeWellsTab === "measurement"}
           className={activeWellsTab === "measurement" ? "is-active" : ""}
-          onClick={() => setActiveWellsTab("measurement")}
+          onClick={() => {
+            if (activeWellsTab !== "measurement") onWellMeasurementValidationClear();
+            setActiveWellsTab("measurement");
+          }}
         >
           Agregar medición
         </button>
@@ -187,15 +192,17 @@ export function WellsView({
         {wellsSubnav}
 
         <WellMeasurementIngestPanel
-          selectedWellId={selectedWellId}
-          csvMessage={wellMeasurementCsvMessage}
-          csvStatus={wellMeasurementCsvStatus}
+          key={authUid}
+          authIdToken={authIdToken}
+          authUid={authUid}
+          excelMessage={wellMeasurementExcelMessage}
+          excelStatus={wellMeasurementExcelStatus}
           entries={writableEntries}
           form={wellMeasurementForm}
           individualStatus={wellMeasurementStatus}
           message={wellMeasurementMessage}
           onChange={onWellMeasurementChange}
-          onCsvUpload={onWellMeasurementCsvUpload}
+          onExcelUpload={onWellMeasurementExcelUpload}
           onValidationClear={onWellMeasurementValidationClear}
           validationReport={wellMeasurementValidationReport}
           onSubmit={onWellMeasurementSubmit}
@@ -213,7 +220,14 @@ export function WellsView({
       onSelectWell={onSelectWell}
       selectedWellId={selectedWellId}
       status={status}
-      subnav={wellsSubnav}
+      subnav={(
+        <>
+          {wellsSubnav}
+          {wellCreationConnectionMessage && (
+            <p className="form-feedback is-error" role="alert">{wellCreationConnectionMessage}</p>
+          )}
+        </>
+      )}
       wellRegistryEntries={wellRegistryEntries}
       wells={wells}
     />

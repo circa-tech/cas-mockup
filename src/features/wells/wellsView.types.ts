@@ -63,7 +63,6 @@ export type WellMeasurementFormState = {
   ph: string;
   pressure: string;
   totalizer: string;
-  userRut: string;
   waterTableDepth: string;
   waterLevelCondition: string;
 };

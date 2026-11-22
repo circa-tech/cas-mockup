@@ -25,53 +25,45 @@ This requires the new `cas-service-platform` history endpoints and the
 history, then deploy this UI. Existing seasonal summary cards and Kc/LAI access
 are preserved. No browser connects to PostgreSQL or Firestore directly.
 
-Offline preparation includes the default one-year interval for the overview,
-supported sectors, initial parcel and snow areas. Other periods are saved when
-consulted, with the existing identity isolation, seven-day expiry and quota.
-An unvisited interval displays “Período no guardado”; exact date ranges form part
-of the cache key. This does not pre-download the full historical archive.
+The offline copy includes the default one-year ET interval for the overview,
+supported sectors and initial parcel, plus the snow histories used for comparing
+seasons. Other ET periods require a connection. A saved preset keeps its actual
+dates when the calendar advances.
 
 ## Offline browsing
 
-After an online sign-in, the app prepares a read-only copy in the background.
-The banner reports completion only after the responses have committed to
-IndexedDB and the production service worker has cached the app shell. Users can
-reopen the app offline with their existing Firebase identity, including when its
-token needs refreshing. A first sign-in still requires a connection.
+Online requests load the current data from the API. To prepare for fieldwork,
+open the signed-in user menu, choose **Datos sin conexión** and select
+**Guardar copia ahora**. The panel shows the date, unavailable sections, and
+**Eliminar copia**. A saved identity can reopen the app offline, including after
+its Firebase token expires. First sign-in requires a connection.
 
-- Preparation covers weather, well monitoring and registry data, snow coverage,
-  basin boundaries and image bytes, ET-LAT overview/maps, up to 24 supported
-  sectors, the initial parcel, initial download date choices, and forum topics,
-  their bodies and paginated replies where permitted. Forum preparation follows
-  pagination up to 300 requests; an explicit partial-copy notice appears for
-  larger archives. Other parcels and download selections are saved when visited.
-  It does not download the entire ET historical archive.
-- Summary requests run first. When a background download recovers a failed home
-  query, the home chart/table refreshes without navigation or a reload. Partial
-  copies name the missing sections; a saved timestamp alone never means all
-  sections were downloaded. Climate stations retain available measurements even
-  when other sensors are missing (shown as “Sin datos”, never invented zeros).
-- All private responses are isolated by API environment, Firebase project, UID,
-  role and permissions. Logout/account changes clear the saved copy. Firebase
-  manages its own credentials; the application snapshot stores no tokens.
-- Responses expire after seven days and the store is capped at 50 MiB, evicting
-  older responses first. Browser eviction, private browsing, disabled storage,
-  or quota failures can make preparation incomplete. Offline access cannot
-  discover permission changes until an online session is revalidated.
-- Mutations, administration and new image downloads require connectivity. No
-  changes are queued for later submission. Map markers, boundaries and cached
-  snow imagery work offline. YouTube videos remain online-only, with a readable
-  explanation in each video card when disconnected.
-- `src/offline/apiFetch.ts` caches an explicit allowlist of GET responses and
-  falls back on transport failures. It never masks HTTP 401/403/404 with saved
-  data. TanStack Query remains the in-memory UI cache; its query functions can
-  read IndexedDB without waiting for a network connection.
-- The service worker caches public build assets, including lazy tab chunks,
-  under `/cas-mockup/`, including the bundled regional basemap. It does not cache
-  authenticated API traffic or prefetch third-party map tiles. Updates activate
-  after existing app tabs close or the user chooses “Actualizar aplicación”.
-  A fresh install claims the current tab; readiness waits for that control so
-  first-visit offline navigation works without a reload.
+- The copy covers weather, supported well monitoring and registry data, the snow
+  image and history, ET-LAT overview/maps, up to 24 supported sectors, the initial
+  parcel and initial download date choices when permitted. Kc and LAI series for
+  the initial parcel are included for general administrators. The forum download
+  follows available topic and reply pages up to 300 requests. Additional parcel
+  selections, periods, and generated downloads require connection.
+- Each saved copy has a manifest of the enrolled resources and its original
+  timestamp. The panel reports missing resources from their actual availability.
+  If a replacement cannot complete, the previous copy remains usable. Permission
+  denials or removed resources still invalidate the affected saved content.
+- IndexedDB isolates private data by browser origin, API environment, Firebase
+  project, UID, role and permissions. Logout and identity changes clear the copy.
+  The copy contains no credentials. Rows expire after seven days and are subject
+  to a 50 MiB application cap and the browser's storage policy.
+- Online API requests use the server. Saved reads run only when the browser
+  reports it is offline. The public app shell, lazy chunks and regional basemap
+  are cached by the production service worker independently of the private copy.
+  Mutations are blocked offline. Satellite imagery, video, administration and
+  generated downloads require connection.
+
+For CIRCA-208, test each HTTPS origin independently. Sign in on the new host,
+save a copy, disconnect, reload, and open Evapotranspiración and Nieve. Reconnect
+and verify current server data, then delete the local copy and repeat the
+offline reload. The browser stores the old origin's copy separately, so users
+must save again on the new host. Keep the app-shell scope aligned with the
+actual hosting path (currently /cas-mockup/).
 
 ### Regional offline basemap
 
@@ -105,11 +97,10 @@ tests. `npm run build` checks TypeScript and generates the offline app shell.
 Playwright production-browser scenario. Install its browser with
 `npx playwright install chromium`, or use an installed Chrome with
 `PLAYWRIGHT_CHANNEL=chrome npm run test:offline`. The test mocks Firebase and API
-responses; it does not contact a live account. It covers preparation, failed
-initial-summary recovery, partial weather readings, incomplete-copy reporting,
-an expired token, offline reload, unvisited tabs, the real bundled regional map,
-forum replies/pagination, video placeholders, disabled writes, reconnect,
-and logout cleanup. Run `npm run build` again for a build using your normal
+responses. It covers manual preparation, live data on reconnect, failed
+replacement and deletion, incomplete-copy reporting, legacy storage migration,
+an expired token, next-day histories, offline reload, unvisited tabs, the
+bundled regional map, forum replies, video placeholders, and logout cleanup. Run `npm run build` again for a build using your normal
 environment after running this test.
 
 ## GitHub Pages deploy

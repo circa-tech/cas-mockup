@@ -10,7 +10,8 @@ import {
   YAxis,
   type DotItemDotProps,
 } from "recharts";
-import { useMemo } from "react";
+import { RotateCcw } from "lucide-react";
+import { useMemo, useState } from "react";
 import { buildLineChartRows, type LineChartBrushRange } from "./lineChartData";
 import { RemoteDataState } from "./RemoteDataState";
 
@@ -80,6 +81,7 @@ export function SimpleLineChart({
   xLabelAngle = 0,
 }: SimpleLineChartProps) {
   const rows = useMemo(() => buildLineChartRows(series), [series]);
+  const [brushRevision, setBrushRevision] = useState(0);
   if (!rows.length) {
     return (
       <RemoteDataState
@@ -91,12 +93,26 @@ export function SimpleLineChart({
     );
   }
   const rowCount = rows.length;
+  const brushStart = brushRange?.startIndex ?? 0;
+  const brushEnd = brushRange?.endIndex ?? rowCount - 1;
+  const isZoomed = brushStart !== 0 || brushEnd !== rowCount - 1;
   const hasRotatedLabels = xLabelAngle !== 0;
   const showXAxisTitle = !hasRotatedLabels && xAxisLabel.trim().length > 0;
   const hasSecondaryAxis = series.some((item) => item.yAxisId === "secondary");
 
   return (
     <div className="simple-chart">
+      {showBrush && rowCount > 1 && onBrushRangeChange && (
+        <div className="well-chart-range-actions">
+          <button type="button" className="secondary-button" disabled={!isZoomed} onClick={() => {
+            setBrushRevision((revision) => revision + 1);
+            onBrushRangeChange({ startIndex: 0, endIndex: rowCount - 1 });
+          }}>
+            <RotateCcw size={14} aria-hidden="true" />
+            Restablecer rango
+          </button>
+        </div>
+      )}
       <div className="simple-chart-recharts-shell">
         <ResponsiveContainer height={showBrush ? 382 : 338} width="100%">
           <LineChart data={rows} margin={{ bottom: showBrush ? 42 : hasRotatedLabels ? 18 : 22, left: 8, right: hasSecondaryAxis ? 18 : 8, top: 12 }}>
@@ -251,7 +267,7 @@ export function SimpleLineChart({
                       r: dotRadius,
                       ...(fillDots ? { fill: item.color, stroke: item.color } : {}),
                     }}
-                isAnimationActive
+                isAnimationActive={!showBrush}
                 name={item.label}
                 stroke={item.color}
                 strokeDasharray={item.strokeDasharray}
@@ -261,13 +277,21 @@ export function SimpleLineChart({
             ))}
             {showBrush && rows.length > 1 && (
               <Brush
+                key={brushRevision}
+                ariaLabel="Límite del rango visible"
+                className="well-chart-brush"
                 dataKey="label"
-                startIndex={onBrushRangeChange ? brushRange?.startIndex ?? 0 : undefined}
-                endIndex={onBrushRangeChange ? brushRange?.endIndex ?? rows.length - 1 : undefined}
+                startIndex={onBrushRangeChange ? brushStart : undefined}
+                endIndex={onBrushRangeChange ? brushEnd : undefined}
                 onChange={onBrushRangeChange ? ({ startIndex, endIndex }) => {
-                  if (startIndex !== undefined && endIndex !== undefined) onBrushRangeChange({ startIndex, endIndex });
+                  if (startIndex !== undefined && endIndex !== undefined &&
+                    (startIndex !== brushStart || endIndex !== brushEnd)) {
+                    onBrushRangeChange({ startIndex, endIndex });
+                  }
                 } : undefined}
+                fill="var(--chart-range-fill)"
                 height={26}
+                stroke="var(--chart-range-stroke)"
                 travellerWidth={10}
                 tickFormatter={(value) => String(value)}
               />

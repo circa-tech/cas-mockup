@@ -1,13 +1,14 @@
 import type { ReactNode } from "react";
 
 type PanelProps = {
+  actions?: ReactNode;
   children: ReactNode;
   className?: string;
   subtitle?: string;
   title: ReactNode;
 };
 
-export function Panel({ children, className, title, subtitle }: PanelProps) {
+export function Panel({ actions, children, className, title, subtitle }: PanelProps) {
   return (
     <section className={`panel ${className ?? ""}`.trim()}>
       <header className="panel-header">
@@ -15,6 +16,7 @@ export function Panel({ children, className, title, subtitle }: PanelProps) {
           <h3>{title}</h3>
           {subtitle && <p>{subtitle}</p>}
         </div>
+        {actions}
       </header>
       <div className="panel-content">{children}</div>
     </section>

@@ -45,7 +45,7 @@ export function EtrDownloadsTab({
   isLoggedIn: boolean;
 }) {
   const offline = useOfflineState();
-  const readOnly = !offline.online || offline.networkUnavailable || !authIdToken;
+  const readOnly = !offline.online || !authIdToken;
   const [selectedQuadrant, setSelectedQuadrant] = useState<EtrQuadrantSelection>(
     defaultEtrQuadrantSelection,
   );

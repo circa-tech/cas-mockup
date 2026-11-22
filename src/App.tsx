@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { RemoteDataState } from "./components/RemoteDataState";
 import { useAppController } from "./app/useAppController";
-import { OfflineBanner } from "./components/OfflineBanner";
+import { OfflineBanner, OfflineCopyControls, OfflineCopyUnavailable } from "./components/OfflineBanner";
 
 const ForumView = lazy(() =>
   import("./features/forum/ForumView").then((module) => ({ default: module.ForumView })),
@@ -61,8 +61,9 @@ const navIconMap = {
 
 export default function App() {
   const app = useAppController();
-  if (!app.authReady) return <RemoteDataState className="route-loading-state" title="Restaurando sesión" message="Preparando los datos de este dispositivo." />;
-  if (app.offlineAccessUnavailable) return <RemoteDataState className="route-loading-state" title="Conéctate para iniciar sesión" message="Necesitas iniciar sesión con internet y guardar los datos antes de usar este dispositivo sin conexión." tone="error" />;
+  if (!app.authReady) return <RemoteDataState className="route-loading-state" title="Restaurando sesión" message="Iniciando la plataforma." />;
+  if (app.offlineCopyLoading) return <RemoteDataState className="route-loading-state" title="Comprobando la copia guardada" />;
+  if (app.offlineAccessUnavailable) return <OfflineCopyUnavailable />;
 
   if (app.appScreen === "login") {
     return (
@@ -120,18 +121,28 @@ export default function App() {
           <div className="auth-controls">
             {app.isLoggedIn ? (
               <>
-                <span className="auth-user-chip">
-                  <UserRound size={13} />
-                  {app.authUserName}
-                  {app.authRole === "general_admin" ? (
-                    <span className="auth-role-dot">Admin</span>
-                  ) : null}
-                </span>
-                <button
-                  type="button"
-                  className="auth-action-btn"
-                  onClick={app.handleLogout}
-                >
+                {app.authUid ? (
+                  <details className="auth-user-menu">
+                    <summary className="auth-user-chip">
+                      <UserRound size={13} />
+                      {app.authUserName}
+                      {app.authRole === "general_admin" && <span className="auth-role-dot">Admin</span>}
+                    </summary>
+                    <div className="auth-user-menu-panel">
+                      <button
+                        type="button"
+                        className="auth-action-btn"
+                        onClick={() => app.setOfflineMenuOpen(!app.offlineMenuOpen)}
+                        aria-expanded={app.offlineMenuOpen}
+                        aria-controls="offline-copy-controls"
+                      >
+                        Datos sin conexión
+                      </button>
+                      {app.offlineMenuOpen && <OfflineCopyControls />}
+                    </div>
+                  </details>
+                ) : null}
+                <button type="button" className="auth-action-btn" onClick={app.handleLogout}>
                   <LogOut size={13} />
                   Cerrar sesión
                 </button>
@@ -212,17 +223,18 @@ export default function App() {
               onWellMeasurementChange={app.handleWellMeasurementChange}
               onWellMeasurementValidationClear={app.clearWellMeasurementValidation}
               wellMeasurementValidationReport={app.wellMeasurementValidationReport}
-              onWellMeasurementCsvUpload={app.handleWellMeasurementCsvUpload}
+              onWellMeasurementExcelUpload={app.handleWellMeasurementExcelUpload}
               onWellMeasurementSubmit={app.handleWellMeasurementSubmit}
               onSelectWell={app.setSelectedWellId}
               selectedWellId={app.selectedWellId}
               status={app.wellsStatus}
               errorMessage={app.wellsErrorMessage}
-              wellMeasurementCsvMessage={app.wellMeasurementCsvMessage}
-              wellMeasurementCsvStatus={app.wellMeasurementCsvStatus}
+              wellMeasurementExcelMessage={app.wellMeasurementExcelMessage}
+              wellMeasurementExcelStatus={app.wellMeasurementExcelStatus}
               wellMeasurementForm={app.wellMeasurementForm}
               wellMeasurementMessage={app.wellMeasurementMessage}
               wellMeasurementStatus={app.wellMeasurementStatus}
+              wellCreationConnectionMessage={app.wellCreationConnectionMessage}
               wellRegistryEntries={app.wellRegistryEntries}
               wellRegistryForm={app.wellRegistryForm}
               wellRegistryMessage={app.wellRegistryMessage}
