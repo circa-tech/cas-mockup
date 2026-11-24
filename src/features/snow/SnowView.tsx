@@ -20,6 +20,7 @@ import { SnowBalanceTab } from "./SnowBalanceTab";
 import { SnowCoverageTab } from "./SnowCoverageTab";
 
 const snowBalanceBasins: SnowBalanceBasinId[] = ["jorquera", "pulido", "manflas"];
+const showSnowBalance = false;
 
 export function SnowView({
   authIdToken,
@@ -29,6 +30,7 @@ export function SnowView({
   isLoggedIn: boolean;
 }) {
   const [activeSnowTab, setActiveSnowTab] = useState<"coverage" | "balance">("coverage");
+  const visibleSnowTab = showSnowBalance ? activeSnowTab : "coverage";
   const enabled = isLoggedIn;
   const imageQuery = useQuery({
     queryKey: queryKeys.snow.image(authIdToken),
@@ -107,24 +109,26 @@ export function SnowView({
         <button
           type="button"
           role="tab"
-          aria-selected={activeSnowTab === "coverage"}
-          className={activeSnowTab === "coverage" ? "is-active" : ""}
+          aria-selected={visibleSnowTab === "coverage"}
+          className={visibleSnowTab === "coverage" ? "is-active" : ""}
           onClick={() => setActiveSnowTab("coverage")}
         >
           Cobertura de nieve
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeSnowTab === "balance"}
-          className={activeSnowTab === "balance" ? "is-active" : ""}
-          onClick={() => setActiveSnowTab("balance")}
-        >
-          Balance de nieve
-        </button>
+        {showSnowBalance && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={visibleSnowTab === "balance"}
+            className={visibleSnowTab === "balance" ? "is-active" : ""}
+            onClick={() => setActiveSnowTab("balance")}
+          >
+            Balance de nieve
+          </button>
+        )}
       </div>
 
-      {activeSnowTab === "coverage" && (
+      {visibleSnowTab === "coverage" && (
         <SnowCoverageTab
           authIdToken={authIdToken}
           basinsGeoJson={basinsGeoJson}
@@ -141,7 +145,7 @@ export function SnowView({
         />
       )}
 
-      {activeSnowTab === "balance" && (
+      {showSnowBalance && visibleSnowTab === "balance" && (
         <SnowBalanceTab
           availableBalanceYears={availableBalanceYears}
           onSelectedBalanceYearChange={setSelectedBalanceYear}
