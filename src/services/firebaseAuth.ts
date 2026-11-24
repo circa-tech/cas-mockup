@@ -157,6 +157,18 @@ export const signInWithGoogle = async (): Promise<AuthSession> => {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
   const credentials = await signInWithPopup(auth, provider);
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+  try {
+    const idToken = await credentials.user.getIdToken();
+    const response = await fetch(`${apiBaseUrl}/api/v1/admin/activate-google-invitation`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+    if (!response.ok) throw new Error("No fue posible comprobar la invitación pendiente.");
+  } catch (error) {
+    await signOut(auth);
+    throw error;
+  }
 
   const tokenResult = await credentials.user.getIdTokenResult(true);
 

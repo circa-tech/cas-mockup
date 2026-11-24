@@ -28,6 +28,9 @@ const EtrView = lazy(() =>
 const LoginView = lazy(() =>
   import("./features/auth/LoginView").then((module) => ({ default: module.LoginView })),
 );
+const RegistrationView = lazy(() =>
+  import("./features/auth/RegistrationView").then((module) => ({ default: module.RegistrationView })),
+);
 const MeteoView = lazy(() =>
   import("./features/meteo/MeteoView").then((module) => ({ default: module.MeteoView })),
 );
@@ -61,7 +64,29 @@ const navIconMap = {
 
 export default function App() {
   const app = useAppController();
+  const registrationToken = new URLSearchParams(window.location.hash.slice(1)).get("registro");
   if (!app.authReady) return <RemoteDataState className="route-loading-state" title="Restaurando sesión" message="Iniciando la plataforma." />;
+  if (registrationToken) {
+    const clearRegistrationUrl = () => {
+      const url = new URL(window.location.href);
+      url.hash = "";
+      window.history.replaceState(window.history.state, "", url);
+    };
+    return (
+      <Suspense fallback={<RemoteDataState title="Cargando registro" />}>
+        <RegistrationView token={registrationToken}
+          onComplete={async (email, password) => {
+            await app.handleEmailPasswordLogin(email, password);
+            clearRegistrationUrl();
+          }}
+          onLogin={() => {
+            clearRegistrationUrl();
+            app.setAppScreen("login");
+          }}
+        />
+      </Suspense>
+    );
+  }
   if (app.offlineCopyLoading) return <RemoteDataState className="route-loading-state" title="Comprobando la copia guardada" />;
   if (app.offlineAccessUnavailable) return <OfflineCopyUnavailable />;
 
@@ -254,7 +279,7 @@ export default function App() {
             />
           )}
           {app.activeView === "admin" && app.canManageUsers && (
-            <AdminView authIdToken={app.authIdToken} currentUserUid={app.authUid} />
+            <AdminView authIdToken={app.authIdToken} currentUserUid={app.authUid} authRole={app.authRole} />
           )}
           {app.activeView === "forum" && <ForumView authIdToken={app.authIdToken} authUid={app.authUid} onLogin={app.handleOpenLogin} />}
           {app.activeView === "tutorials" && <TutorialsView />}
