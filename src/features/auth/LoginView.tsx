@@ -25,9 +25,7 @@ export function LoginView({
     try {
       await onEmailPasswordLogin(email, password);
     } catch {
-      setErrorMessage(
-        "El correo o la contraseña no coinciden. Revísalos e inténtalo de nuevo.",
-      );
+      setErrorMessage("Correo o contraseña incorrectos");
     } finally {
       setIsSubmitting(false);
     }

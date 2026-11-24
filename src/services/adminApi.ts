@@ -14,6 +14,23 @@ export type AdminUser = {
   uid: string;
 };
 
+export type PendingInvitation = {
+  id: number;
+  email: string;
+  role: AdminRole["id"];
+  invitedBy: string;
+  invitedAt: string;
+  expiresAt: string | null;
+};
+
+export type GeneratedLink = {
+  id?: number;
+  email: string;
+  role?: AdminRole["id"];
+  token: string;
+  expiresAt: string;
+};
+
 export type DailyActiveUsersResponse = {
   days: Array<{ activeUsers: number; date: string }>;
   timezone: string;
@@ -52,7 +69,7 @@ const requestAdmin = async <T>(
     throw new Error(detail);
   }
 
-  return response.json() as Promise<T>;
+  return response.status === 204 ? undefined as T : response.json() as Promise<T>;
 };
 
 export const fetchAdminRoles = (idToken: string | null) =>
@@ -60,6 +77,32 @@ export const fetchAdminRoles = (idToken: string | null) =>
 
 export const fetchAdminUsers = (idToken: string | null) =>
   requestAdmin<AdminUser[]>("users", idToken);
+
+export const fetchInvitations = (idToken: string | null) =>
+  requestAdmin<PendingInvitation[]>("invitations", idToken);
+
+export const createInvitation = (idToken: string | null, email: string, role: AdminRole["id"]) =>
+  requestAdmin<GeneratedLink>("invitations", idToken, {
+    method: "POST",
+    body: JSON.stringify({ email, role }),
+  });
+
+export const renewInvitation = (idToken: string | null, id: number) =>
+  requestAdmin<GeneratedLink>(`invitations/${id}/link`, idToken, { method: "POST" });
+
+export const cancelInvitation = (idToken: string | null, id: number) =>
+  requestAdmin<void>(`invitations/${id}`, idToken, { method: "DELETE" });
+
+export const updatePendingRole = (idToken: string | null, id: number, role: AdminRole["id"]) =>
+  requestAdmin<PendingInvitation>(`invitations/${id}/role`, idToken, {
+    method: "PUT",
+    body: JSON.stringify({ role }),
+  });
+
+export const createResetLink = (idToken: string | null, uid: string) =>
+  requestAdmin<GeneratedLink>(`users/${encodeURIComponent(uid)}/reset-link`, idToken, {
+    method: "POST",
+  });
 
 export const fetchDailyActiveUsers = (idToken: string | null) =>
   requestAdmin<DailyActiveUsersResponse>("activity/daily", idToken);
