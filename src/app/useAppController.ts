@@ -8,13 +8,15 @@ import { useOfflineCopy } from "../offline/prepare";
 import { isFirebaseConfigured } from "../services/firebaseAuth";
 
 export function useAppController() {
-  const [activeView, setActiveView] = useState<ViewId>(() =>
-    new URLSearchParams(window.location.search).get("view") === "forum" ? "forum" : "overview",
-  );
+  const [activeView, setActiveView] = useState<ViewId>(() => {
+    const view = new URLSearchParams(window.location.search).get("view");
+    return view === "forum" || view === "snow" ? view : "overview";
+  });
   useEffect(() => {
     const url = new URL(window.location.href);
-    if (activeView === "forum") url.searchParams.set("view", "forum");
+    if (activeView === "forum" || activeView === "snow") url.searchParams.set("view", activeView);
     else url.searchParams.delete("view");
+    if (activeView === "snow") url.searchParams.delete("tab");
     window.history.replaceState(window.history.state, "", url);
   }, [activeView]);
   const [appScreen, setAppScreen] = useState<"dashboard" | "login">("dashboard");
