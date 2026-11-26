@@ -3,6 +3,7 @@ export type AdminRole = {
   id: "general_admin" | "technical_admin" | "cas_user" | "public_user";
   label: string;
   permissions: string[];
+  permissionLabels: Record<string, string>;
 };
 
 export type AdminUser = {

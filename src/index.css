@@ -4028,6 +4028,123 @@ body {
   overflow-x: auto;
 }
 
+.admin-role-permissions-wrap {
+  overflow-x: auto;
+  border: 1px solid hsl(210 18% 89%);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.admin-role-permissions-legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  padding: 11px 16px 9px;
+  color: hsl(215 14% 46%);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.admin-role-permissions-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.admin-role-permissions-legend .is-included {
+  color: hsl(151 48% 30%);
+}
+
+.admin-role-permissions-legend .is-unavailable {
+  color: hsl(215 14% 52%);
+}
+
+.admin-role-permissions-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 560px;
+}
+
+.admin-role-permissions-table thead {
+  background: hsl(210 33% 97%);
+}
+
+.admin-role-permissions-table th,
+.admin-role-permissions-table td {
+  border-bottom: 1px solid hsl(210 18% 91%);
+  padding: 11px 16px;
+  vertical-align: middle;
+}
+
+.admin-role-permissions-table thead th {
+  color: hsl(215 21% 35%);
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.admin-role-permissions-table thead th:first-child,
+.admin-role-permissions-table tbody th {
+  width: 46%;
+  text-align: left;
+}
+
+.admin-role-permissions-table thead th:not(:first-child),
+.admin-role-permissions-table tbody td {
+  width: 18%;
+  text-align: center;
+}
+
+.admin-role-permissions-table tbody th {
+  color: hsl(216 28% 22%);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.admin-role-permissions-table tbody td {
+  color: hsl(215 14% 42%);
+  font-size: 13px;
+}
+
+.admin-role-permissions-table tbody tr:last-child th,
+.admin-role-permissions-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-role-permissions-table tbody tr:hover {
+  background: hsl(205 75% 98%);
+}
+
+.admin-role-permission-mark {
+  display: inline-grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.admin-role-permission-mark.is-included {
+  border-color: hsl(152 38% 84%);
+  background: hsl(152 46% 94%);
+  color: hsl(151 48% 30%);
+}
+
+.admin-role-permission-mark.is-unavailable {
+  border-color: hsl(210 18% 91%);
+  background: hsl(210 24% 98%);
+  color: hsl(215 14% 58%);
+}
+
+.admin-role-permissions-empty {
+  color: hsl(215 14% 46%);
+  font-size: 13px;
+  margin: 0;
+}
+
 .admin-users-table {
   width: 100%;
   border-collapse: collapse;
@@ -4128,30 +4245,6 @@ body {
   font-weight: 760;
   padding: 4px 8px;
   white-space: nowrap;
-}
-
-.admin-permission-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.admin-permission-list span,
-.admin-empty-permissions {
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 8px;
-}
-
-.admin-permission-list span {
-  background: hsl(152 45% 91%);
-  color: hsl(151 48% 26%);
-}
-
-.admin-empty-permissions {
-  background: hsl(210 20% 94%);
-  color: hsl(215 13% 46%);
 }
 
 .login-shell {
