@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, KeyRound, Link2, MailPlus, Save, UserRound, X } from "lucide-react";
+import { Check, Copy, KeyRound, Link2, MailPlus, Save, UserRound, X } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Panel } from "../../components/Panel";
 import { RemoteDataState } from "../../components/RemoteDataState";
@@ -67,6 +67,17 @@ export function AdminView({ authIdToken, currentUserUid, authRole }: AdminViewPr
     staleTime: 5 * 60 * 1000,
   });
   const roles = rolesQuery.data ?? [];
+  const permissionRoles = roles.filter((role) =>
+    role.id === "general_admin" || role.id === "technical_admin" || role.id === "cas_user",
+  );
+  const permissionRows = Array.from(new Set(permissionRoles.flatMap((role) => role.permissions)))
+    .map((permission) => ({
+      id: permission,
+      label: permissionRoles
+        .map((role) => role.permissionLabels?.[permission])
+        .find((label) => Boolean(label)),
+    }))
+    .filter((row): row is { id: string; label: string } => Boolean(row.label));
   const pending = invitationsQuery.data ?? [];
   useEffect(() => {
     const nextExpiry = (invitationsQuery.data ?? [])
@@ -335,7 +346,7 @@ export function AdminView({ authIdToken, currentUserUid, authRole }: AdminViewPr
             <article className="admin-summary">
               <span>Admins</span>
               <strong>
-                {users.filter((user) => user.permissions.includes("users:manage")).length}
+                {users.filter((user) => user.role === "general_admin").length}
               </strong>
             </article>
             <article className="admin-summary">
@@ -390,7 +401,6 @@ export function AdminView({ authIdToken, currentUserUid, authRole }: AdminViewPr
                     <th>Usuario</th>
                     <th>Último acceso</th>
                     <th>Rol</th>
-                    <th>Permisos</th>
                     <th>Estado</th>
                     <th>Acciones</th>
                   </tr>
@@ -445,17 +455,6 @@ export function AdminView({ authIdToken, currentUserUid, authRole }: AdminViewPr
                           ) : null}
                         </div>
                       </td>
-                      <td>
-                        {user.permissions.length > 0 ? (
-                          <div className="admin-permission-list">
-                            {user.permissions.map((permission) => (
-                              <span key={permission}>{permission}</span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="admin-empty-permissions">Sin permisos admin</span>
-                        )}
-                      </td>
                       <td><span className="admin-state-badge is-active">Activo</span></td>
                       <td>
                         {canInvite && (
@@ -482,7 +481,6 @@ export function AdminView({ authIdToken, currentUserUid, authRole }: AdminViewPr
                           {roles.map((role) => <option key={role.id} value={role.id}>{role.label}</option>)}
                         </select>
                       </td>
-                      <td>—</td>
                       <td>
                         <span className={`admin-state-badge ${invitation.expiresAt && Date.parse(invitation.expiresAt) > now ? "is-pending" : "is-expired"}`}>
                           {invitation.expiresAt && Date.parse(invitation.expiresAt) > now
@@ -503,6 +501,50 @@ export function AdminView({ authIdToken, currentUserUid, authRole }: AdminViewPr
                 </tbody>
               </table>
             </div>
+          </Panel>
+          <Panel
+            title="Permisos por rol"
+            subtitle="Acciones disponibles según el rol asignado"
+          >
+            {permissionRows.length > 0 ? (
+              <div className="admin-role-permissions-wrap">
+                <div className="admin-role-permissions-legend" aria-label="Leyenda de permisos">
+                  <span className="is-included"><Check size={14} aria-hidden="true" /> Disponible</span>
+                  <span className="is-unavailable"><span aria-hidden="true">—</span> No disponible</span>
+                </div>
+                <table className="admin-role-permissions-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Acción</th>
+                      {permissionRoles.map((role) => <th scope="col" key={role.id}>{role.label}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {permissionRows.map((row) => (
+                      <tr key={row.id}>
+                        <th scope="row">{row.label}</th>
+                        {permissionRoles.map((role) => {
+                          const hasPermission = role.permissions.includes(row.id);
+                          return (
+                            <td key={role.id}>
+                              <span
+                                className={`admin-role-permission-mark ${hasPermission ? "is-included" : "is-unavailable"}`}
+                                role="img"
+                                aria-label={hasPermission ? "Disponible" : "No disponible"}
+                              >
+                                {hasPermission ? <Check size={15} strokeWidth={2.6} aria-hidden="true" /> : "—"}
+                              </span>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="admin-role-permissions-empty">No se pudo cargar la configuración de permisos.</p>
+            )}
           </Panel>
           <Panel
             title="Uso diario de la aplicación"
