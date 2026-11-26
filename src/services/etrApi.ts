@@ -3,7 +3,7 @@ import { BarGroup } from "../components/SimpleBarChart";
 import { LineSeries } from "../components/SimpleLineChart";
 import { chartPalette, EtrDownloadFormat, EtrDownloadVariable } from "../data/mockupData";
 import { throwApiError } from "./apiError";
-import { parseEtrImageBounds, type EtrImageBounds } from "./etrImageMetadata";
+import { parseEtrColorStops, parseEtrImageBounds, type EtrColorStop, type EtrImageBounds } from "./etrImageMetadata";
 
 export type { EtrImageBounds } from "./etrImageMetadata";
 
@@ -57,6 +57,7 @@ export type EtrDownCuadImage = {
   blob: Blob;
   bounds: EtrImageBounds | null;
   crs: string | null;
+  colorStops: EtrColorStop[] | null;
 };
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
@@ -217,6 +218,7 @@ export const fetchEtrDownCuadImage = async (
     blob: await response.blob(),
     bounds: parseEtrImageBounds(response.headers.get("X-Image-Bounds")),
     crs: response.headers.get("X-Image-CRS"),
+    colorStops: parseEtrColorStops(response.headers.get("X-Image-Color-Stops")),
   };
 };
 

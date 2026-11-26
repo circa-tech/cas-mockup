@@ -1,4 +1,6 @@
 import etrQuadrantsGeoJson from "../data/etrQuadrantsGeoJson.json";
+import type { EtrDownloadVariable } from "../data/mockupData";
+import type { EtrColorStop } from "../services/etrImageMetadata";
 import {
   getNativeRasterRequest,
   getRasterPixelBounds,
@@ -28,6 +30,67 @@ const maxOutputDimensionPx = 900;
 const overlayOpacity = 0.72;
 const geographicCrs = "EPSG:4326";
 const nativeRasterCrs = "EPSG:32719";
+const legendWidthPx = 190;
+const legendHeightPx = 315;
+
+const variableLabels: Record<EtrDownloadVariable, { name: string; description: string; unit: string }> = {
+  ETR: { name: "ETR", description: "Consumo real", unit: "mm/día" },
+  ETMAX: { name: "ETmax", description: "Consumo máximo", unit: "mm/día" },
+  KC: { name: "Kc", description: "Coeficiente de cultivo", unit: "adimensional" },
+  LAI: { name: "LAI", description: "Índice foliar", unit: "m²/m²" },
+};
+
+const legendNumber = new Intl.NumberFormat("es-CL", { maximumSignificantDigits: 4 });
+
+function drawColorLegend(
+  context: CanvasRenderingContext2D,
+  mapWidth: number,
+  variable: EtrDownloadVariable,
+  sceneDate: string,
+  stops: EtrColorStop[],
+) {
+  const left = mapWidth + 16;
+  const barX = left + 4;
+  const barY = 128;
+  const segmentHeight = 48;
+  const barWidth = 27;
+  const { name, description, unit } = variableLabels[variable];
+
+  context.fillStyle = "#172b3a";
+  context.font = "bold 15px sans-serif";
+  context.fillText(name, left, 29);
+  context.font = "13px sans-serif";
+  context.fillText(description, left, 49);
+  context.fillText(`Escena: ${sceneDate}`, left, 72);
+  context.fillText(`Unidad: ${unit}`, left, 94);
+  context.font = "12px sans-serif";
+  context.fillText("Rango de la paleta", left, 116);
+
+  for (let index = 0; index < stops.length - 1; index += 1) {
+    const upper = stops[stops.length - 1 - index];
+    const lower = stops[stops.length - 2 - index];
+    const gradient = context.createLinearGradient(0, barY + index * segmentHeight, 0, barY + (index + 1) * segmentHeight);
+    gradient.addColorStop(0, upper.color);
+    gradient.addColorStop(1, lower.color);
+    context.fillStyle = gradient;
+    context.fillRect(barX, barY + index * segmentHeight, barWidth, segmentHeight);
+  }
+
+  context.strokeStyle = "#536878";
+  context.lineWidth = 1;
+  context.strokeRect(barX, barY, barWidth, segmentHeight * (stops.length - 1));
+  context.fillStyle = "#172b3a";
+  context.font = "12px sans-serif";
+  [...stops].reverse().forEach((stop, index) => {
+    const y = barY + index * segmentHeight;
+    context.beginPath();
+    context.moveTo(barX + barWidth, y + 0.5);
+    context.lineTo(barX + barWidth + 5, y + 0.5);
+    context.stroke();
+    const suffix = index === 0 ? " (P99)" : index === stops.length - 1 ? " (P0)" : "";
+    context.fillText(`${legendNumber.format(stop.value)}${suffix}`, barX + barWidth + 9, y + 4);
+  });
+}
 
 type QuadrantGeometry = {
   coordinates: number[][][][] | number[][][];
@@ -323,12 +386,18 @@ export async function downloadMockQuadrantPng({
   overlayCrs,
   overlayUrl,
   quadrantId,
+  colorStops,
+  variable,
+  sceneDate,
 }: {
   filename: string;
   overlayBounds?: RasterBounds;
   overlayCrs?: string;
   overlayUrl?: string;
   quadrantId: string;
+  colorStops: EtrColorStop[] | null;
+  variable: EtrDownloadVariable;
+  sceneDate: string;
 }) {
   const numericId = Number.parseInt(quadrantId, 10);
   const selectedFeature = quadrantFeatureById.get(numericId);
@@ -425,8 +494,8 @@ export async function downloadMockQuadrantPng({
   } = getScaledOutputSize(cropWidth, cropHeight);
 
   const canvas = document.createElement("canvas");
-  canvas.width = outputWidth;
-  canvas.height = outputHeight;
+  canvas.width = outputWidth + (colorStops ? legendWidthPx : 0);
+  canvas.height = colorStops ? Math.max(outputHeight, legendHeightPx) : outputHeight;
   const context = canvas.getContext("2d");
 
   if (!context) {
@@ -435,6 +504,10 @@ export async function downloadMockQuadrantPng({
 
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
+  if (colorStops) {
+    context.fillStyle = "#ffffff";
+    context.fillRect(outputWidth, 0, legendWidthPx, canvas.height);
+  }
 
   context.save();
   context.scale(renderScale, renderScale);
@@ -466,6 +539,10 @@ export async function downloadMockQuadrantPng({
   context.strokeStyle = "rgba(255, 255, 255, 0.95)";
   context.stroke();
   context.restore();
+
+  if (colorStops) {
+    drawColorLegend(context, outputWidth, variable, sceneDate, colorStops);
+  }
 
   const blob = await toBlob(canvas, "image/png");
   downloadBlob(blob, filename);

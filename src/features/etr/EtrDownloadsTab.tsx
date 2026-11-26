@@ -213,6 +213,7 @@ export function EtrDownloadsTab({
         let overlayUrl: string | undefined;
         let overlayBounds: EtrImageBounds | undefined;
         let overlayCrs: string | undefined;
+        let colorStops: Awaited<ReturnType<typeof fetchEtrDownCuadImage>>["colorStops"] = null;
         if (authIdToken) {
           const overlay = await fetchEtrDownCuadImage(authIdToken, {
             day: selectedDay,
@@ -223,6 +224,7 @@ export function EtrDownloadsTab({
             year: selectedYear,
           });
           overlayUrl = URL.createObjectURL(overlay.blob);
+          colorStops = overlay.colorStops;
           if (overlay.bounds && overlay.crs) {
             overlayBounds = overlay.bounds;
             overlayCrs = overlay.crs;
@@ -236,6 +238,9 @@ export function EtrDownloadsTab({
             overlayCrs,
             overlayUrl,
             quadrantId: selectedQuadrant.quadrantId,
+            colorStops,
+            variable: selectedVariable,
+            sceneDate: `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}`,
           });
         } finally {
           if (overlayUrl) {

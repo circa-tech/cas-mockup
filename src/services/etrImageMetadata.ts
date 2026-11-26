@@ -5,6 +5,28 @@ export type EtrImageBounds = {
   west: number;
 };
 
+export type EtrColorStop = { value: number; color: string };
+
+export const parseEtrColorStops = (rawStops: string | null): EtrColorStop[] | null => {
+  if (!rawStops) return null;
+  try {
+    const stops: unknown = JSON.parse(rawStops);
+    if (
+      !Array.isArray(stops) || stops.length !== 4 ||
+      !stops.every((stop) =>
+        typeof stop === "object" && stop !== null &&
+        typeof stop.value === "number" && Number.isFinite(stop.value) &&
+        typeof stop.color === "string" && /^#[0-9a-fA-F]{6}$/.test(stop.color),
+      )
+    ) return null;
+    const parsed = stops as EtrColorStop[];
+    return parsed.every((stop, index) => index === 0 || stop.value > parsed[index - 1].value)
+      ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
 export const parseEtrImageBounds = (rawBounds: string | null): EtrImageBounds | null => {
   if (!rawBounds) {
     return null;
