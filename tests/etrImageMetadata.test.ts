@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseEtrImageBounds } from "../src/services/etrImageMetadata";
+import { parseEtrColorStops, parseEtrImageBounds } from "../src/services/etrImageMetadata";
 import {
   getNativeRasterRequest,
   getRasterPixelBounds,
@@ -30,6 +30,14 @@ test("rejects incomplete, non-finite, or inverted bounds", () => {
     parseEtrImageBounds('{"west":-69,"east":-70,"south":-28,"north":-27}'),
     null,
   );
+});
+
+test("reads the exact ordered palette values and rejects malformed metadata", () => {
+  const stops = '[{"value":0.25,"color":"#1d4ed8"},{"value":1.5,"color":"#14b8a6"},{"value":2.5,"color":"#84cc16"},{"value":3.5,"color":"#ea580c"}]';
+  assert.deepEqual(parseEtrColorStops(stops)?.map(({ value }) => value), [0.25, 1.5, 2.5, 3.5]);
+  assert.equal(parseEtrColorStops(null), null);
+  assert.equal(parseEtrColorStops(stops.replace("3.5", "2.5")), null);
+  assert.equal(parseEtrColorStops(stops.replace("#ea580c", "red")), null);
 });
 
 test("projects raster bounds against the actual background extent", () => {
