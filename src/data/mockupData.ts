@@ -28,8 +28,8 @@ export const views: { id: ViewId; label: string }[] = [
 
 export const etrStats = [
   { label: "Imagen satelital más reciente", value: "9 oct 2025" },
-  { label: "Consumo real (ETR)", value: "1,2 mm/día" },
-  { label: "Consumo máximo (ETmax)", value: "1,8 mm/día" },
+  { label: "Evapotranspiración real (ETR)", value: "1,2 mm/día" },
+  { label: "Evapotranspiración máxima (ETmax)", value: "1,8 mm/día" },
 ];
 
 export const etrLastUpdateIso = mockSantiagoIso("2026-03-21", "07:15:00");
@@ -146,12 +146,12 @@ const toLinePoints = (values: number[]): LinePoint[] =>
 
 const buildEtrSeries = (etr: number[], etmax: number[]): LineSeries[] => [
   {
-    label: "Consumo real (ETR)",
+    label: "Evapotranspiración real (ETR)",
     color: ETR_COLOR,
     points: toLinePoints(etr),
   },
   {
-    label: "Consumo máximo (ETmax)",
+    label: "Evapotranspiración máxima (ETmax)",
     color: ETMAX_COLOR,
     points: toLinePoints(etmax),
   },
@@ -373,7 +373,7 @@ const buildEtrUsoRecord = (sectorId: number): EtrUsoRecord => {
   const laiBase = 0.9 + ((sectorId * 3) % 5) * 0.4;
 
   const etrSeries: LineSeries = {
-    label: "Consumo real (ETR)",
+    label: "Evapotranspiración real (ETR)",
     color: ETR_COLOR,
     points: buildUsageSeriesPoints(sectorId, {
       base: etrBase,
@@ -383,7 +383,7 @@ const buildEtrUsoRecord = (sectorId: number): EtrUsoRecord => {
   };
 
   const etmaxSeries: LineSeries = {
-    label: "Consumo máximo (ETmax)",
+    label: "Evapotranspiración máxima (ETmax)",
     color: ETMAX_COLOR,
     points: buildUsageSeriesPoints(sectorId, {
       base: etmaxBase,
@@ -445,8 +445,8 @@ export type EtrDownloadVariable = "ETR" | "ETMAX" | "KC" | "LAI";
 export type EtrDownloadFormat = "TIFF" | "PNG";
 
 export const etrDownloadVariables: { label: string; value: EtrDownloadVariable }[] = [
-  { label: "ETR: consumo real", value: "ETR" },
-  { label: "ETmax: consumo máximo", value: "ETMAX" },
+  { label: "ETR: evapotranspiración real", value: "ETR" },
+  { label: "ETmax: evapotranspiración máxima", value: "ETMAX" },
   { label: "Kc: coeficiente de cultivo", value: "KC" },
   { label: "LAI: follaje", value: "LAI" },
 ];
@@ -899,7 +899,7 @@ export const computeOverviewCards = ({
       primaryKpi: hasEtrData
         ? `${etrMeanValue.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} mm/día`
         : "Sin datos de evapotranspiración",
-      secondaryKpi: hasEtrData ? "Consumo real promedio (ETR)" : "Sin datos disponibles",
+      secondaryKpi: hasEtrData ? "Evapotranspiración real promedio (ETR)" : "Sin datos disponibles",
       status: getFreshnessStatus(etrLastUpdate, now, etrStaleThresholdDays),
       lastUpdate: etrLastUpdate,
     },

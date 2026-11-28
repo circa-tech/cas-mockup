@@ -65,8 +65,8 @@ const getSeriesColors = (groups: BarGroup[]) => {
 };
 
 const getLegendLabel = (label: string) => {
-  if (label === "ETR") return "Consumo real (ETR)";
-  if (label === "ETMAX") return "Consumo máximo (ETmax)";
+  if (label === "ETR") return "Evapotranspiración real (ETR)";
+  if (label === "ETMAX") return "Evapotranspiración máxima (ETmax)";
   return label;
 };
 

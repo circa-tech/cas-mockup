@@ -47,7 +47,7 @@ export function HistoricalSeriesChart({ authIdToken, module, selection = {} }: P
     setZoom(undefined);
   };
   const metrics = isEt
-    ? [{ key: "etr", label: "Consumo real (ETR)", color: chartPalette.chart2 }, { key: "etmax", label: "Consumo máximo (ETmax)", color: chartPalette.chart4 }]
+    ? [{ key: "etr", label: "Evapotranspiración real (ETR)", color: chartPalette.chart2 }, { key: "etmax", label: "Evapotranspiración máxima (ETmax)", color: chartPalette.chart4 }]
     : [{ key: "coverage", label: "Cobertura de nieve", color: "#147ca6" }];
   const unit = module === "et-lat" ? "mm/día" : "%";
   const points = query.data?.points ?? [];

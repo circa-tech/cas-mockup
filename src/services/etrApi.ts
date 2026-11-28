@@ -233,7 +233,7 @@ export const toEtrBarGroups = (points: EtrCultPoint[]): BarGroup[] =>
 
 export const toEtrEtmaxSeries = (points: EtrSeriePoint[]): LineSeries[] => [
   {
-    label: "Consumo real (ETR)",
+    label: "Evapotranspiración real (ETR)",
     color: ETR_COLOR,
     points: points.map((point) => ({
       label: point.fecha,
@@ -241,7 +241,7 @@ export const toEtrEtmaxSeries = (points: EtrSeriePoint[]): LineSeries[] => [
     })),
   },
   {
-    label: "Consumo máximo (ETmax)",
+    label: "Evapotranspiración máxima (ETmax)",
     color: ETMAX_COLOR,
     points: points.map((point) => ({
       label: point.fecha,
