@@ -31,13 +31,13 @@ const overlayOpacity = 0.72;
 const geographicCrs = "EPSG:4326";
 const nativeRasterCrs = "EPSG:32719";
 const legendWidthPx = 190;
-const legendHeightPx = 315;
+const legendHeightPx = 250;
 
-const variableLabels: Record<EtrDownloadVariable, { name: string; description: string; unit: string }> = {
-  ETR: { name: "ETR", description: "Consumo real", unit: "mm/día" },
-  ETMAX: { name: "ETmax", description: "Consumo máximo", unit: "mm/día" },
-  KC: { name: "Kc", description: "Coeficiente de cultivo", unit: "adimensional" },
-  LAI: { name: "LAI", description: "Índice foliar", unit: "m²/m²" },
+const variableLabels: Record<EtrDownloadVariable, { name: string; unit: string }> = {
+  ETR: { name: "ETR", unit: "mm/día" },
+  ETMAX: { name: "ETmax", unit: "mm/día" },
+  KC: { name: "Kc", unit: "adimensional" },
+  LAI: { name: "LAI", unit: "m²/m²" },
 };
 
 const legendNumber = new Intl.NumberFormat("es-CL", { maximumSignificantDigits: 4 });
@@ -51,20 +51,17 @@ function drawColorLegend(
 ) {
   const left = mapWidth + 16;
   const barX = left + 4;
-  const barY = 128;
+  const barY = 94;
   const segmentHeight = 48;
   const barWidth = 27;
-  const { name, description, unit } = variableLabels[variable];
+  const { name, unit } = variableLabels[variable];
 
   context.fillStyle = "#172b3a";
   context.font = "bold 15px sans-serif";
   context.fillText(name, left, 29);
   context.font = "13px sans-serif";
-  context.fillText(description, left, 49);
-  context.fillText(`Escena: ${sceneDate}`, left, 72);
-  context.fillText(`Unidad: ${unit}`, left, 94);
-  context.font = "12px sans-serif";
-  context.fillText("Rango de la paleta", left, 116);
+  context.fillText(sceneDate, left, 52);
+  context.fillText(unit, left, 73);
 
   for (let index = 0; index < stops.length - 1; index += 1) {
     const upper = stops[stops.length - 1 - index];
@@ -87,8 +84,7 @@ function drawColorLegend(
     context.moveTo(barX + barWidth, y + 0.5);
     context.lineTo(barX + barWidth + 5, y + 0.5);
     context.stroke();
-    const suffix = index === 0 ? " (P99)" : index === stops.length - 1 ? " (P0)" : "";
-    context.fillText(`${legendNumber.format(stop.value)}${suffix}`, barX + barWidth + 9, y + 4);
+    context.fillText(legendNumber.format(stop.value), barX + barWidth + 9, y + 4);
   });
 }
 
