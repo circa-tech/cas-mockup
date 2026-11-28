@@ -64,7 +64,7 @@ export function OverviewView({
 }: OverviewViewProps) {
   const etrMiniLines = etrSeries.map((line, index) => ({
     color: line.color,
-    label: index === 0 ? "Consumo real (ETR)" : "Consumo máximo (ETmax)",
+    label: index === 0 ? "Evapotranspiración real (ETR)" : "Evapotranspiración máxima (ETmax)",
     values: line.points.slice(-12).map((point) => point.value),
   }));
   const etrMiniLabels =

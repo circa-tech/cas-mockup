@@ -36,14 +36,14 @@ const EtrMap = lazy(() =>
 );
 const etrLoadingStats = [
   { label: "Imagen satelital más reciente", value: "Cargando..." },
-  { label: "Consumo real (ETR)", value: "Cargando..." },
-  { label: "Consumo máximo (ETmax)", value: "Cargando..." },
+  { label: "Evapotranspiración real (ETR)", value: "Cargando..." },
+  { label: "Evapotranspiración máxima (ETmax)", value: "Cargando..." },
 ];
 
 const etrUnavailableStats = [
   { label: "Imagen satelital más reciente", value: "Sin datos" },
-  { label: "Consumo real (ETR)", value: "Sin datos" },
-  { label: "Consumo máximo (ETmax)", value: "Sin datos" },
+  { label: "Evapotranspiración real (ETR)", value: "Sin datos" },
+  { label: "Evapotranspiración máxima (ETmax)", value: "Sin datos" },
 ];
 
 const formatEtrDate = (value: string) => {
@@ -153,11 +153,11 @@ export function EtrSectorTab({
         stats: [
           { label: "Imagen satelital más reciente", value: formatEtrDate(summary.fecha) },
           {
-            label: "Consumo real (ETR)",
+            label: "Evapotranspiración real (ETR)",
             value: `${(summary.etr ?? 0).toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} mm/día`,
           },
           {
-            label: "Consumo máximo (ETmax)",
+            label: "Evapotranspiración máxima (ETmax)",
             value: `${(summary.etmax ?? 0).toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} mm/día`,
           },
         ],
@@ -258,7 +258,7 @@ export function EtrSectorTab({
           icon={Droplets}
           title={statsForCards[1].label}
           value={statsForCards[1].value}
-          note="Consumo promedio real"
+          note="Evapotranspiración real promedio"
           noteTone="neutral"
         />
         <KpiCard
@@ -266,7 +266,7 @@ export function EtrSectorTab({
           icon={MapPinned}
           title={statsForCards[2].label}
           value={statsForCards[2].value}
-          note="Lo que consumirían sin falta de agua"
+          note="Evapotranspiración máxima sin falta de agua"
           noteTone="neutral"
         />
       </div>
@@ -274,7 +274,7 @@ export function EtrSectorTab({
       <h3 className="etr-block-heading">Todo el valle</h3>
       <div className="etr-summary-grid">
         <Panel
-          title={`Consumo por tipo de cultivo${overviewDateLabel ? ` · ${overviewDateLabel}` : ""}`}
+          title={`Evapotranspiración por tipo de cultivo${overviewDateLabel ? ` · ${overviewDateLabel}` : ""}`}
         >
           {showOverviewData ? (
             <SimpleBarChart
@@ -300,7 +300,7 @@ export function EtrSectorTab({
         </Panel>
 
         <Panel
-          title="Historial de consumo (mm/día)"
+          title="Historial de evapotranspiración (mm/día)"
         >
           {isLoggedIn ? <HistoricalSeriesChart authIdToken={authIdToken} module="et-lat" /> : showOverviewData ? (
             <SimpleLineChart
@@ -330,7 +330,7 @@ export function EtrSectorTab({
         <h3 className="etr-block-heading">Detalle por sector: elige un sector en el mapa</h3>
         <span
           className="etr-block-tooltip"
-          title="Áreas en que se divide el valle para comparar el consumo de agua entre zonas. Toca una para ver su detalle."
+          title="Áreas en que se divide el valle para comparar la evapotranspiración entre zonas. Toca una para ver su detalle."
           aria-label="Información sobre los sectores del valle"
         >
           <Info aria-hidden="true" size={16} />
@@ -364,7 +364,7 @@ export function EtrSectorTab({
 
         <Panel
           className="panel-etr-bar"
-          title={`Consumo por tipo de cultivo en ${selectedSector.sectorName}`}
+          title={`Evapotranspiración por tipo de cultivo en ${selectedSector.sectorName}`}
         >
           {showSelectedSectorData ? (
             <SimpleBarChart
@@ -395,7 +395,7 @@ export function EtrSectorTab({
       </div>
 
       <Panel
-        title={`Historial de consumo en ${selectedSector.sectorName}`}
+        title={`Historial de evapotranspiración en ${selectedSector.sectorName}`}
         className="panel-accent-blue"
       >
         {isLoggedIn ? <HistoricalSeriesChart key={selectedSector.sectorId} authIdToken={authIdToken} module="et-lat" selection={{ sector_id: selectedSector.sectorId }} /> : showSelectedSectorData ? (

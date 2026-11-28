@@ -33,11 +33,11 @@ export function EtrView({
   return (
     <div className="view-stack etr-page">
       <div className="view-intro">
-        <h2>Consumo de agua de los cultivos</h2>
+        <h2>Evapotranspiración de los cultivos</h2>
         <p>
-          Estimamos con imágenes satelitales cuánta agua consumen los cultivos
-          (ETR) y cuánta consumirían sin falta de agua (ETmax). Fuente: modelo
-          ET-LAT.
+          Estimamos con imágenes satelitales la evapotranspiración real de los
+          cultivos (ETR) y la evapotranspiración máxima sin falta de agua
+          (ETmax). Fuente: modelo ET-LAT.
         </p>
       </div>
 
