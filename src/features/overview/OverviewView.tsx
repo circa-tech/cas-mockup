@@ -70,12 +70,12 @@ export function OverviewView({
   const etrMiniLabels =
     etrSeries[0]?.points.slice(-12).map((point) => point.label) ?? [];
 
+  const snowMiniLabels = snowSeries[0]?.points.map((point) => point.label) ?? [];
   const snowMiniLines = snowSeries.map((line) => ({
     color: line.color,
     label: line.label,
-    values: line.points.map((point) => point.value),
+    values: snowMiniLabels.map((label) => line.points.find((point) => point.label === label)?.value ?? null),
   }));
-  const snowMiniLabels = snowSeries[0]?.points.map((point) => point.label) ?? [];
 
   const recentWells = [...wells]
     .sort((a, b) => new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime())

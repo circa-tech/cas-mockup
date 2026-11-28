@@ -13,7 +13,7 @@ import {
 export type OverviewMiniSeries = {
   color: string;
   label: string;
-  values: number[];
+  values: Array<number | null>;
 };
 
 type OverviewMiniLineProps = {
@@ -39,11 +39,11 @@ const buildOverviewMiniRows = (
 ) => {
   const pointsLength = Math.max(0, ...lines.map((line) => line.values.length));
   return Array.from({ length: pointsLength }, (_, index) => {
-    const row: Record<string, number | string> = {
+    const row: Record<string, number | string | null> = {
       label: labels?.[index] ?? `P${index + 1}`,
     };
     lines.forEach((line) => {
-      row[line.label] = line.values[index] ?? 0;
+      row[line.label] = line.values[index] ?? null;
     });
     return row;
   });
@@ -116,7 +116,7 @@ export function OverviewMiniLine({
             }}
             cursor={{ stroke: "hsl(215 38% 70%)", strokeDasharray: "3 3" }}
             formatter={(value, name) => [
-              `${Number(value ?? 0).toFixed(2)} ${unit}`,
+              value === null || value === undefined ? "Sin dato" : `${Number(value).toFixed(2)} ${unit}`,
               String(name),
             ]}
             labelFormatter={(label) => String(toOverviewMiniDateLabel(String(label)))}
