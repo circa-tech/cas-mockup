@@ -68,8 +68,7 @@ export function useDashboardData({
     queryKey: queryKeys.snow.coverage(authIdToken),
     queryFn: () => fetchModisSnowCoverageSeries(authIdToken!),
     enabled,
-    staleTime: 5 * 60 * 1000,
-    refetchInterval: 5 * 60 * 1000,
+    staleTime: 30 * 60 * 1000,
   });
   const snowHistoryQuery = useQuery({
     queryKey: ["history", authQueryScope(authIdToken), "modis-snow", "ae", "snow-overview"],
@@ -79,7 +78,6 @@ export function useDashboardData({
     }, authIdToken, signal, "all"),
     enabled,
     staleTime: 5 * 60 * 1000,
-    refetchInterval: 5 * 60 * 1000,
   });
 
   const stationData = enabled ? (meteoQuery.data ?? []) : meteoStationPoints;
