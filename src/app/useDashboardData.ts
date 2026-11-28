@@ -13,6 +13,7 @@ import {
   type WellMapPoint,
 } from "../data/mockupData";
 import { queryKeys } from "../lib/queryKeys";
+import { authQueryScope } from "../lib/queryClient";
 import {
   fetchEtrSerieEt,
   fetchEtrStdAe,
@@ -20,11 +21,13 @@ import {
 } from "../services/etrApi";
 import {
   fetchModisSnowCoverageSeries,
-  toModisSnowLineSeries,
 } from "../services/modisSnowApi";
+import { fetchHistory } from "../services/historyApi";
 import { fetchWeatherStationPoints } from "../services/weatherStationsApi";
 import type { RemoteLoadStatus } from "../types/remote";
 import { toZonedDateTimeIso } from "../utils/date";
+import { HISTORY_START } from "../utils/history";
+import { buildSnowOverview } from "../features/overview/snowOverview";
 import { toRemoteErrorMessage } from "./remoteError";
 
 const toSummaryUpdateIso = (date: string, fallback: string) =>
@@ -66,6 +69,15 @@ export function useDashboardData({
     queryFn: () => fetchModisSnowCoverageSeries(authIdToken!),
     enabled,
     staleTime: 30 * 60 * 1000,
+  });
+  const snowHistoryQuery = useQuery({
+    queryKey: ["history", authQueryScope(authIdToken), "modis-snow", "ae", "snow-overview"],
+    queryFn: ({ signal }) => fetchHistory("modis-snow", {
+      area: "ae", start_date: HISTORY_START, end_date: new Date().toISOString().slice(0, 10),
+      resolution: "native", max_points: 5000,
+    }, authIdToken, signal, "all"),
+    enabled,
+    staleTime: 5 * 60 * 1000,
   });
 
   const stationData = enabled ? (meteoQuery.data ?? []) : meteoStationPoints;
@@ -109,14 +121,16 @@ export function useDashboardData({
     ? toRemoteErrorMessage(etrFailure, "No fue posible cargar ET-LAT.")
     : null;
 
-  const snowOverviewSeriesForSummary: LineSeries[] = useMemo(() => enabled
-    ? snowQuery.data
-      ? toModisSnowLineSeries(snowQuery.data.ae ?? [])
-      : []
-    : snowOverviewSeries, [enabled, snowQuery.data]);
-  const snowErrorMessage = snowQuery.error && !snowQuery.data
+  const snowOverview = useMemo(() => enabled
+    ? buildSnowOverview(snowHistoryQuery.data, snowQuery.data?.ae)
+    : { lastDate: snowLastUpdateIso, series: snowOverviewSeries },
+  [enabled, snowHistoryQuery.data, snowQuery.data]);
+  const snowOverviewSeriesForSummary: LineSeries[] = snowOverview.series;
+  const snowLoading = enabled && !snowOverview.lastDate && (snowQuery.isPending || snowHistoryQuery.isPending);
+  const snowFailure = !snowLoading && !snowOverview.lastDate && (snowHistoryQuery.error || snowQuery.error);
+  const snowErrorMessage = snowFailure
     ? toRemoteErrorMessage(
-        snowQuery.error,
+        snowFailure,
         "No fue posible cargar datos reales de MODIS Snow.",
       )
     : null;
@@ -128,7 +142,6 @@ export function useDashboardData({
   }, [selectedStationId, stations]);
 
   const overviewCards = useMemo(() => {
-    const latestSnowDate = snowOverviewSeriesForSummary[0]?.points.at(-1)?.label;
     return computeOverviewCards({
       etrLastDate: etrOverviewSummary.lastDate,
       etrLastUpdate: enabled
@@ -138,7 +151,7 @@ export function useDashboardData({
       meteoStatus,
       now,
       snowLastUpdate: enabled
-        ? latestSnowDate ? toSummaryUpdateIso(latestSnowDate, "") : ""
+        ? snowOverview.lastDate ? toSummaryUpdateIso(snowOverview.lastDate, "") : ""
         : snowLastUpdateIso,
       snowSeries: snowOverviewSeriesForSummary,
       stations,
@@ -150,13 +163,14 @@ export function useDashboardData({
     meteoStatus,
     now,
     snowOverviewSeriesForSummary,
+    snowOverview.lastDate,
     stations,
     wells,
   ]);
 
   return {
     etrStatus: (enabled && etrSeriesQuery.isPending ? "loading" : etrFailure ? "error" : "ready") as RemoteLoadStatus,
-    snowStatus: (enabled && snowQuery.isPending ? "loading" : snowErrorMessage ? "error" : "ready") as RemoteLoadStatus,
+    snowStatus: (snowLoading ? "loading" : snowErrorMessage ? "error" : "ready") as RemoteLoadStatus,
     etrErrorMessage,
     etrOverviewSeries,
     meteoErrorMessage,

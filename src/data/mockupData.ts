@@ -873,9 +873,8 @@ export const computeOverviewCards = ({
   wells,
 }: ComputeOverviewCardsInput): OverviewCard[] => {
   const snowCurrentPoint = snowSeries[0]?.points[snowSeries[0].points.length - 1];
-  const snowPreviousPoint = snowSeries[1]?.points[snowSeries[1].points.length - 1];
-  const hasSnowData =
-    snowCurrentPoint?.value !== undefined && snowPreviousPoint?.value !== undefined;
+  const snowPreviousPoint = snowSeries[1]?.points.find((point) => point.label === snowCurrentPoint?.label);
+  const hasSnowData = snowCurrentPoint?.value !== undefined;
   const snowCurrent = snowCurrentPoint?.value ?? 0;
   const snowPrevious = snowPreviousPoint?.value ?? 0;
   const snowDelta = snowCurrent - snowPrevious;
@@ -911,9 +910,9 @@ export const computeOverviewCards = ({
       primaryKpi: hasSnowData
         ? `${snowCurrent.toFixed(0)} % del área de la cuenca con nieve`
         : "Sin datos de cobertura de nieve",
-      secondaryKpi: hasSnowData
+      secondaryKpi: hasSnowData && snowPreviousPoint
         ? `Vs año pasado ${snowDelta >= 0 ? "+" : ""}${snowDelta.toFixed(0)} pp`
-        : "Sin datos disponibles",
+        : hasSnowData ? "Sin dato comparable del año pasado" : "Sin datos disponibles",
       status: getFreshnessStatus(snowLastUpdate, now, snowStaleThresholdDays),
       lastUpdate: snowLastUpdate,
     },
